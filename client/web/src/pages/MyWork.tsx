@@ -7,7 +7,7 @@ import { api, type QueueItem } from "../api";
 //
 // It also carries two kinds of row: drafts nobody has submitted, and open steps
 // FlowCore is holding. Only the second exists in the library — a draft is work
-// the console knows about and FlowCore has never heard of.
+// CaseWork knows about and FlowCore has never heard of.
 export function MyWork() {
   const [items, setItems] = useState<QueueItem[] | null>(null);
 

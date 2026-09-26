@@ -12,7 +12,7 @@ Two iterations shipped.
 Configure a workflow, start one, read where it stands, complete a step with a remark, list what is assigned to someone, and reassign an open step.
 AI review steps need no mechanism of their own: an agent is a step whose assignee happens to name one, and the library never learns the difference.
 
-See it running: [the reference client](client/) is a working application built on this library — two workflows with nothing in common, four human groups, four agent steps, and a call log showing which side of the boundary did what.
+See it running: [CaseWork](client/), the reference client, is an insurer's case console built on this library — two workflows with nothing in common, four human groups, four agent steps, and a call log showing which side of the boundary did what.
 
 ## Why this repo is worth a look
 

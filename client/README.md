@@ -1,7 +1,12 @@
-# FlowCore reference client
+# CaseWork — FlowCore's reference client
 
-A working application built on [FlowCore](../README.md) — run it, read it, lift snippets
-from it, or fork it as the starting point for a real one.
+**CaseWork** is an insurer's case console: claims and new policy applications moving through
+configurable workflows, with some steps decided by people and some by an AI agent.
+
+It is also FlowCore's **reference client** — a working application built on
+[the library](../README.md), to run, read, lift snippets from, or fork as the starting point for a
+real one. That is why it lives in `client/`: the directory names the role, and CaseWork is the
+application filling it.
 
 It is not an SDK. FlowCore is a library you import, not a service you call, so there is
 nothing here that wraps it; this is an example of *being* the client.

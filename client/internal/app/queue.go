@@ -16,7 +16,7 @@ import (
 //   - a **draft**, which nobody has submitted yet, and
 //   - an **open step**, which FlowCore is holding for whoever it is assigned to.
 //
-// Only the second exists in the library. A drafted submission is work the console
+// Only the second exists in the library. A drafted submission is work CaseWork
 // knows about and FlowCore has never heard of, which is why the queue is assembled
 // here rather than being a projection of the worklist.
 type QueueItem struct {

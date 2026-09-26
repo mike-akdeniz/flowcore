@@ -13,7 +13,7 @@ type Staff struct {
 	Name      string
 	Title     string
 	// Groups are the references this person also answers to. Expanding a person
-	// into their groups is what the console does before asking FlowCore for a
+	// into their groups is what CaseWork does before asking FlowCore for a
 	// worklist, because the library has no identity model to do it with.
 	Groups []string
 }
@@ -38,7 +38,7 @@ type Submission struct {
 	SubmittedAt *time.Time
 	// FlowcoreDefinitionID is the workflow this was submitted under, frozen at
 	// submission. Nil while a draft. Never rewritten — a run keeps the workflow it
-	// started with, and rewriting this is the one way the console could undermine
+	// started with, and rewriting this is the one way CaseWork could undermine
 	// that.
 	FlowcoreDefinitionID *uuid.UUID
 	// SubjectReference is what FlowCore was given: opaque to the library, and
@@ -82,7 +82,7 @@ type Document struct {
 // RegisteredWorkflow associates a submission type with a FlowCore definition.
 //
 // The library takes a definition id and starts a run. Which definition a claim
-// should use is a question it cannot answer, so the console answers it here.
+// should use is a question it cannot answer, so CaseWork answers it here.
 type RegisteredWorkflow struct {
 	ID                   uuid.UUID
 	SessionID            string

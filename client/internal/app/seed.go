@@ -14,7 +14,7 @@ import (
 //
 // Per-session copies exist because hosting means concurrent visitors: without
 // them, two people signing in as Dana would work the same claim and one would
-// settle it while the other was reading. The console owns tenancy because
+// settle it while the other was reading. CaseWork owns tenancy because
 // FlowCore has none, which is the same arrangement the library's `CLAUDE.md`
 // describes when it names `tenant_id` as structure with no caller.
 //
@@ -132,7 +132,7 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 
 // register records which FlowCore definition serves which kind of submission.
 // FlowCore takes a definition id and starts a run; which definition a claim
-// should use is a question only the console can answer.
+// should use is a question only CaseWork can answer.
 func (a *App) register(
 	ctx context.Context,
 	sessionID string,

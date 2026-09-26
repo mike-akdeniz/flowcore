@@ -62,13 +62,13 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	// The console's own schema, in its own Postgres schema with its own migration
+	// The CaseWork's own schema, in its own Postgres schema with its own migration
 	// history. Two independent sets of tables in one database.
 	if err := store.Migrate(ctx, pool); err != nil {
 		return err
 	}
 
-	logger.Info("schema applied", "schemas", "flowcore, console")
+	logger.Info("schema applied", "schemas", "flowcore, casework")
 
 	application := app.New(config, pool, logger)
 

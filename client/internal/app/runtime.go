@@ -93,7 +93,7 @@ func (a *App) Reassign(ctx context.Context, visitID uuid.UUID, assignee string) 
 // AssignableReferences is every assignee the interface offers for reassignment:
 // each roster member and each group any of them belongs to.
 //
-// It is built from the client's own roster because only the client knows what a
+// It is built from CaseWork's own roster because only CaseWork knows what a
 // person or a group is. FlowCore would accept any string at all.
 func AssignableReferences() []string {
 	seen := make(map[string]bool)

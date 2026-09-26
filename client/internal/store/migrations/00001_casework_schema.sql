@@ -1,11 +1,11 @@
 -- +goose Up
 
--- The console's own schema, separate from the library's.
+-- CaseWork's own schema, separate from the library's.
 --
--- FlowCore owns `flowcore` and ships its own migrations; this owns `console`.
+-- FlowCore owns `flowcore` and ships its own migrations; this owns `casework`.
 -- Two schemas in one database, two migration histories, no overlap — which is
 -- what a library that is not a service looks like from the caller's side.
-create schema console;
+create schema casework;
 
 -- One visitor's slice of the world.
 --
@@ -13,7 +13,7 @@ create schema console;
 -- as the same person would work the same claim. Everything below except staff
 -- carries a session id, and the session's rows are copied from a template on
 -- first arrival.
-create table console.session (
+create table casework.session (
     id           text primary key,
     created_at   timestamptz not null,
     last_seen_at timestamptz not null
@@ -27,7 +27,7 @@ create table console.session (
 --
 -- Named `staff` rather than `user` because `user` is a reserved word in Postgres
 -- and would need quoting at every site.
-create table console.staff (
+create table casework.staff (
     reference  text primary key,
     name       text not null,
     title      text not null,
@@ -41,15 +41,15 @@ create table console.staff (
 --
 -- This table is the whole mechanism behind "specify when a workflow applies".
 -- FlowCore takes a definition id and starts a run; it has no notion of a
--- submission type and will not acquire one. The console stores what a graph is
+-- submission type and will not acquire one. CaseWork stores what a graph is
 -- for.
-create table console.workflow_registry (
+create table casework.workflow_registry (
     id                     uuid primary key,
-    session_id             text not null references console.session (id) on delete cascade,
+    session_id             text not null references casework.session (id) on delete cascade,
     submission_type        text not null,
     name                   text not null,
     -- Recorded, never enforced: a foreign key across schemas into the library's
-    -- tables would couple the console's lifecycle to FlowCore's.
+    -- tables would couple CaseWork's lifecycle to FlowCore's.
     flowcore_definition_id uuid not null,
     active                 boolean not null,
     created_at             timestamptz not null,
@@ -59,14 +59,14 @@ create table console.workflow_registry (
 -- At most one active workflow per {session, submission type}. Retired ones stay,
 -- because runs that started under them are still answerable.
 create unique index ux_registry_active
-    on console.workflow_registry (session_id, submission_type) where active;
+    on casework.workflow_registry (session_id, submission_type) where active;
 
-create index ix_registry_session on console.workflow_registry (session_id);
+create index ix_registry_session on casework.workflow_registry (session_id);
 
 -- What the queue needs, common to both kinds of submission.
-create table console.submission (
+create table casework.submission (
     id                     uuid primary key,
-    session_id             text not null references console.session (id) on delete cascade,
+    session_id             text not null references casework.session (id) on delete cascade,
     type                   text not null,
     reference              text not null,
     -- A draft has no run. Submitting is the only thing that starts one.
@@ -75,7 +75,7 @@ create table console.submission (
     submitted_at           timestamptz,
     -- The workflow it was submitted under, frozen at submission. Activating a
     -- different workflow later must not rewrite this: runs in flight keep what
-    -- they started with, which is FlowCore's guarantee and the console's job not
+    -- they started with, which is FlowCore's guarantee and CaseWork's job not
     -- to undermine.
     flowcore_definition_id uuid,
     -- What FlowCore was given. Stored rather than re-derived so a lookup needs no
@@ -91,11 +91,11 @@ create table console.submission (
     )
 );
 
-create unique index ux_submission_reference on console.submission (session_id, reference);
-create index ix_submission_session on console.submission (session_id, created_at);
+create unique index ux_submission_reference on casework.submission (session_id, reference);
+create index ix_submission_session on casework.submission (session_id, created_at);
 
-create table console.claim_detail (
-    submission_id      uuid primary key references console.submission (id) on delete cascade,
+create table casework.claim_detail (
+    submission_id      uuid primary key references casework.submission (id) on delete cascade,
     policy_number      text not null,
     claimant_name      text not null,
     amount             numeric(12, 2) not null,
@@ -105,8 +105,8 @@ create table console.claim_detail (
     incident_narrative text not null
 );
 
-create table console.application_detail (
-    submission_id uuid primary key references console.submission (id) on delete cascade,
+create table casework.application_detail (
+    submission_id uuid primary key references casework.submission (id) on delete cascade,
     proposer_name text not null,
     cover_type    text not null,
     sum_insured   numeric(12, 2) not null,
@@ -119,9 +119,9 @@ create table console.application_detail (
 -- The documents that matter are prose: a police report and a repair estimate are
 -- what the agents compare against the claimant's account, so the text is the
 -- document. A photograph is a row with a name, a date and no body.
-create table console.document (
+create table casework.document (
     id            uuid primary key,
-    submission_id uuid not null references console.submission (id) on delete cascade,
+    submission_id uuid not null references casework.submission (id) on delete cascade,
     name          text not null,
     kind          text not null,
     received_at   date not null,
@@ -130,8 +130,8 @@ create table console.document (
         kind in ('police_report', 'estimate', 'photograph', 'correspondence'))
 );
 
-create index ix_document_submission on console.document (submission_id);
+create index ix_document_submission on casework.document (submission_id);
 
 -- +goose Down
 
-drop schema console cascade;
+drop schema casework cascade;

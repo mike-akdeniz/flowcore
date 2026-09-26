@@ -1,4 +1,7 @@
-# Reference client — UI rebuild
+# CaseWork — UI rebuild
+
+The reference client's UI layer, rebuilt on React. The application is called **CaseWork**; `client/`
+names its role as the library's client.
 
 ## What this file is
 

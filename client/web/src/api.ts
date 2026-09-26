@@ -1,4 +1,4 @@
-// The console's API client.
+// CaseWork's API client.
 //
 // Every call returns something already composed for a screen — a queue, a case —
 // rather than library resources the browser would have to assemble. That is
@@ -47,4 +47,41 @@ export const api = {
       body: JSON.stringify({ reference }),
     }),
   queue: () => request<QueueItem[]>("/api/queue"),
+  workflows: () => request<WorkflowSummary[]>("/api/workflows"),
+  workflow: (definitionId: string) =>
+    request<Workflow>(`/api/workflows/${definitionId}`),
+};
+
+export type WorkflowSummary = {
+  definitionId: string;
+  name: string;
+  submissionType: "claim" | "application";
+  active: boolean;
+  stepCount: number;
+};
+
+export type WorkflowAction = {
+  id: string;
+  name: string;
+  nextStepId: string | null;
+  terminalStatusId: string | null;
+};
+
+export type WorkflowStep = {
+  id: string;
+  name: string;
+  assignee: string;
+  statusId: string;
+  isAgent: boolean;
+  actions: WorkflowAction[];
+};
+
+export type Workflow = {
+  definitionId: string;
+  name: string;
+  submissionType: "claim" | "application";
+  active: boolean;
+  entryStepId: string;
+  statuses: { id: string; name: string }[];
+  steps: WorkflowStep[];
 };

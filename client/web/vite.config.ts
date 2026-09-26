@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     // The Go binary embeds this directory, so `go run .` serves the built
-    // application and the API from one process. That is what keeps the console
+    // application and the API from one process. That is what keeps CaseWork
     // clonable and runnable in two commands.
     outDir: "dist",
     emptyOutDir: true,

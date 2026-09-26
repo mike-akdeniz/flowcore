@@ -1,4 +1,4 @@
-// Package api is the console's HTTP surface: a JSON API for the React
+// Package api is CaseWork's HTTP surface: a JSON API for the React
 // application, plus the built assets themselves.
 //
 // The endpoints speak claims and applications, not FlowCore. One request per
@@ -22,7 +22,7 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
-const sessionCookie = "console_session"
+const sessionCookie = "casework_session"
 
 type contextKey struct{}
 
@@ -42,6 +42,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/session", s.showSession)
 	mux.HandleFunc("POST /api/session", s.signIn)
 	mux.HandleFunc("GET /api/queue", s.showQueue)
+	mux.HandleFunc("GET /api/workflows", s.listWorkflows)
+	mux.HandleFunc("GET /api/workflows/{id}", s.showWorkflow)
 
 	// Everything else is the single-page application: its own router owns the
 	// paths, so any unmatched GET returns the shell.
@@ -54,7 +56,7 @@ func (s *Server) Routes() http.Handler {
 // first visit.
 //
 // Seeding copies a template dataset into rows tagged with this visitor's session.
-// Hosting means concurrent visitors, and the console owns that isolation because
+// Hosting means concurrent visitors, and CaseWork owns that isolation because
 // FlowCore has no tenant of any kind.
 func (s *Server) withSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +180,7 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "console_identity",
+		Name:     "casework_identity",
 		Value:    member.Reference,
 		Path:     "/",
 		HttpOnly: true,
@@ -189,7 +191,7 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) signedIn(r *http.Request) (store.Staff, bool) {
-	cookie, err := r.Cookie("console_identity")
+	cookie, err := r.Cookie("casework_identity")
 	if err != nil {
 		return store.Staff{}, false
 	}

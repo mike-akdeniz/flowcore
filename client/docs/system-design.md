@@ -1,15 +1,35 @@
 # Overview
 
-The design for FlowCore's reference client: an internal case console for an insurer, built on the library.
+The design for FlowCore's reference client: CaseWork, an insurer's internal case console, built on the library.
 
-This is the authoritative design document for the client — boundary, actors, flows, state, screens, responsibilities, and invariants.
+This is the authoritative design document for CaseWork — boundary, actors, flows, state, screens, responsibilities, and invariants.
 It changes as decisions land.
 
 The rationale behind individual decisions, and the alternatives they beat, lives in `client/docs/decisions.md`.
-This document records what the client is; the decision log records why.
+This document records what CaseWork is; the decision log records why.
 
 The library has its own pair of documents at `docs/system-design.md` and `docs/decisions.md`.
 Nothing here overrides them, and no decision recorded here changes the library.
+
+## Three names, three things
+
+The vocabulary is fixed, because two of these words are easy to blur.
+
+**Library** is FlowCore. Concrete.
+
+**Client** is the *role*: whatever consumes the library. It is the word the library's own documents
+use, and it is what sentences about the boundary are about — "the client half of the boundary", "the
+engine knows where the work is, the client knows what the work is about", "authorization is the
+client's job and nothing below enforces it". Any application could fill that role.
+
+**CaseWork** is this application: an insurer's case console for claims and new policy applications.
+It is the thing currently filling the client role, and it is what sentences about tables, screens,
+tenancy and seeding are about. Its Postgres schema is `casework`.
+
+So the module is `client/` because that names the role and explains why the directory exists in a
+library's repository, and the application inside it is CaseWork. A sentence needs the role word or
+the product word, never both, and swapping them is always wrong: "the CaseWork half of the boundary"
+and "the client's own submissions" are each a category error.
 
 # Boundary
 
@@ -19,7 +39,7 @@ An **internal case console for an insurer**: the screens its own staff use to pr
 It handles two kinds of submission — **claims** and **new policy applications** — each moving through a configurable workflow, with some steps decided by people and some by an AI agent.
 
 It is a real application, not a harness.
-The previous client existed to make the library's boundary legible, and carried explanatory prose and a call log on every screen; that goal is gone, along with those.
+The previous version existed to make the library's boundary legible, and carried explanatory prose and a call log on every screen; that goal is gone, along with those.
 A working application argues for the library by working.
 
 **Three goals, in the owner's order.**
@@ -108,7 +128,7 @@ Cases already running keep the workflow they started under, which is FlowCore's 
 _What the client must remember._
 
 FlowCore stores the workflow graph and the record of work performed.
-Everything below is the client's own, in the client's own tables, because the library holds no subjects.
+Everything below is CaseWork's own, in CaseWork's own tables, because the library holds no subjects.
 
 _Submission_ — what the queue needs, common to both types
 
@@ -163,19 +183,19 @@ _Workflow registry_ — which workflow is active for which type
 
 This table is the entire mechanism behind "specify when a workflow applies".
 FlowCore takes a definition id and starts a run; it has no notion of a claim type, and will not acquire one.
-The client stores what a graph is _for_.
+CaseWork stores what a graph is _for_.
 
 _Session scoping_
 
 Every row above except `user` carries a session id.
 
 Hosting means concurrent visitors, and without isolation two people signing in as Dana would work the same claim.
-On first arrival the client copies a template dataset into rows tagged with that visitor's session: the two workflows through `Catalog.Create`, the two drafted submissions, and their documents.
+On first arrival CaseWork copies a template dataset into rows tagged with that visitor's session: the two workflows through `Catalog.Create`, the two drafted submissions, and their documents.
 
 The cast is shared and read-only.
 What belongs to a visitor is the work, not the people.
 
-This is the same principle the previous client used — the client owns tenancy because FlowCore has none — expressed in rows rather than in memory.
+This is the same principle the previous version used — the client owns tenancy because FlowCore has none — expressed in rows rather than in memory.
 
 # Screens
 
@@ -230,7 +250,7 @@ It interprets nothing it is given.
       v
   internal/app  — identity, subjects, workflow selection,
       |           agent dispatch, error translation, session scoping
-      +--> client tables      submissions, details, documents, workflow registry
+      +--> casework tables   submissions, details, documents, workflow registry
       |
       +--> FlowCore           Catalog (configure) · Engine (start, complete,
                               worklist, reassign)
@@ -246,14 +266,14 @@ Nothing in FlowCore talks to a model.
 _Rules that must not break._
 
 - **A submission belongs to exactly one session**, and no query returns another session's rows.
-  Tenancy is the client's, enforced in the client, because the library has no tenant column.
+  Tenancy is the client's, enforced in CaseWork, because the library has no tenant column.
 - **A submitted submission has exactly one FlowCore run**, and a draft has none.
   Submitting is the only thing that starts one.
 - **A run keeps the workflow it started under.**
   Activating a different workflow changes what future submissions use and reaches nothing already running.
-  This is FlowCore's guarantee, not the client's, and the client must not undermine it by rewriting `flowcore_definition_id` on an existing submission.
+  This is FlowCore's guarantee, not the client's, and CaseWork must not undermine it by rewriting `flowcore_definition_id` on an existing submission.
 - **The browser never decides routing.**
   Which actions exist, and where each leads, come from the library through the API.
 - **An agent step is an ordinary step.**
-  Nothing in the schema, the API, or the library marks one as special; only the client's `agent:` prefix convention decides that its worker picks it up.
+  Nothing in the schema, the API, or the library marks one as special; only CaseWork's `agent:` prefix convention decides that its worker picks it up.
 - **A remark is written with the decision it explains**, in one call, so a failure cannot separate them.

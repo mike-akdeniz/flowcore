@@ -9,7 +9,7 @@ import (
 
 // The built front end, compiled into the binary.
 //
-// This is what keeps the console runnable in two commands: `docker compose up`
+// This is what keeps CaseWork runnable in two commands: `docker compose up`
 // and `go run .` serve the API and the application from one process, with no
 // separate web server and nothing to deploy alongside. Vite writes web/dist;
 // `make build` runs it before the Go build.

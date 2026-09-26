@@ -32,10 +32,10 @@ export function SignIn({
     <Center mih="100vh" p="md">
       <Stack maw={520} w="100%" gap="lg">
         <Stack gap={4}>
-          <Title order={2}>Claims console</Title>
+          <Title order={2}>CaseWork</Title>
           <Text c="dimmed" size="sm">
-            An insurer's internal console for assessing claims and underwriting new
-            policies, built on{" "}
+            An insurer's case console — assessing claims and underwriting new policies,
+            built on{" "}
             <Anchor
               href="https://github.com/mike-akdeniz/flowcore"
               target="_blank"

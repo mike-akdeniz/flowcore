@@ -10,7 +10,7 @@ import (
 // Every step in the claim workflow demonstrates something structural that no
 // other step does — that was the test the owner set, and decision 17 records the
 // two steps it removed. Assignee strings are opaque to FlowCore: `agent:triage`
-// and `group:adjusters` are meaningful only to this console, which is what makes
+// and `group:adjusters` are meaningful only to CaseWork, which is what makes
 // an agent an ordinary actor rather than a special case.
 
 func claimAssessmentDefinition() flowcore.WorkflowDefinition {
@@ -157,7 +157,7 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 	}
 }
 
-// seededDefinitions is every workflow the console seeds, used where it needs to
+// seededDefinitions is every workflow CaseWork seeds, used where it needs to
 // know the assignees it will meet — which agents to dispatch, and which
 // references to offer.
 func seededDefinitions() []flowcore.WorkflowDefinition {

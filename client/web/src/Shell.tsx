@@ -16,8 +16,14 @@ import { api, type Session } from "./api";
 const nav = [
   { to: "/", label: "My work", ready: true },
   { to: "/cases", label: "Cases", ready: false },
-  { to: "/workflows", label: "Workflows", ready: false },
+  { to: "/workflows", label: "Workflows", ready: true },
 ];
+
+// A nav item is current when the path is it, or sits beneath it — so the
+// workflow detail screen keeps "Workflows" highlighted.
+function isCurrent(path: string, to: string) {
+  return to === "/" ? path === "/" : path === to || path.startsWith(to + "/");
+}
 
 export function Shell({
   session,
@@ -46,7 +52,7 @@ export function Shell({
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Title order={5}>Claims console</Title>
+            <Title order={5}>CaseWork</Title>
           </Group>
 
           <Group gap="sm">
@@ -95,7 +101,7 @@ export function Shell({
               key={item.to}
               component={NavLink}
               to={item.to}
-              variant={location.pathname === item.to ? "light" : "subtle"}
+              variant={isCurrent(location.pathname, item.to) ? "light" : "subtle"}
               justify="flex-start"
               fullWidth
               mb={4}

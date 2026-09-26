@@ -25,7 +25,7 @@ func (s *Store) SeedStaff(ctx context.Context) error {
 
 	for order, member := range cast {
 		_, err := s.pool.Exec(ctx,
-			`insert into console.staff (reference, name, title, groups, sort_order)
+			`insert into casework.staff (reference, name, title, groups, sort_order)
 			 values ($1, $2, $3, $4, $5)
 			 on conflict (reference) do update
 			 set name = excluded.name, title = excluded.title,

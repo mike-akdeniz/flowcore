@@ -22,7 +22,7 @@ type App struct {
 	Config  Config
 	Catalog *flowcore.Catalog
 	Engine  *flowcore.Engine
-	// Store is the console's own data — submissions, documents, the roster, and
+	// Store is CaseWork's own data — submissions, documents, the roster, and
 	// which workflow serves which kind of submission. None of it is the library's.
 	Store *store.Store
 	// Dispatcher runs agent steps off the web request. Set by New.
@@ -111,7 +111,7 @@ func (a *App) StartJanitor(ctx context.Context, logger *slog.Logger) {
 // instance-side and go with them.
 func (a *App) sweep(ctx context.Context, logger *slog.Logger) {
 	// Read the registry before the session row goes: deleting it cascades through
-	// the console's tables, and the definition ids would go with them.
+	// CaseWork's tables, and the definition ids would go with them.
 	expiring, err := a.expiringDefinitions(ctx)
 	if err != nil {
 		logger.Warn("sweep", "err", err)

@@ -1,4 +1,4 @@
-// Package store is the console's own data: submissions, their details, documents,
+// Package store is CaseWork's own data: submissions, their details, documents,
 // the staff roster, and which workflow is active for which kind of submission.
 //
 // None of it is FlowCore's. The library holds the workflow graph and the record
@@ -20,14 +20,14 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// migrationTableName keeps the console's migration history out of FlowCore's.
+// migrationTableName keeps CaseWork's migration history out of FlowCore's.
 //
 // The library records its own in `public.flowcore_goose_db_version` for exactly
 // this reason. Two independent schemas in one database means two independent
 // histories; sharing a version table would have each rolling back the other.
-const migrationTableName = "public.console_goose_db_version"
+const migrationTableName = "public.casework_goose_db_version"
 
-// Migrate applies the console's schema. The library's Migrate applies its own,
+// Migrate applies CaseWork's schema. The library's Migrate applies its own,
 // and the two do not know about each other.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	// goose walks the root of the filesystem it is given, so the embedded tree is
@@ -43,11 +43,11 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	provider, err := goose.NewProvider(goose.DialectPostgres, database, files,
 		goose.WithTableName(migrationTableName))
 	if err != nil {
-		return fmt.Errorf("console migrate: %w", err)
+		return fmt.Errorf("casework migrate: %w", err)
 	}
 
 	if _, err := provider.Up(ctx); err != nil {
-		return fmt.Errorf("console migrate: %w", err)
+		return fmt.Errorf("casework migrate: %w", err)
 	}
 
 	return nil

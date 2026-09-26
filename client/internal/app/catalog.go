@@ -54,7 +54,7 @@ func (a *App) Definitions(ctx context.Context, sessionID string) ([]flowcore.Wor
 
 // owns reports whether this session registered that definition.
 //
-// Authorization is the console's job and nothing below enforces it: FlowCore will
+// Authorization is CaseWork's job and nothing below enforces it: FlowCore will
 // happily return any definition whose id you name, because it has no tenant, no
 // owner and no session. Every method here resolves ownership through the registry
 // before touching the library.

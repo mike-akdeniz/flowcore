@@ -10,10 +10,10 @@ import (
 
 // SubjectText renders a submission as the prose an agent step reads.
 //
-// This is the console's whole contribution to an AI step. FlowCore holds an
+// This is CaseWork's whole contribution to an AI step. FlowCore holds an
 // opaque reference — "s7f3a2:claim:C-1042" — and nothing else, so the material a
 // model needs in order to judge anything has to be assembled here, from the
-// console's own tables.
+// CaseWork's own tables.
 //
 // It is also why the library cannot call a model itself, and not merely why it
 // chooses not to: it does not have this text and could not obtain it without
@@ -85,7 +85,7 @@ func (a *App) applicationText(ctx context.Context, submission store.Submission) 
 		detail.SumInsured, detail.Disclosures), nil
 }
 
-// referenceOf strips the kind, leaving the console's own reference:
+// referenceOf strips the kind, leaving CaseWork's own reference:
 // "claim:C-1042" becomes "C-1042".
 func referenceOf(reference string) string {
 	_, rest, found := strings.Cut(reference, ":")

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Config is the client's whole configuration surface.
+// Config is CaseWork's whole configuration surface.
 type Config struct {
 	DatabaseURL string
 	Addr        string

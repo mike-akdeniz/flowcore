@@ -164,8 +164,8 @@ func (d *Dispatcher) sweepOnce(ctx context.Context) {
 
 	for _, step := range assigned {
 		// Ownership is not re-checked here: the worklist was queried with this
-		// console's own agent references, so anything it returns is ours by
-		// construction. The session comes from the subject reference the console
+		// CaseWork's own agent references, so anything it returns is ours by
+		// construction. The session comes from the subject reference CaseWork
 		// wrote.
 		d.enqueue(workItem{
 			SessionID:        sessionOf(step.SubjectReference),
@@ -205,7 +205,7 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	}
 
 	// Both halves are needed, and only one comes from the library: FlowCore knows
-	// where the work is, the console knows what the work is about.
+	// where the work is, CaseWork knows what the work is about.
 	reference := subjectOf(item.SubjectReference)
 
 	subjectText, err := d.app.SubjectText(ctx, item.SessionID, reference)

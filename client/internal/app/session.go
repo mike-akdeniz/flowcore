@@ -8,7 +8,7 @@ import (
 
 // NewSessionID mints an identifier for a visitor's own copy of the data.
 //
-// Sessions themselves live in the console's database now, not in memory, because
+// Sessions themselves live in CaseWork's database now, not in memory, because
 // the data they scope does. This is the only part of the old in-memory session
 // store that survived the move.
 func NewSessionID() string {

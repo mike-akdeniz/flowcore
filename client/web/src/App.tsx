@@ -4,6 +4,8 @@ import { Center, Loader } from "@mantine/core";
 import { api, type Session } from "./api";
 import { SignIn } from "./pages/SignIn";
 import { MyWork } from "./pages/MyWork";
+import { Workflows } from "./pages/Workflows";
+import { WorkflowView } from "./pages/WorkflowView";
 import { Shell } from "./Shell";
 
 export function App() {
@@ -35,6 +37,8 @@ export function App() {
           structural beats remembering to add a dependency to each new page. */}
       <Routes key={session.signedInAs.reference}>
         <Route path="/" element={<MyWork />} />
+        <Route path="/workflows" element={<Workflows />} />
+        <Route path="/workflows/:id" element={<WorkflowView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>
