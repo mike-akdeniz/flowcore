@@ -18,7 +18,7 @@ MIGRATIONS  := migrations
 #   make test TESTFLAGS=-count=1
 TESTFLAGS ?=
 
-.PHONY: test migrate-test migrate-test-down create-test-db up
+.PHONY: test migrate-test migrate-test-down reset-test-db create-test-db up
 
 # Run the suite: apply migrations, then test against the migrated schema.
 #
@@ -35,6 +35,21 @@ migrate-test:
 # Roll back the last migration on the test database.
 migrate-test-down:
 	goose -dir $(MIGRATIONS) -table $(GOOSE_TABLE) postgres "$(FLOWCORE_TEST_DSN)" down
+
+# Throw away the test schema and goose's record of it, so the next `make test`
+# migrates from nothing.
+#
+# Both halves are necessary. goose keeps its history in a table outside the schema
+# it manages, so dropping `flowcore` alone leaves flowcore_goose_db_version saying
+# every migration is applied — the next run then migrates nothing, reports
+# success, and fails on the first query against a table that no longer exists.
+#
+# This is the blunt instrument. `migrate-test-down` is the surgical one: it rolls
+# back a single migration and keeps goose's history straight by itself.
+reset-test-db: up
+	docker exec flowcore-postgres psql -U flowcore -d flowcore_test \
+		-c "drop schema if exists flowcore cascade" \
+		-c "drop table if exists public.flowcore_goose_db_version"
 
 # Start the local docker-compose Postgres and wait until it accepts connections.
 # --wait needs the healthcheck in docker-compose.yml; without one it would return
