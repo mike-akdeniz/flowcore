@@ -24,7 +24,7 @@ These are named in a scope section of `system-design.md`, so they are deferred o
 
 ## Deferred inside a decision, easy to lose
 
-Each of these is a sentence in the middle of an entry about something else.
+Each of these is deferred on the record, but somewhere a reader would have to already know to look — a sentence inside an entry about something else, or an entry whose own subject is the deferral.
 
 - **A version column for lost updates.**
   Decision 22 is blunt that no params shape fixes a lost update — "only a version column does, and that stays deferred".
@@ -32,6 +32,10 @@ Each of these is a sentence in the middle of an entry about something else.
 - **`last_visit_id` on the workflow.**
   Decision 25 measured bulk history at 157 ms / 353k buffers for the final step of 90k completed runs, and declined to fix it: it is a reporting query, and "where did this run end up" is better answered by the stamped terminal status.
   Recorded as a known cost rather than a bug.
+- **`step_definition_id` on a running step.**
+  Decision 45: the column exists on `flowcore.step` and no returned struct exposes it, so a client cannot join a live step back to the definition step it was copied from.
+  Deferred because nothing reads it yet; the reference client keys by step name in the meantime.
+  What forces it is a step rename in the client's workflow editor, which would orphan name-keyed metadata without anything failing.
 - **Soft delete on the definition side.**
   Decision 24 calls it "available and unbuilt" — the provenance columns it would need already exist, so adopting it later costs nothing extra.
 - **Display-label resolution for a deleted definition row.**
@@ -52,6 +56,7 @@ These have no entry anywhere else, which is the main reason to record them here.
 - **`subject_version_token` is recorded and never compared.**
   The library stamps which revision a decision was made against and leaves the comparison entirely to the client, by design.
   Whether the library should ever offer to make that check — and what it would mean for the opaque-reference principle if it did — has never been discussed.
+  The reference client started setting the field in its client decision 20, so there is now a real caller to reason from rather than a hypothetical one.
 
 ## Not open, despite looking like it
 

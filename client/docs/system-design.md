@@ -140,6 +140,7 @@ _Submission_ — what the queue needs, common to both types
 - created_at, submitted_at
 - flowcore_definition_id // the workflow it was submitted under, nullable while a draft
 - subject_reference // what FlowCore was given, derived and stored so lookups need no re-derivation
+- revision // bumped whenever a document is added or a detail edited; what FlowCore records as the subject version token
 
 _Claim detail_ — everything the claim screens show
 
@@ -162,9 +163,22 @@ _Document_
 - name, kind // police_report | estimate | photograph | correspondence
 - received_at
 - body // text, nullable — a photograph is a row with no body
+- added_at_revision // the submission revision this document arrived at
 
 Documents carry text rather than files.
 The two claim AI steps read them, so the text is the point; a binary would add upload, storage and a media story for nothing.
+
+Documents are superseded, never replaced.
+A second estimate does not overwrite the first: both rows stay, and the **current** document of a kind is the newest one of that kind.
+Older ones are listed and readable, labelled superseded — a derived fact, since a document is superseded exactly when a newer one of its kind exists, so there is no flag to keep in sync.
+
+This is what makes the `awaiting documents` loop answerable afterwards.
+A run that reaches a step twice has two visits, each stamping the revision it decided against, so "what did that visit read" resolves to the current document of each kind _as of_ that revision.
+The first visit's remark keeps pointing at the estimate it was actually about, which it would not if the upload had overwritten it.
+
+Documents do not reference a visit.
+A document is a fact about the case, not about the workflow, and a draft has documents and no run at all — so the reference would have to be nullable, and every reader would need two paths.
+The version token already carries the join.
 
 _User_ — the seeded cast, shared and read-only
 
@@ -277,3 +291,9 @@ _Rules that must not break._
 - **An agent step is an ordinary step.**
   Nothing in the schema, the API, or the library marks one as special; only CaseWork's `agent:` prefix convention decides that its worker picks it up.
 - **A remark is written with the decision it explains**, in one call, so a failure cannot separate them.
+- **A document is never overwritten or deleted.**
+  A newer document of the same kind supersedes an older one; both rows survive, and the superseded one stays visible on the case.
+  A decision's remark would otherwise outlive the document it was about.
+- **Every completion records the revision it was decided against.**
+  CaseWork bumps `submission.revision` on any change an agent could read, and passes it as FlowCore's subject version token.
+  The library records it and never compares it — noticing that a subject moved on is CaseWork's job, and it is the only thing that makes a second visit to a step distinguishable from the first.

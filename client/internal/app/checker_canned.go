@@ -3,110 +3,110 @@ package app
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/mike-akdeniz/flowcore"
+
+	"github.com/mike-akdeniz/flowcore/client/internal/samples"
 )
 
-// CannedChecker answers from a script rather than a model.
+// SimulatedChecker stands in for a model when no API key is configured.
 //
-// It exists so that someone who clones this repository and runs it with nothing
-// configured sees the whole application work in thirty seconds.
+// It does not pretend to assess anything. The sample documents carry their
+// intended outcome in their file names, so a step reading them can be simulated
+// deterministically; anything else is decided by choosing an action at random.
 //
-// A limitation worth knowing: a verdict is keyed by agent and subject, so it never
-// changes. A run that loops back to an agent gets the same answer, which is fine
-// for a demonstration and would be wrong for anything else. With a key set, the
-// model sees the subject as it stands and can say something different the second
-// time. Every other part
-// of the path is real: the queue, the worker, the CompleteStep call, the remark
-// on the visit. Only the judgment is pre-written.
-//
-// The findings below are authored against the seeded releases, so they will drift
-// if the seed data changes without them. That is the standing cost of this
-// approach, and it is accepted because the alternative — requiring an API key to
-// see anything at all — is worse.
-type CannedChecker struct{}
+// Both cases say so, in the remark, in the permanent record. That is the whole
+// design principle here: **no hidden heuristics — make the mode visible rather
+// than making the fallback clever.** A visitor who sees "incomplete" should never
+// have to wonder where it came from.
+type SimulatedChecker struct{}
 
-func (CannedChecker) Mode() string { return "canned" }
+func (SimulatedChecker) Mode() string { return "simulated (no API key)" }
 
-// cannedVerdict is a scripted answer: an action name and the finding that led to
-// it, keyed by which agent is asking about which release.
-type cannedVerdict struct {
-	action string
-	remark string
+const noKeyAdvice = "Set ANTHROPIC_API_KEY and restart for a real assessment."
+
+func (c SimulatedChecker) Check(_ context.Context, request CheckRequest) (Verdict, error) {
+	if len(request.Actions) == 0 {
+		return Verdict{}, fmt.Errorf("step %q offers no actions", request.StepName)
+	}
+
+	// A document whose name carries an outcome is a sample, put there to drive a
+	// particular path. Honour it.
+	//
+	// These are the *current* documents only, newest of each kind, because that is
+	// what a model would be given. Where several of them could decide this step,
+	// the earliest to arrive wins — an arbitrary rule, so the remark names the
+	// file it read rather than leaving anyone to work it out.
+	for _, fileName := range request.SourceFiles {
+		outcome := outcomeOf(fileName)
+		if outcome == samples.OutcomeNone {
+			continue
+		}
+
+		if actionID, name, ok := matchOutcome(request.Actions, outcome); ok {
+			return Verdict{
+				ActionID: actionID,
+				Remark: fmt.Sprintf(
+					"Simulated: chose %q from the file name %q. No model was consulted and "+
+						"nothing was read. %s", name, fileName, noKeyAdvice),
+			}, nil
+		}
+	}
+
+	// Nothing to go on. Say so plainly rather than inventing a rule that looks
+	// like judgment.
+	chosen := request.Actions[rand.Intn(len(request.Actions))]
+
+	return Verdict{
+		ActionID: chosen.ID,
+		Remark: fmt.Sprintf(
+			"Simulated at random: chose %q from %d possible actions. Nothing here was "+
+				"assessed — the documents on file carry no outcome in their names, so there "+
+				"was nothing for the simulation to read. %s",
+			chosen.Name, len(request.Actions), noKeyAdvice),
+	}, nil
 }
 
-var cannedVerdicts = map[string]map[string]cannedVerdict{
-	"agent:diff-risk@v1": {
-		"release:v2.4.0": {
-			action: "low risk",
-			remark: "No finding. 512 insertions across 14 files, all additive: a new " +
-				"middleware package and its tests. No change to authentication, session " +
-				"handling, or data migration paths.",
-		},
-		"release:v2.5.0-rc1": {
-			action: "high risk",
-			remark: "2 findings. Replaces the session store, which is an authentication " +
-				"path, and the change is not additive — existing sessions are invalidated " +
-				"on deploy. Routing to security review.",
-		},
-	},
-	"agent:changelog@v1": {
-		"release:v2.4.0": {
-			action: "accurate",
-			remark: "The changelog describes per-key rate limiting and claims no breaking " +
-				"changes. Both hold: the diff adds middleware and touches no existing " +
-				"handler signature.",
-		},
-		"release:v2.5.0-rc1": {
-			action: "mismatch",
-			remark: "1 finding. The changelog says \"internal refactor only\", but the diff " +
-				"invalidates existing sessions on deploy, which users will experience as " +
-				"being logged out. That belongs in the changelog.",
-		},
-	},
-	"agent:intake@v1": {
-		"claim:C-1042": {
-			action: "complete",
-			remark: "All three supporting documents are on file: repair estimate, " +
-				"photographs, and the exchange of details. Nothing outstanding.",
-		},
-		"claim:C-1043": {
-			action: "complete",
-			remark: "Estimate, photographs and the police reference are all on file. " +
-				"Nothing outstanding on the paperwork.",
-		},
-	},
-	"agent:fraud@v1": {
-		"claim:C-1042": {
-			action: "consistent",
-			remark: "The account and the report agree. Claimant says 08:15 at Mill Road, " +
-				"rear-ended while stationary; police attended Mill Road at 08:31 for a " +
-				"rear-end collision with the second driver accepting responsibility.",
-		},
-		"claim:C-1043": {
-			action: "inconsistent",
-			remark: "2 findings. The claimant says the car was parked overnight and " +
-				"unattended; the police report records it as damaged while being driven " +
-				"on the evening of the 14th. The report was also filed two days after " +
-				"the claimant says they discovered the damage and reported it straight " +
-				"away. Referring to the fraud unit.",
-		},
-	},
+// outcomeOf reads the convention out of a file name, and returns OutcomeNone for
+// anything a visitor uploaded themselves.
+func outcomeOf(fileName string) samples.Outcome {
+	stem := strings.TrimSuffix(strings.ToLower(fileName), ".txt")
+
+	for _, outcome := range samples.Outcomes {
+		if strings.HasSuffix(stem, "-"+string(outcome)) {
+			return outcome
+		}
+	}
+
+	return samples.OutcomeNone
 }
 
-func (c CannedChecker) Check(_ context.Context, request CheckRequest) (Verdict, error) {
-	bySubject, ok := cannedVerdicts[request.Agent]
-	if !ok {
-		return Verdict{}, fmt.Errorf("no canned verdicts for %s", request.Agent)
+// matchOutcome finds the action a given outcome argues for.
+//
+// The mapping is by name, because an action's name is the only thing a workflow
+// definition and a sample document have in common — and a visitor who builds
+// their own workflow with an action called "complete" gets the same behaviour
+// without anyone wiring it up.
+func matchOutcome(actions []flowcore.Action, outcome samples.Outcome) (uuid.UUID, string, bool) {
+	wanted := map[samples.Outcome][]string{
+		samples.OutcomeComplete:    {"complete", "accurate", "clear", "pass"},
+		samples.OutcomeIncomplete:  {"incomplete", "missing documents", "fail"},
+		samples.OutcomeConsistent:  {"consistent", "cleared"},
+		samples.OutcomeContradicts: {"inconsistent", "contradicts", "confirmed"},
+		samples.OutcomeSimple:      {"fast track", "fast-track", "standard"},
+		samples.OutcomeComplex:     {"full assessment", "refer", "escalate"},
+	}[outcome]
+
+	for _, action := range actions {
+		for _, name := range wanted {
+			if strings.EqualFold(action.Name, name) {
+				return action.ID, action.Name, true
+			}
+		}
 	}
 
-	scripted, ok := bySubject[request.Reference]
-	if !ok {
-		return Verdict{}, fmt.Errorf("no canned verdict for %s on %s", request.Agent, request.Reference)
-	}
-
-	actionID, err := actionNamed(request.Actions, scripted.action)
-	if err != nil {
-		return Verdict{}, err
-	}
-
-	return Verdict{ActionID: actionID, Remark: scripted.remark}, nil
+	return uuid.Nil, "", false
 }

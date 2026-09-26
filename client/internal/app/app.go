@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mike-akdeniz/flowcore"
+	"github.com/mike-akdeniz/flowcore/client/internal/samples"
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
@@ -25,35 +26,40 @@ type App struct {
 	// Store is CaseWork's own data — submissions, documents, the roster, and
 	// which workflow serves which kind of submission. None of it is the library's.
 	Store *store.Store
+	// Samples are the example documents a visitor can add to a case, and what the
+	// seed is built from, so the two cannot drift.
+	Samples *samples.Library
 	// Dispatcher runs agent steps off the web request. Set by New.
 	Dispatcher *Dispatcher
 }
 
-func New(config Config, pool *pgxpool.Pool, logger *slog.Logger) *App {
+func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *slog.Logger) *App {
 	application := &App{
 		Config:  config,
 		Catalog: flowcore.NewCatalog(pool),
 		Engine:  flowcore.NewEngine(pool),
 		Store:   store.New(pool),
+		Samples: library,
 	}
 	application.Dispatcher = NewDispatcher(application, chooseChecker(logger), logger)
 
 	return application
 }
 
-// chooseChecker decides whether agent steps consult a model or a script.
+// chooseChecker decides whether agent steps consult a model or are simulated.
 //
-// Detect and switch, per decision 5: with a key the findings are real, without
-// one they are pre-written against the seeded releases. Everything else on the
-// path — the queue, the worker, the CompleteStep call, the remark on the visit —
-// is identical, so someone who clones this with nothing configured still sees the
-// whole application work.
+// Detect and switch, per decision 5: with a key the findings are real, without one
+// they are simulated and say so. Everything else on the path — the queue, the
+// worker, the CompleteStep call, the remark on the visit — is identical, so
+// someone who clones this with nothing configured still sees the whole
+// application work.
 func chooseChecker(logger *slog.Logger) Checker {
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		logger.Info("agent steps use canned findings",
-			"reason", "ANTHROPIC_API_KEY is not set")
+		logger.Info("agent steps are simulated",
+			"reason", "ANTHROPIC_API_KEY is not set",
+			"how", "sample documents by file name, anything else at random")
 
-		return CannedChecker{}
+		return SimulatedChecker{}
 	}
 
 	checker := NewClaudeChecker()

@@ -45,6 +45,11 @@ type Submission struct {
 	// prefixed with the session so two visitors working the same seeded claim have
 	// two separate runs.
 	SubjectReference *string
+	// Revision is bumped whenever a document is added or a detail edited, and is
+	// what CaseWork passes FlowCore as the subject version token. The library
+	// records it and never compares it — noticing that a subject moved on is this
+	// layer's job.
+	Revision int
 }
 
 func (s Submission) IsDraft() bool { return s.Status == "draft" }
@@ -70,6 +75,9 @@ type ApplicationDetail struct {
 
 // Document is a record carrying text, not a file. The documents that matter are
 // prose, and the text is what the agents read.
+//
+// Rows are never updated or deleted. A newer document of the same kind supersedes
+// an older one; both survive, and which is in force is derived — see Current.
 type Document struct {
 	ID           uuid.UUID
 	SubmissionID uuid.UUID
@@ -77,6 +85,43 @@ type Document struct {
 	Kind         string
 	ReceivedAt   time.Time
 	Body         *string
+	// SourceFile is the sample or uploaded file this came from. It is what a
+	// simulated agent step reads when no model is configured.
+	SourceFile *string
+	// AddedAtRevision is the submission revision this document arrived at.
+	AddedAtRevision int
+}
+
+// Current returns the document of each kind in force at a revision: the newest
+// one of that kind to have arrived at or before it.
+//
+// Currency is per kind, not per case. That is the whole rule, and it is why a
+// step reading several kinds at once — `documentation check` wants an estimate
+// and a police report — needs no tie-break: two documents only compete when they
+// are the same kind.
+//
+// Pass the submission's own revision for what an agent should read now, or the
+// revision a visit stamped for what that visit read then. The second is what
+// keeps a completed decision legible after the file has moved on.
+//
+// documents must be ordered by AddedAtRevision, which is how Store.Documents
+// returns them.
+func Current(documents []Document, asOfRevision int) []Document {
+	newest := make(map[string]Document, len(documents))
+	for _, document := range documents {
+		if document.AddedAtRevision <= asOfRevision {
+			newest[document.Kind] = document
+		}
+	}
+
+	current := make([]Document, 0, len(newest))
+	for _, document := range documents {
+		if newest[document.Kind].ID == document.ID {
+			current = append(current, document)
+		}
+	}
+
+	return current
 }
 
 // RegisteredWorkflow associates a submission type with a FlowCore definition.

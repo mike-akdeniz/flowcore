@@ -8,6 +8,21 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
+// SubjectView is what an agent step reads, and the revision it was read at.
+//
+// The revision travels with the text because the two are one fact. FlowCore
+// stamps it on the completion as the subject version token, so a decision and
+// the state of the file it was made against are recorded together — which is the
+// only thing that tells a second visit to a step apart from the first.
+type SubjectView struct {
+	Text string
+	// SourceFiles are the files the current documents came from, for the
+	// simulated checker. Superseded documents are not here: it reads what the
+	// file says now, exactly as a model would.
+	SourceFiles []string
+	Revision    int
+}
+
 // SubjectText renders a submission as the prose an agent step reads.
 //
 // This is CaseWork's whole contribution to an AI step. FlowCore holds an
@@ -18,36 +33,52 @@ import (
 // It is also why the library cannot call a model itself, and not merely why it
 // chooses not to: it does not have this text and could not obtain it without
 // either storing subjects or calling back into its caller.
-func (a *App) SubjectText(ctx context.Context, sessionID, reference string) (string, error) {
+func (a *App) SubjectText(ctx context.Context, sessionID, reference string) (SubjectView, error) {
 	kind, _, found := strings.Cut(reference, ":")
 	if !found {
-		return "", fmt.Errorf("malformed subject reference %q", reference)
+		return SubjectView{}, fmt.Errorf("malformed subject reference %q", reference)
 	}
 
 	submission, err := a.Store.SubmissionByReference(ctx, sessionID, referenceOf(reference))
 	if err != nil {
-		return "", err
+		return SubjectView{}, err
 	}
 
 	switch store.SubmissionType(kind) {
 	case store.TypeClaim:
-		return a.claimText(ctx, submission)
+		return a.claimView(ctx, submission)
 	case store.TypeApplication:
-		return a.applicationText(ctx, submission)
+		text, err := a.applicationText(ctx, submission)
+
+		return SubjectView{Text: text, Revision: submission.Revision}, err
 	}
 
-	return "", fmt.Errorf("unknown submission kind %q", kind)
+	return SubjectView{}, fmt.Errorf("unknown submission kind %q", kind)
 }
 
-func (a *App) claimText(ctx context.Context, submission store.Submission) (string, error) {
+func (a *App) claimView(ctx context.Context, submission store.Submission) (SubjectView, error) {
 	detail, err := a.Store.ClaimDetail(ctx, submission.ID)
 	if err != nil {
-		return "", err
+		return SubjectView{}, err
 	}
 
 	documents, err := a.Store.Documents(ctx, submission.ID)
 	if err != nil {
-		return "", err
+		return SubjectView{}, err
+	}
+
+	// An agent reads the file as it stands: the newest document of each kind, not
+	// every estimate ever filed. The superseded ones are still on the case screen
+	// — a remark that says "no labour breakdown" has to keep pointing at the
+	// estimate it was about — but putting them in front of a model would be asking
+	// it to weigh a document the claim has already moved past.
+	current := store.Current(documents, submission.Revision)
+
+	sourceFiles := make([]string, 0, len(current))
+	for _, document := range current {
+		if document.SourceFile != nil {
+			sourceFiles = append(sourceFiles, *document.SourceFile)
+		}
 	}
 
 	var text strings.Builder
@@ -58,7 +89,7 @@ func (a *App) claimText(ctx context.Context, submission store.Submission) (strin
 	fmt.Fprintf(&text, "Claimant's account:\n%s\n\n", detail.IncidentNarrative)
 
 	text.WriteString("Documents on file:\n")
-	for _, document := range documents {
+	for _, document := range current {
 		fmt.Fprintf(&text, "- %s (%s, received %s)\n",
 			document.Name, document.Kind, document.ReceivedAt.Format("2 January 2006"))
 
@@ -70,7 +101,17 @@ func (a *App) claimText(ctx context.Context, submission store.Submission) (strin
 		}
 	}
 
-	return text.String(), nil
+	if superseded := len(documents) - len(current); superseded > 0 {
+		fmt.Fprintf(&text,
+			"\n%d earlier document(s) on this claim have been superseded by the ones above.\n",
+			superseded)
+	}
+
+	return SubjectView{
+		Text:        text.String(),
+		SourceFiles: sourceFiles,
+		Revision:    submission.Revision,
+	}, nil
 }
 
 func (a *App) applicationText(ctx context.Context, submission store.Submission) (string, error) {

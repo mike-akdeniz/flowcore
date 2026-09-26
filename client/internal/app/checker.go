@@ -19,12 +19,15 @@ import (
 type CheckRequest struct {
 	Agent    string
 	StepName string
-	// Reference identifies the subject to CaseWork — "claim:C-1042". Used to
-	// look up a scripted answer when no model is configured.
+	// Reference identifies the subject to CaseWork — "claim:C-1042".
 	Reference string
 	// SubjectText is the prose an agent step reads, assembled by CaseWork from
 	// its own tables. FlowCore holds none of it.
 	SubjectText string
+	// SourceFiles are the files the documents on this case came from. The real
+	// checker ignores them and reads SubjectText; the simulated one has nothing
+	// else to go on.
+	SourceFiles []string
 	Actions     []flowcore.Action
 }
 

@@ -42,6 +42,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/session", s.showSession)
 	mux.HandleFunc("POST /api/session", s.signIn)
 	mux.HandleFunc("GET /api/queue", s.showQueue)
+	mux.HandleFunc("GET /api/cases/{reference}", s.showCase)
+	mux.HandleFunc("POST /api/cases", s.createCase)
+	mux.HandleFunc("POST /api/cases/{reference}/documents", s.addDocument)
+	mux.HandleFunc("POST /api/cases/{reference}/submit", s.submitCase)
+	mux.HandleFunc("GET /api/samples", s.listSamples)
 	mux.HandleFunc("GET /api/workflows", s.listWorkflows)
 	mux.HandleFunc("GET /api/workflows/{id}", s.showWorkflow)
 

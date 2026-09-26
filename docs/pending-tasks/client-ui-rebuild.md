@@ -62,20 +62,34 @@ honest gap beats two half-wired UIs.
 Done when a workflow can be understood at a glance.
 This is the de-risking slice; if the canvas is going to be a problem, it surfaces here.
 
-### 3 — Working a case
+### 3 — Submitting
+
+*Swapped with what was slice 4, agreed 2026-09-26. The original order could not work: "complete a
+step" and "watch the agents run" both need a run to exist, and nothing starts one until a
+submission is submitted. Slice 3 as written could have built a detail screen for a draft and then
+stopped short of its own done-when.*
+
+*Document model added mid-slice, agreed 2026-09-26 as client decision 20.* Revision counter,
+per-kind currency, superseded documents kept and labelled, and the revision passed as
+`subject_version_token`. Taken inside this slice rather than after it because the submission form is
+what creates documents, and building the upload path against a model already known to be wrong means
+writing it twice.
+
+- The internal submission form: create a submission, and open a seeded draft to finish it.
+- Draft then submitted: the workflow lookup from the registry, then `Start`.
+- The agent dispatcher adapted to database subjects, because the first AI step fires here and this
+  is where it first becomes reachable.
+
+Done when a seeded draft can be submitted and the queue shows the run's first real step, decided by
+an agent rather than by anyone.
+
+### 4 — Working a case
 
 - Claim detail with its documents, and a panel showing where the run stands.
 - Complete a step, with a remark.
-- The agent dispatcher adapted to database subjects, so AI steps run and their findings appear.
+- The agents' findings visible in the history.
 
 Done when the core loop works: open, decide, watch it move — including the steps nobody touches.
-
-### 4 — Submitting
-
-- New submission form, draft then submit.
-- Workflow lookup from the registry, then `Start`.
-
-Done when the visitor's first action is submitting a seeded draft and watching triage decide.
 
 ### 5 — The second submission type
 
@@ -98,6 +112,20 @@ work, and `AssignableReferences`, which lists reassignment targets. Today the te
 database agree by construction, because nothing can edit a workflow. The moment this slice ships
 they diverge: a step assigned to `agent:something-new` would never be swept after a restart, and a
 new group would never appear as a reassignment target.
+
+**Also required, deferred here by client decision 20:** per-step document expectations — which document
+kinds each step reads. Descriptive, never a gate: gating would kill the `incomplete → awaiting
+documents` branch, since deciding whether the file is complete is that step's whole job. Two readers:
+the configuration screen, where a node reading `estimate, police report` explains the workflow in a
+way a name and an assignee cannot, and the `awaiting documents` screen, which uses it to say what to
+upload.
+
+The open question is what to key them to. `CurrentStep` and `AssignedStep` expose only the snapshot
+step id, so the sole bridge from a running step to its definition step is the **name** — see FlowCore
+decision 45. This slice is what breaks it: adding a rename to the editor orphans name-keyed metadata
+silently, because nothing joins and nothing can fail. Decide between landing
+`StepDefinitionID` in the library first and accepting the name key with a rename that migrates its
+own metadata. Raise it with the owner; do not settle it in passing.
 
 Done when a workflow can be built and a type switched onto it — and cases already running keep the
 one they started under.

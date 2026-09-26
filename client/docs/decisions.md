@@ -726,3 +726,145 @@ and resubmits, and the AI step re-runs against a genuinely different file.
 **Consequence.**
 The claim file reads as a list of records rather than a folder of evidence. Photographs were already
 out of scope, so this is the honest version of that decision rather than a new concession.
+
+## 20. A document is superseded, never replaced
+
+**Context.**
+Slice 3 needed a rule for what happens when a document arrives twice. The `awaiting documents` loop
+is the demo's main path: an agent finds the file incomplete, someone adds what is missing, and the
+run comes back to the same step. Nothing said which estimate the second visit should read.
+
+The draft's answer was that the simulated checker would read the most recently added file name. The
+owner rejected the premise underneath it — *"'Documents accumulate' is a disturbing invariant for an
+app like this"* — and proposed instead that the documents each step needs be stable and known in
+advance.
+
+**Decision.**
+Four parts, all in CaseWork.
+
+1. `submission.revision`, an integer bumped whenever a document is added or a detail is edited.
+2. `document.added_at_revision`, recording the revision each document arrived at.
+3. Currency is per kind: the current police report is the newest police report. Older ones stay on
+   the file, listed and readable, labelled superseded — derived at read time, not stored.
+4. Completion passes the revision as FlowCore's `subject_version_token`.
+
+Per-step document expectations are deferred to slice 6, where they become a property of a step that
+the configuration screen displays.
+
+**Why.**
+
+*Accumulation was the wrong thing to fix.* A real claim file does accumulate, and an insurer's in
+particular: the revised estimate arrives, the original stays, and the file has to answer what the
+adjuster had in front of them years later. What was missing was not a smaller file but **currency** —
+a rule saying which document is the current answer to a given question. Per-kind currency gives the
+owner what they asked for in effect, one police report at the step that reads it, without deleting
+anything.
+
+*The draft's rule lived in the wrong place.* Last-added-wins was a heuristic inside
+`SimulatedChecker`, so the real checker would have read a different set of documents from the
+simulated one. That is worse than the coin flip it was meant to replace: a demo whose two modes
+disagree about the facts. Putting currency in `SubjectText` means both checkers inherit it.
+
+*The token was already built for the revisit question.* A loop opens a new visit and never rewrites
+the closed one, and `Completion.SubjectVersionToken` is per visit — so "what did that visit see" needs
+no new mechanism. CaseWork had simply never set the field: `CompleteRequest` carried it and
+`dispatcher.run` left it empty. The history this produces is the clearest thing on the case screen.
+
+```
+documentation check  agent:intake  incomplete  rev 3  "no labour breakdown on the estimate"
+awaiting documents   group:intake  resubmit    rev 4
+documentation check  agent:intake  complete    rev 4  "estimate itemised, labour and parts split"
+```
+
+*A revision rather than a timestamp.* `added_at_revision <= N` is exact. Comparing a document's
+timestamp against a visit's completion time compares two clocks across two schemas, and
+`document.received_at` is a `date`, so same-day documents cannot even be ordered.
+
+*Documents do not point at visits.* The owner asked whether CaseWork needs a notion of a FlowCore
+visit to simplify this. It has one already — `VisitID` is in `CompleteRequest` — but binding documents
+to it inverts the dependency. A document is a fact about the case, not about the workflow, and **a
+draft has documents and no run at all**: the submission form attaches an estimate before anything
+starts. The foreign key would have to be nullable, which leaves every reader with two paths.
+
+*"Required" is the wrong word.* If CaseWork gated a step on its documents being present, the
+`incomplete → awaiting documents` branch could never fire — deciding whether the file is complete is
+that step's entire job. The per-step list is descriptive: what the step reads, and what
+`awaiting documents` prompts for.
+
+**Consequence.**
+The case screen lists superseded documents rather than hiding them, which is the point: visit 1's
+remark refers to the first estimate, and a remark whose subject has vanished reads like the agent was
+wrong.
+
+Steps that read several kinds — `documentation check` reads an estimate and a police report — need no
+ordering rule, because two documents only compete when they are the same kind.
+
+This supersedes the sample-file numbering's stated purpose in part. The numbers still recommend an
+order to try; they no longer have to stop two samples of one kind from colliding.
+
+**What this left open.**
+Keying per-step expectations to a step is unsolved, and the fact that settled it surfaced
+mid-interview: `CurrentStep` and `AssignedStep` expose only the snapshot step id, not
+`step_definition_id`, so the only bridge from a running step back to its definition is the step name.
+Recorded as FlowCore decision 45, because it is the library's to fix. The client's half waits for
+slice 6.
+
+## 21. Sample documents drive the simulation, and the simulation says so
+
+**Context.**
+Decision 5 settled that agent steps detect an API key and fall back when there is none, but not what
+the fallback reads. The first implementation kept canned verdicts keyed by subject reference, which
+worked only for the seeded cases: a visitor who created a claim of their own got nothing, and the
+`awaiting documents` loop could not be driven at all, because adding a document changed no input the
+fallback looked at.
+
+**Decision.**
+A `sample-documents/` folder of plain `.txt` files, named `<order>-<kind>-<outcome>.txt`, embedded in
+the binary and served to the browser as a pick list. `SimulatedChecker` replaces `CannedChecker` and
+reads the outcome out of the file name. A file whose name carries no outcome — anything uploaded —
+is decided at random.
+
+Every simulated verdict says which mode produced it and what it read, in the remark, in the
+permanent record. The application also warns on upload when no key is set. No badge.
+
+**Why.**
+
+*The owner's framing, which the draft had got wrong.* The draft proposed a fallback that would guess
+more cleverly when it did not recognise a file. The owner rejected the premise: *"We can't do
+no-transparent harder to follow behavior like that."* The rule that replaced it is that the
+predictable thing happens and the application is loud about which thing that was — with a key,
+everything works as expected; without one, a recognised document is simulated from its name and an
+unrecognised one at random, and both say so. **No hidden heuristics: make the mode visible rather
+than making the fallback clever.**
+
+*Text files only.* The owner: *"supporting rtf doc or pdf adds nothing to the example."* Decision 19
+already made a document a record carrying prose, so a parser would be scaffolding around a decision
+already taken.
+
+*The file name, not a registry.* It is the one artefact a person browsing the folder and a simulated
+step can both read, so there is no table mapping documents to verdicts that could disagree with the
+folder. It also means a visitor who builds their own workflow with an action called `complete` gets
+the behaviour with nothing wired up, because `matchOutcome` maps to action names.
+
+*Both halves come from the same files.* The seed is built from the samples rather than from literals
+beside them, so the text a visitor adds and the text already on the seeded claim cannot drift.
+
+*Three surfaces offered, one cut.* Remark, upload warning, and a mode badge in the header. The owner
+took the first two: *"remark plus upload warning, no badge"*. The remark is the one that matters,
+because it is the only one that survives into the record — a badge describes the session, a remark
+describes the decision.
+
+*Numbers recommend an order.* The prefix is stripped before anything reads the name. It sorts the
+list so the document that unblocks the seeded claim is offered first, which is the one instruction a
+visitor is likely to follow.
+
+**Consequence.**
+Two naming corrections the owner made are worth keeping, because both were the convention pushing
+past what it could honestly describe: a `photographs-complete.txt` was rejected — a photograph has no
+text, so a text file pretending to be one is a lie the format cannot carry — and
+`witness-statement-corroborates.txt` became `-consistent.txt`, since one word per outcome across
+every kind is the whole point of a fixed vocabulary.
+
+**Not built yet.**
+`agentMode` is on the session payload; nothing in the interface reads it, and the upload warning does
+not exist. Both are the React half of slice 3.

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -208,7 +209,7 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	// where the work is, CaseWork knows what the work is about.
 	reference := subjectOf(item.SubjectReference)
 
-	subjectText, err := d.app.SubjectText(ctx, item.SessionID, reference)
+	view, err := d.app.SubjectText(ctx, item.SessionID, reference)
 	if err != nil {
 		d.logger.Warn("agent step: no subject", "subject", item.SubjectReference, "err", err)
 
@@ -219,7 +220,8 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		Agent:       state.CurrentStep.AssigneeID,
 		StepName:    state.CurrentStep.Name,
 		Reference:   reference,
-		SubjectText: subjectText,
+		SubjectText: view.Text,
+		SourceFiles: view.SourceFiles,
 		Actions:     state.CurrentStep.Actions,
 	})
 	if err != nil {
@@ -230,11 +232,17 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
+	// The revision stamped here is the one the checker actually read, not whatever
+	// the claim is at by the time this write lands. A document added in between
+	// belongs to the next visit, and saying so is the entire point of recording
+	// it: a step reached twice by the `awaiting documents` loop leaves two visits,
+	// and the revision is what tells them apart.
 	next, err := d.app.CompleteStep(ctx, Identity{Reference: state.CurrentStep.AssigneeID},
 		CompleteRequest{
-			VisitID:  item.VisitID,
-			ActionID: verdict.ActionID,
-			Remark:   verdict.Remark,
+			VisitID:             item.VisitID,
+			ActionID:            verdict.ActionID,
+			Remark:              verdict.Remark,
+			SubjectVersionToken: strconv.Itoa(view.Revision),
 		})
 	if err != nil {
 		d.logger.Warn("agent step: completing", "visit", item.VisitID, "err", err)

@@ -101,20 +101,26 @@ func (s *Store) StaffByReference(ctx context.Context, reference string) (Staff, 
 // --- submissions ----------------------------------------------------------
 
 const submissionColumns = `id, session_id, type, reference, status, created_at,
-	submitted_at, flowcore_definition_id, subject_reference`
+	submitted_at, flowcore_definition_id, subject_reference, revision`
 
 func scanSubmission(row pgx.CollectableRow) (Submission, error) {
 	var submission Submission
 	err := row.Scan(&submission.ID, &submission.SessionID, &submission.Type,
 		&submission.Reference, &submission.Status, &submission.CreatedAt,
-		&submission.SubmittedAt, &submission.FlowcoreDefinitionID, &submission.SubjectReference)
+		&submission.SubmittedAt, &submission.FlowcoreDefinitionID, &submission.SubjectReference,
+		&submission.Revision)
 
 	return submission, err
 }
 
+// InsertSubmission records a new submission. Revision is not among the columns:
+// a submission starts at 1 and only AddDocument moves it, so the starting value
+// is the schema's default and no caller can get it wrong.
 func (s *Store) InsertSubmission(ctx context.Context, submission Submission) error {
 	_, err := s.pool.Exec(ctx,
-		`insert into casework.submission (`+submissionColumns+`)
+		`insert into casework.submission
+		 (id, session_id, type, reference, status, created_at,
+		  submitted_at, flowcore_definition_id, subject_reference)
 		 values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		submission.ID, submission.SessionID, submission.Type, submission.Reference,
 		submission.Status, submission.CreatedAt, submission.SubmittedAt,
@@ -226,20 +232,65 @@ func (s *Store) ApplicationDetail(ctx context.Context, submissionID uuid.UUID) (
 
 // --- documents ------------------------------------------------------------
 
-func (s *Store) InsertDocument(ctx context.Context, document Document) error {
-	_, err := s.pool.Exec(ctx,
-		`insert into casework.document (id, submission_id, name, kind, received_at, body)
-		 values ($1, $2, $3, $4, $5, $6)`,
-		document.ID, document.SubmissionID, document.Name, document.Kind,
-		document.ReceivedAt, document.Body)
+// AddDocument bumps the submission's revision and files the document at it, in
+// one transaction.
+//
+// The two halves cannot be separated. A document that landed without moving the
+// revision would be invisible to the currency rule, and a revision that moved
+// without a document would make an unchanged file look edited — and both would
+// be stamped on a completion as the truth about what a decision was made
+// against.
+//
+// It is also the only way documents ever arrive. Seeding takes the same path as
+// an upload, so the revision a seeded case starts at is a real count of what is
+// on it rather than a number written by hand.
+func (s *Store) AddDocument(ctx context.Context, document Document) (Document, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Document{}, err
+	}
 
-	return err
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	err = tx.QueryRow(ctx,
+		`update casework.submission set revision = revision + 1
+		 where id = $1 returning revision`,
+		document.SubmissionID).Scan(&document.AddedAtRevision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Document{}, ErrNotFound
+	}
+
+	if err != nil {
+		return Document{}, err
+	}
+
+	_, err = tx.Exec(ctx,
+		`insert into casework.document
+		 (id, submission_id, name, kind, received_at, body, source_file, added_at_revision)
+		 values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		document.ID, document.SubmissionID, document.Name, document.Kind,
+		document.ReceivedAt, document.Body, document.SourceFile, document.AddedAtRevision)
+	if err != nil {
+		return Document{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Document{}, err
+	}
+
+	return document, nil
 }
 
+// Documents returns every document on a submission, superseded ones included,
+// oldest first.
+//
+// Nothing is filtered here. Which of them are in force is a question with a
+// different answer for an agent reading the file now and for a visit that closed
+// three revisions ago, so it is answered by Current at the point of asking.
 func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Document, error) {
 	rows, err := s.pool.Query(ctx,
-		`select id, submission_id, name, kind, received_at, body
-		 from casework.document where submission_id = $1 order by received_at, name`,
+		`select id, submission_id, name, kind, received_at, body, source_file, added_at_revision
+		 from casework.document where submission_id = $1 order by added_at_revision, name`,
 		submissionID)
 	if err != nil {
 		return nil, err
@@ -248,7 +299,8 @@ func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Docume
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Document, error) {
 		var document Document
 		err := row.Scan(&document.ID, &document.SubmissionID, &document.Name,
-			&document.Kind, &document.ReceivedAt, &document.Body)
+			&document.Kind, &document.ReceivedAt, &document.Body, &document.SourceFile,
+			&document.AddedAtRevision)
 
 		return document, err
 	})

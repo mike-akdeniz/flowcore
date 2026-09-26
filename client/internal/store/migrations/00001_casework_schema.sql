@@ -81,7 +81,14 @@ create table casework.submission (
     -- What FlowCore was given. Stored rather than re-derived so a lookup needs no
     -- string building.
     subject_reference      text,
+    -- Bumped whenever a document is added or a detail edited, and passed to
+    -- FlowCore as the subject version token at every completion. The library
+    -- records it and never compares it, so this number is the only thing that
+    -- makes a second visit to a step distinguishable from the first: it says
+    -- which documents the decision was actually made against.
+    revision               int not null default 1,
     constraint ck_submission_type check (type in ('claim', 'application')),
+    constraint ck_submission_revision check (revision >= 1),
     constraint ck_submission_status check (status in ('draft', 'submitted')),
     -- A draft has neither; a submission has both.
     constraint ck_submission_started check (
@@ -119,18 +126,39 @@ create table casework.application_detail (
 -- The documents that matter are prose: a police report and a repair estimate are
 -- what the agents compare against the claimant's account, so the text is the
 -- document. A photograph is a row with a name, a date and no body.
+--
+-- Nothing here is ever updated or deleted. A second estimate does not overwrite
+-- the first: both rows stay, and the *current* estimate is the newest one. Which
+-- means an old decision's remark still points at the document it was about, and
+-- the case file reads the way a real one does — it grows.
 create table casework.document (
-    id            uuid primary key,
-    submission_id uuid not null references casework.submission (id) on delete cascade,
-    name          text not null,
-    kind          text not null,
-    received_at   date not null,
-    body          text,
+    id                uuid primary key,
+    submission_id     uuid not null references casework.submission (id) on delete cascade,
+    name              text not null,
+    kind              text not null,
+    received_at       date not null,
+    body              text,
+    -- The file this came from: a sample's name, or the name of an uploaded file.
+    -- Real provenance, and the only thing a simulated agent step has to read when
+    -- no model is configured.
+    source_file       text,
+    -- The submission revision this document arrived at, which is what makes
+    -- "what did that visit read" answerable: the visit stamped a revision, and
+    -- the documents in force then are those at or below it.
+    --
+    -- A revision rather than received_at, which is a date and cannot order two
+    -- documents that arrived the same day — and which would mean comparing
+    -- CaseWork's clock against FlowCore's across two schemas.
+    added_at_revision int not null,
     constraint ck_document_kind check (
-        kind in ('police_report', 'estimate', 'photograph', 'correspondence'))
+        kind in ('police_report', 'estimate', 'witness_statement', 'intake_note',
+                 'photograph', 'correspondence')),
+    constraint ck_document_revision check (added_at_revision >= 1)
 );
 
-create index ix_document_submission on casework.document (submission_id);
+-- Ordered by arrival, because every read of this table asks which document of a
+-- kind is the current one.
+create index ix_document_submission on casework.document (submission_id, added_at_revision);
 
 -- +goose Down
 

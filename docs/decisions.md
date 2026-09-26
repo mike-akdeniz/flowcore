@@ -1828,3 +1828,34 @@ This is the one place where "the column is NOT NULL" and "the scan target may be
 
 Four exported identifiers left the public API.
 That is a breaking change with no one to break, and the same timing argument covers it.
+
+## 45. A running step does not say which definition step it came from
+
+**Context.**
+The reference client needs to hang configuration-side metadata on a step — which document kinds that step reads, authored against the definition and consulted while a run is sitting on the step.
+That needs a key spanning both sides, and there isn't one.
+
+**The gap.**
+`flowcore.step` carries `step_definition_id`, commented "Provenance, no foreign key", `not null`, with `uq_step_workflow_step_definition` on it since 00003.
+None of `CurrentStep`, `AssignedStep`, or `StepVisit` exposes it.
+A client holding a running step has the snapshot step id and the frozen name, and no way to reach the definition step the snapshot was copied from.
+
+The only bridge available is the name: `Catalog.Get` returns definition steps with names, a run returns snapshot steps with names, and names are unique within a definition.
+
+**Decision.**
+Deferred.
+The client keys by name, and this is recorded rather than built because no caller exists yet — CaseWork's per-step expectations land in its slice 6.
+
+**Why deferred rather than taken now.**
+It is the `CLAUDE.md` test applied honestly: a field with no reader today is speculative structure, and nothing about it gets harder by waiting.
+No migration is involved — the column exists and is populated — so landing it later costs three struct fields and three scans, and adding a field to a returned struct breaks no caller.
+
+**What will force it.**
+A rename.
+CaseWork cannot edit a definition today, so name-keyed metadata is safe by construction.
+Its slice 6 adds the editor, and renaming a step would then silently orphan whatever the client keyed to the old name — silently, because nothing joins, so nothing can fail.
+That is the point at which the name key stops being adequate, and it is worth noticing that the failure mode is quiet rather than loud.
+
+**Worth separating from a neighbouring deferral.**
+This is not `step_visit.step_definition_id`, which decision 42 left out along with the two indexes keyed on it.
+Different table, different purpose: that one is for history queries, this one is for joining a live step back to its template.

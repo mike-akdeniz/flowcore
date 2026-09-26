@@ -28,6 +28,7 @@ import (
 	"github.com/mike-akdeniz/flowcore"
 	"github.com/mike-akdeniz/flowcore/client/internal/api"
 	"github.com/mike-akdeniz/flowcore/client/internal/app"
+	"github.com/mike-akdeniz/flowcore/client/internal/samples"
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
@@ -70,7 +71,17 @@ func run(logger *slog.Logger) error {
 
 	logger.Info("schema applied", "schemas", "flowcore, casework")
 
-	application := app.New(config, pool, logger)
+	sampleFiles, err := sampleDocuments()
+	if err != nil {
+		return err
+	}
+
+	library, err := samples.Load(sampleFiles)
+	if err != nil {
+		return err
+	}
+
+	application := app.New(config, pool, library, logger)
 
 	// The cast is shared across every session, so it is seeded once rather than
 	// copied per visitor. Idempotent, so it runs on every boot.

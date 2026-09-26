@@ -66,34 +66,64 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		return err
 	}
 
-	// The police report contradicts the account above on both the circumstances
-	// and the timing. That contradiction is what the narrative-consistency agent
-	// is for, and it is the reason this claim is the seeded one.
-	documents := []store.Document{
-		{
-			Name: "Repair estimate", Kind: "estimate", ReceivedAt: date(2026, 9, 16),
-			Body: text("Front nearside wing and door, replace and respray. Headlamp unit. " +
-				"Parts £6,940, labour £3,180, paint £1,080. Total £11,200."),
-		},
-		{
-			Name: "Police report", Kind: "police_report", ReceivedAt: date(2026, 9, 16),
-			Body: text("Report filed 16th at 11:40. Caller stated the vehicle was damaged in a " +
-				"collision while being driven on the evening of the 14th. No third party " +
-				"identified. No injuries reported."),
-		},
-		{Name: "Damage photographs", Kind: "photograph", ReceivedAt: date(2026, 9, 15)},
+	// The seeded file is built from the same sample documents a visitor can add,
+	// so there is one place to edit the text and the simulated agent steps behave
+	// deterministically along the path everyone walks.
+	//
+	// The three of them drive the three agent steps in order. The intake note
+	// puts `triage` on the full-assessment branch rather than the fast track. The
+	// estimate is a scribbled figure, so `documentation check` sends the claim to
+	// `awaiting documents` and gives the visitor something to do. And the police
+	// report contradicts the claimant's account on both the circumstances and the
+	// timing, which is what `narrative consistency` is for once the file is
+	// complete.
+	//
+	// Without the intake note the demonstration's opening move would be a coin
+	// flip, because triage would have nothing carrying an outcome to read.
+	seeded := []struct {
+		fileName   string
+		receivedAt time.Time
+	}{
+		{"6-intake-note-complex.txt", date(2026, 9, 15)},
+		{"7-estimate-incomplete.txt", date(2026, 9, 16)},
+		{"8-police-report-contradicts.txt", date(2026, 9, 16)},
 	}
 
-	for _, document := range documents {
-		document.ID = uuid.Must(uuid.NewV7())
-		document.SubmissionID = submissionID
+	for _, entry := range seeded {
+		sample := a.Samples.MustHave(entry.fileName)
+		body := sample.Body
+		fileName := sample.FileName
 
-		if err := a.Store.InsertDocument(ctx, document); err != nil {
+		// Seeding takes the same path as an upload, so the seeded claim's revision
+		// is a real count of what is on it rather than a number written by hand.
+		if _, err := a.Store.AddDocument(ctx, store.Document{
+			ID:           uuid.Must(uuid.NewV7()),
+			SubmissionID: submissionID,
+			Name:         sample.Title,
+			Kind:         sample.Kind,
+			ReceivedAt:   entry.receivedAt,
+			Body:         &body,
+			SourceFile:   &fileName,
+		}); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	// A photograph is a row with a name, a date and no body. Real claim files
+	// contain things that are not prose, and the application says so by having
+	// nothing to show — there is no sample for it, because you cannot upload a
+	// photograph as text.
+	photographs := store.Document{
+		ID:           uuid.Must(uuid.NewV7()),
+		SubmissionID: submissionID,
+		Name:         "Damage photographs",
+		Kind:         "photograph",
+		ReceivedAt:   date(2026, 9, 15),
+	}
+
+	_, err = a.Store.AddDocument(ctx, photographs)
+
+	return err
 }
 
 func (a *App) seedApplicationExample(ctx context.Context, sessionID string) error {
@@ -153,5 +183,3 @@ func (a *App) register(
 func date(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 }
-
-func text(value string) *string { return &value }
