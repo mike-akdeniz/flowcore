@@ -184,7 +184,12 @@ All docs (`CLAUDE.md`, `docs/*.md`) follow these, for clean git diffs and portab
 - **Code fences and tables are literal** — never reflow or sentence-split their contents.
 - **Bold lead-ins** (`**Term.**`) stay on the same line as the sentence they introduce.
 
-Tooling: `prettier --prose-wrap preserve` respects hand-placed sentence breaks while normalizing blank lines, list markers, and fences. Run it before committing doc changes. (`--prose-wrap never` would undo the one-sentence-per-line rule — don't use it.)
+Tooling: `make check-docs` before committing doc changes.
+It checks the mechanical rules only — trailing whitespace, stacked blank lines, a blank line after every heading, and a single closing newline — and leaves the judgment ones to the writer.
+
+**Not prettier**, despite it being the obvious choice.
+It respects hand-placed sentence breaks under `--prose-wrap preserve`, but it also pads markdown tables so the pipes align, with no option to stop it.
+Editing one cell then repads the column and every row shows as modified — which is the one-word-change-is-a-one-line-diff failure these conventions exist to prevent, relocated from paragraphs to tables.
 
 ## Go code style
 
