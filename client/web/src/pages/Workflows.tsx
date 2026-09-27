@@ -1,14 +1,28 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
+import {
+  Badge,
+  Button,
+  Card,
+  Group,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { api, type WorkflowSummary } from "../api";
-import { submissionPlural } from "../vocabulary";
+import { submissionName, submissionPlural } from "../vocabulary";
 
 // The workflow list. Which submission type a workflow serves, and whether it is
 // live, are CaseWork's own facts — FlowCore stores the graph and has no
 // opinion about what the graph is for.
 export function Workflows() {
   const [workflows, setWorkflows] = useState<WorkflowSummary[] | null>(null);
+  const [opened, { open, close }] = useDisclosure(false);
 
   useEffect(() => {
     void api.workflows().then(setWorkflows);
@@ -18,13 +32,20 @@ export function Workflows() {
 
   return (
     <Stack gap="md">
-      <Stack gap={2}>
-        <Title order={3}>Workflows</Title>
-        <Text size="sm" c="dimmed">
-          What happens to a submission after it is sent for assessment. Each kind
-          of submission has one active workflow.
-        </Text>
-      </Stack>
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={2}>
+          <Title order={3}>Workflows</Title>
+          <Text size="sm" c="dimmed">
+            What happens to a submission after it is sent for assessment. Each kind
+            of submission has one active workflow.
+          </Text>
+        </Stack>
+        <Button size="sm" onClick={open}>
+          New workflow
+        </Button>
+      </Group>
+
+      <NewWorkflowModal opened={opened} onClose={close} />
 
       <Stack gap="sm">
         {workflows.map((workflow) => (
@@ -57,5 +78,96 @@ export function Workflows() {
         ))}
       </Stack>
     </Stack>
+  );
+}
+
+// Creating a workflow asks for three things beyond its name, because FlowCore
+// refuses a definition with no steps — a workflow that cannot be started is not
+// a state it will store. So there is no "create it empty and fill it in".
+//
+// It is registered against a submission type immediately but left inactive.
+// Building a workflow and putting it into service are different acts, and
+// conflating them would mean every case filed while you were still adding steps
+// ran the half-finished version.
+function NewWorkflowModal({
+  opened,
+  onClose,
+}: {
+  opened: boolean;
+  onClose: () => void;
+}) {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    name: "",
+    submissionType: "claim" as "claim" | "application",
+    statusName: "in progress",
+    stepName: "first step",
+    assignee: "group:claims-adjusters",
+  });
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string>();
+
+  return (
+    <Modal opened={opened} onClose={onClose} title="New workflow">
+      <Stack gap="sm">
+        <TextInput
+          label="Name"
+          placeholder="Complaints handling"
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
+        />
+        <Select
+          label="For"
+          data={[
+            { value: "claim", label: submissionName("claim") },
+            { value: "application", label: submissionName("application") },
+          ]}
+          value={form.submissionType}
+          onChange={(value) =>
+            setForm({ ...form, submissionType: (value ?? "claim") as "claim" | "application" })
+          }
+          allowDeselect={false}
+        />
+        <TextInput
+          label="First status"
+          description="What a case shows while it is in this workflow."
+          value={form.statusName}
+          onChange={(event) => setForm({ ...form, statusName: event.currentTarget.value })}
+        />
+        <TextInput
+          label="First step"
+          description="Where a case begins. You can rename it and add more afterwards."
+          value={form.stepName}
+          onChange={(event) => setForm({ ...form, stepName: event.currentTarget.value })}
+        />
+
+        {failure && (
+          <Text size="sm" c="red">
+            {failure}
+          </Text>
+        )}
+
+        <Group justify="flex-end">
+          <Button
+            loading={busy}
+            disabled={!form.name.trim() || !form.statusName.trim() || !form.stepName.trim()}
+            onClick={async () => {
+              setBusy(true);
+              setFailure(undefined);
+
+              try {
+                const created = await api.createWorkflow(form);
+                navigate(`/workflows/${created.definitionId}/edit`);
+              } catch (error) {
+                setFailure(error instanceof Error ? error.message : "could not create it");
+                setBusy(false);
+              }
+            }}
+          >
+            Create and edit
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

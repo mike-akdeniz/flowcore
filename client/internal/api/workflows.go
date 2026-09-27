@@ -66,12 +66,22 @@ type actionJSON struct {
 }
 
 type stepJSON struct {
-	ID       string       `json:"id"`
-	Name     string       `json:"name"`
-	Assignee string       `json:"assignee"`
-	StatusID string       `json:"statusId"`
-	IsAgent  bool         `json:"isAgent"`
-	Actions  []actionJSON `json:"actions"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Assignee string `json:"assignee"`
+	StatusID string `json:"statusId"`
+	IsAgent  bool   `json:"isAgent"`
+	// Expects names the document types this step reads. CaseWork's own, keyed to
+	// the step definition id — FlowCore has no notion of a document.
+	Expects []string     `json:"expects"`
+	Actions []actionJSON `json:"actions"`
+}
+
+// concernJSON is something wrong with the graph's shape. StepID is empty when the
+// concern is about the workflow rather than one step.
+type concernJSON struct {
+	StepID  string `json:"stepId"`
+	Message string `json:"message"`
 }
 
 type statusJSON struct {
@@ -87,6 +97,30 @@ type workflowJSON struct {
 	EntryStepID    string       `json:"entryStepId"`
 	Statuses       []statusJSON `json:"statuses"`
 	Steps          []stepJSON   `json:"steps"`
+	// Concerns are warnings about the shape, never refusals.
+	Concerns []concernJSON `json:"concerns"`
+	// RunningCases is how many cases are part-way through this workflow. They
+	// keep the version they started on, and saying so is the only way that
+	// guarantee is visible rather than merely documented.
+	RunningCases int `json:"runningCases"`
+}
+
+// writeWorkflow composes and sends one workflow. Every editing handler answers
+// with this, so the browser never has to work out what an edit changed.
+func (s *Server) writeWorkflow(
+	w http.ResponseWriter,
+	r *http.Request,
+	sessionID string,
+	definitionID uuid.UUID,
+) {
+	payload, err := s.composeWorkflow(r, sessionID, definitionID)
+	if err != nil {
+		http.Error(w, "no such workflow", http.StatusNotFound)
+
+		return
+	}
+
+	s.write(w, payload)
 }
 
 func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -97,16 +131,24 @@ func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := sessionFrom(r)
+	s.writeWorkflow(w, r, sessionFrom(r), definitionID)
+}
 
+// composeWorkflow builds the whole workflow a screen needs: the definition from
+// the library, plus the facts that are CaseWork's own — which submission type it
+// serves, whether it is live, what each step expects, what is wrong with its
+// shape, and how many cases are running on it.
+func (s *Server) composeWorkflow(
+	r *http.Request,
+	sessionID string,
+	definitionID uuid.UUID,
+) (workflowJSON, error) {
 	// Definition checks ownership before reading: FlowCore will return any
 	// definition whose id you name, because it has no tenant. Refusing another
 	// session's is CaseWork's job.
 	definition, err := s.app.Definition(r.Context(), sessionID, definitionID)
 	if err != nil {
-		http.Error(w, "no such workflow", http.StatusNotFound)
-
-		return
+		return workflowJSON{}, err
 	}
 
 	payload := workflowJSON{
@@ -114,6 +156,12 @@ func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
 		Name:         definition.Name,
 		Statuses:     make([]statusJSON, 0, len(definition.Statuses)),
 		Steps:        make([]stepJSON, 0, len(definition.Steps)),
+		Concerns:     make([]concernJSON, 0),
+	}
+
+	payload.RunningCases, err = s.app.RunningCases(r.Context(), sessionID, definitionID)
+	if err != nil {
+		return workflowJSON{}, err
 	}
 
 	if definition.InitialStepDefinitionID != nil {
@@ -124,9 +172,7 @@ func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
 	// own facts — they live in the registry, not in the definition.
 	registered, err := s.app.Store.RegisteredWorkflows(r.Context(), sessionID)
 	if err != nil {
-		s.fail(w, "could not read the registry", err)
-
-		return
+		return workflowJSON{}, err
 	}
 
 	for _, workflow := range registered {
@@ -142,7 +188,29 @@ func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// What is wrong with the shape, if anything. Warnings rather than refusals:
+	// FlowCore has no opinion on whether a graph can finish, and a definition
+	// being edited has to be allowed to be incoherent.
+	for _, concern := range app.Concerns(definition) {
+		entry := concernJSON{Message: concern.Message}
+		if concern.StepID != uuid.Nil {
+			entry.StepID = concern.StepID.String()
+		}
+
+		payload.Concerns = append(payload.Concerns, entry)
+	}
+
+	expectations, err := s.app.Store.DocumentTypesByStep(r.Context(), sessionID, definitionID)
+	if err != nil {
+		return workflowJSON{}, err
+	}
+
 	for _, step := range definition.Steps {
+		expects := make([]string, 0)
+		for _, documentType := range expectations[step.ID] {
+			expects = append(expects, documentType.Name)
+		}
+
 		payload.Steps = append(payload.Steps, stepJSON{
 			ID:       step.ID.String(),
 			Name:     step.Name,
@@ -150,14 +218,15 @@ func (s *Server) showWorkflow(w http.ResponseWriter, r *http.Request) {
 			StatusID: step.WorkflowStatusDefinitionID.String(),
 			// Whether an assignee names an agent is CaseWork's convention, not
 			// the library's — FlowCore stores "agent:triage" exactly as it stores
-			// "group:adjusters". Deciding it here keeps that convention in one
-			// place rather than duplicated in the browser.
+			// "group:claims-adjusters". Deciding it here keeps that convention in
+			// one place rather than duplicated in the browser.
 			IsAgent: app.IsAgent(step.AssigneeID),
+			Expects: expects,
 			Actions: toActionsJSON(step.Actions),
 		})
 	}
 
-	s.write(w, payload)
+	return payload, nil
 }
 
 func toActionsJSON(actions []flowcore.ActionDefinition) []actionJSON {

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   Anchor,
   Badge,
+  Button,
   Card,
   Group,
   Stack,
@@ -46,11 +47,16 @@ export function WorkflowView() {
             {submissionPlural(workflow.submissionType)}
           </Text>
         </Stack>
-        {workflow.active && (
-          <Badge variant="light" color="green">
-            active
-          </Badge>
-        )}
+        <Group gap="xs">
+          {workflow.active && (
+            <Badge variant="light" color="green">
+              active
+            </Badge>
+          )}
+          <Button component={Link} to={`/workflows/${workflow.definitionId}/edit`} size="xs">
+            Edit
+          </Button>
+        </Group>
       </Group>
 
       <Card withBorder padding={0}>

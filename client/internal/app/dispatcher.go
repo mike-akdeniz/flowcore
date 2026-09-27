@@ -156,7 +156,18 @@ func (d *Dispatcher) sweep(ctx context.Context) {
 }
 
 func (d *Dispatcher) sweepOnce(ctx context.Context) {
-	assigned, err := d.app.Engine.ListAssignedSteps(ctx, d.app.AgentReferences())
+	references, err := d.app.AgentReferences(ctx)
+	if err != nil {
+		d.logger.Warn("sweep: reading agent references", "err", err)
+
+		return
+	}
+
+	if len(references) == 0 {
+		return
+	}
+
+	assigned, err := d.app.Engine.ListAssignedSteps(ctx, references)
 	if err != nil {
 		d.logger.Warn("sweep", "err", err)
 

@@ -475,3 +475,177 @@ func (s *Store) DocumentTypesForDefinition(
 
 	return pgx.CollectRows(rows, scanDocumentType)
 }
+
+// ActivateWorkflow retires whatever was active for this submission type and
+// records the new one, in one transaction.
+//
+// Both halves together because `ux_registry_active` makes two active workflows
+// for one type unrepresentable: doing the insert first would violate it, and
+// doing the deactivate first without the insert would leave the type with no
+// workflow at all and nothing able to be submitted.
+//
+// The retired row stays. Runs that started under it hold its snapshot and are
+// still answerable, and a submission records which definition it was submitted
+// under — deleting the registry row would leave that pointing at a name nobody
+// could look up.
+func (s *Store) ActivateWorkflow(ctx context.Context, workflow RegisteredWorkflow) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`update casework.workflow_registry set active = false
+		 where session_id = $1 and submission_type = $2 and active`,
+		workflow.SessionID, workflow.SubmissionType); err != nil {
+		return err
+	}
+
+	// A definition already registered for this type is reactivated rather than
+	// registered twice, so switching back and forth does not accumulate rows.
+	tag, err := tx.Exec(ctx,
+		`update casework.workflow_registry set active = true, name = $3
+		 where session_id = $1 and submission_type = $2 and flowcore_definition_id = $4`,
+		workflow.SessionID, workflow.SubmissionType, workflow.Name, workflow.FlowcoreDefinitionID)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		if _, err := tx.Exec(ctx,
+			`insert into casework.workflow_registry
+			 (id, session_id, submission_type, name, flowcore_definition_id, active, created_at)
+			 values ($1, $2, $3, $4, $5, true, $6)`,
+			workflow.ID, workflow.SessionID, workflow.SubmissionType, workflow.Name,
+			workflow.FlowcoreDefinitionID, workflow.CreatedAt); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// DetachStepDocumentTypes removes a deleted step's document type rows.
+//
+// step_document_type references a step definition id with no foreign key —
+// deliberately, since a constraint across schemas would couple CaseWork's
+// lifecycle to the library's — so nothing removes these on its own. Rows matching
+// no step are litter a later reader has to reason about.
+func (s *Store) DetachStepDocumentTypes(ctx context.Context, stepDefinitionID uuid.UUID) error {
+	_, err := s.pool.Exec(ctx,
+		`delete from casework.step_document_type where step_definition_id = $1`,
+		stepDefinitionID)
+
+	return err
+}
+
+// AllRegisteredDefinitionIDs is every workflow any session has registered.
+//
+// Not session-scoped, unlike almost everything else here, and that is the point:
+// its caller is the dispatcher's recovery sweep, which looks for agent work
+// stranded by a restart across every visitor at once.
+func (s *Store) AllRegisteredDefinitionIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := s.pool.Query(ctx,
+		`select distinct flowcore_definition_id from casework.workflow_registry`)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (uuid.UUID, error) {
+		var id uuid.UUID
+		err := row.Scan(&id)
+
+		return id, err
+	})
+}
+
+// DocumentTypesByStep is every step's expected types for one workflow, in one
+// query, keyed by step definition id.
+//
+// One query rather than one per step: the editor shows every step at once, and
+// a canvas of fifteen nodes should not be fifteen round trips.
+func (s *Store) DocumentTypesByStep(
+	ctx context.Context,
+	sessionID string,
+	definitionID uuid.UUID,
+) (map[uuid.UUID][]DocumentType, error) {
+	rows, err := s.pool.Query(ctx,
+		`select a.step_definition_id, t.id, t.session_id, t.name, t.title,
+		        t.pass_finding, t.fail_finding, t.created_at
+		 from casework.step_document_type a
+		 join casework.document_type t on t.id = a.document_type_id
+		 where t.session_id = $1 and a.flowcore_definition_id = $2
+		 order by t.title`,
+		sessionID, definitionID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	byStep := make(map[uuid.UUID][]DocumentType)
+
+	for rows.Next() {
+		var (
+			stepID       uuid.UUID
+			documentType DocumentType
+		)
+
+		if err := rows.Scan(&stepID, &documentType.ID, &documentType.SessionID,
+			&documentType.Name, &documentType.Title, &documentType.PassFinding,
+			&documentType.FailFinding, &documentType.CreatedAt); err != nil {
+			return nil, err
+		}
+
+		byStep[stepID] = append(byStep[stepID], documentType)
+	}
+
+	return byStep, rows.Err()
+}
+
+// RunningCases counts the submissions part-way through a workflow.
+func (s *Store) RunningCases(ctx context.Context, sessionID string, definitionID uuid.UUID) (int, error) {
+	var count int
+
+	err := s.pool.QueryRow(ctx,
+		`select count(*) from casework.submission
+		 where session_id = $1 and flowcore_definition_id = $2 and status = 'submitted'`,
+		sessionID, definitionID).Scan(&count)
+
+	return count, err
+}
+
+// SetStepDocumentTypes replaces a step's attachments with exactly this set, in
+// one transaction so the step is never briefly expecting nothing.
+func (s *Store) SetStepDocumentTypes(
+	ctx context.Context,
+	definitionID, stepDefinitionID uuid.UUID,
+	documentTypeIDs []uuid.UUID,
+) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`delete from casework.step_document_type where step_definition_id = $1`,
+		stepDefinitionID); err != nil {
+		return err
+	}
+
+	for _, documentTypeID := range documentTypeIDs {
+		if _, err := tx.Exec(ctx,
+			`insert into casework.step_document_type
+			 (flowcore_definition_id, step_definition_id, document_type_id)
+			 values ($1, $2, $3)`,
+			definitionID, stepDefinitionID, documentTypeID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}

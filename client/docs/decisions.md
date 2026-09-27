@@ -1319,3 +1319,59 @@ changes the queue legibly.
 `TeamsOf` is the one place a person's teams are spelled, used by the header, the switcher, the sign-in
 list and the reassignment dropdown. Capitalisation is sentence case — "Claims adjusters", not "Claims
 Adjusters" — because a team is a noun phrase rather than a title.
+
+## 29. The workflow editor: a panel beside the canvas, and warnings instead of gates
+
+**Context.**
+Slice 7 makes workflows configurable. The `app` layer already had the whole editing surface from the
+HTMX era — add, update and delete for steps, statuses and actions, set the entry step, rename — all
+session-scoped with ownership checks, and none of it reachable: only two workflow endpoints existed.
+
+**Decision.**
+A separate editor screen: the canvas on the left, a panel on the right that edits whatever node is
+selected. Document types are attached to a step there, and can be created inline. A definition with
+runs in flight is editable, and says so. Activation warns about a graph that cannot finish, and then
+does as it is told.
+
+**Why.**
+
+*A panel rather than direct manipulation, though the plan said "drag an edge to create an action".*
+An action is not only an edge: it has a name, and it either routes to a step or terminates in a
+status. A dragged edge expresses the target and nothing else, so a form opens anyway and there are
+now two ways to make one thing. Dragging also pushes toward wanting stored node positions, which
+decision 14 refused — nodes that spring back to an automatic layout are worse than nodes that do not
+move. Direct manipulation can be added later on top of this; it is a shortcut, not the mechanism.
+
+*Editing a live definition is allowed, and shown.* Nothing in the library stops it — verified, there
+is no guard — because the snapshot is the protection: delete a step three runs are sitting on and
+those runs carry on, holding their own copy of the graph. "Config is a template, instances are
+snapshots" is one of FlowCore's two stated principles and the editor is the only place it can be
+*demonstrated* rather than asserted. Blocking would have been worse than silence: it would teach that
+editing a live workflow is dangerous, which is the opposite of true.
+
+*Activation warns, and does not gate.* FlowCore validates that an action routes exclusive-or
+terminates, and that the entry step exists. It has no opinion on whether a graph is any good, and
+that silence is deliberate — a definition mid-edit has to be allowed to be incoherent or it could not
+be built incrementally. So CaseWork is the layer with opinions: no action anywhere ends a run, or a
+step nothing routes to. Both are real ways to strand every case forever, both are cheap to compute
+from a graph already laid out, and both are shown on the canvas while editing rather than only at the
+moment of activation.
+
+Gating would invent a rule the library declines to have, and freeze one definition of "sound" into
+code that has to be maintained as that definition drifts.
+
+*Document types are created inline, from the step that needs one.* Decision 26 justified putting the
+findings on the row rather than in a Go map by arguing a type created in the interface would be
+complete; attaching only would have left that argument about a capability that did not exist. Name
+and title, with the findings left blank — `finding()` already falls back to generic wording, so a
+type made in thirty seconds behaves sensibly and writing proper findings is an improvement rather
+than a prerequisite. A screen for editing that wording is a polishing job, not a configuring one.
+
+**Consequence.**
+Deleting a step cleans up its `step_document_type` rows in the same call. That table references
+`step_definition_id` with no foreign key — deliberately, since a constraint across schemas would
+couple CaseWork's lifecycle to the library's — so nothing would have removed them, and rows matching
+nothing are litter a later reader has to reason about.
+
+`UpdateStatus` and `UpdateAction` gain wrappers. Both existed in the library and neither had a caller,
+so a status or an action could be created and deleted but not renamed.

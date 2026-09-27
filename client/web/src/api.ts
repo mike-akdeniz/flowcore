@@ -44,6 +44,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function edit<T>(path: string, method: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
 export const api = {
   session: () => request<Session>("/api/session"),
   signIn: (reference: string) =>
@@ -86,6 +93,49 @@ export const api = {
       body: JSON.stringify({ visitId, assignee }),
     }),
   assignees: () => request<Assignee[]>("/api/assignees"),
+
+  // Editing. Every one of these answers with the whole workflow, because one
+  // edit moves several things at once — adding an action can clear a concern,
+  // deleting a step can strand two others.
+  createWorkflow: (body: NewWorkflow) =>
+    request<Workflow>("/api/workflows", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  renameWorkflow: (id: string, name: string) =>
+    edit<Workflow>(`/api/workflows/${id}`, "PATCH", { name }),
+  activateWorkflow: (id: string, submissionType: string) =>
+    edit<Workflow>(`/api/workflows/${id}/activate`, "POST", { submissionType }),
+  addStatus: (id: string, name: string) =>
+    edit<Workflow>(`/api/workflows/${id}/statuses`, "POST", { name }),
+  renameStatus: (id: string, statusId: string, name: string) =>
+    edit<Workflow>(`/api/workflows/${id}/statuses/${statusId}`, "PATCH", { name }),
+  deleteStatus: (id: string, statusId: string) =>
+    edit<Workflow>(`/api/workflows/${id}/statuses/${statusId}`, "DELETE"),
+  addStep: (id: string, body: StepEdit) =>
+    edit<Workflow>(`/api/workflows/${id}/steps`, "POST", body),
+  updateStep: (id: string, stepId: string, body: StepEdit) =>
+    edit<Workflow>(`/api/workflows/${id}/steps/${stepId}`, "PATCH", body),
+  deleteStep: (id: string, stepId: string) =>
+    edit<Workflow>(`/api/workflows/${id}/steps/${stepId}`, "DELETE"),
+  setEntryStep: (id: string, stepId: string) =>
+    edit<Workflow>(`/api/workflows/${id}/steps/${stepId}/entry`, "POST"),
+  addAction: (
+    id: string,
+    stepId: string,
+    body: { name: string; nextStepId?: string; terminalStatusId?: string },
+  ) => edit<Workflow>(`/api/workflows/${id}/steps/${stepId}/actions`, "POST", body),
+  renameAction: (id: string, actionId: string, name: string) =>
+    edit<Workflow>(`/api/workflows/${id}/actions/${actionId}`, "PATCH", { name }),
+  deleteAction: (id: string, actionId: string) =>
+    edit<Workflow>(`/api/workflows/${id}/actions/${actionId}`, "DELETE"),
+
+  documentTypes: () => request<DocumentType[]>("/api/document-types"),
+  createDocumentType: (name: string, title: string) =>
+    request<DocumentType>("/api/document-types", {
+      method: "POST",
+      body: JSON.stringify({ name, title }),
+    }),
 };
 
 export type Assignee = {
@@ -241,7 +291,17 @@ export type WorkflowStep = {
   assignee: string;
   statusId: string;
   isAgent: boolean;
+  // The document types this step reads, by name.
+  expects: string[];
   actions: WorkflowAction[];
+};
+
+// Something wrong with the graph's shape. stepId is empty when it is about the
+// workflow rather than one step. Warnings, never refusals — see client decision
+// 29.
+export type Concern = {
+  stepId: string;
+  message: string;
 };
 
 export type Workflow = {
@@ -252,4 +312,24 @@ export type Workflow = {
   entryStepId: string;
   statuses: { id: string; name: string }[];
   steps: WorkflowStep[];
+  concerns: Concern[];
+  // How many cases are part-way through this workflow. They keep the version
+  // they started on — saying so is the only way that guarantee is visible.
+  runningCases: number;
+};
+
+export type StepEdit = {
+  name: string;
+  assignee: string;
+  statusId: string;
+  // The whole set, not a delta.
+  expects: string[];
+};
+
+export type NewWorkflow = {
+  name: string;
+  submissionType: "claim" | "application";
+  statusName: string;
+  stepName: string;
+  assignee: string;
 };

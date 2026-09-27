@@ -7,6 +7,7 @@ import { CaseView } from "./pages/CaseView";
 import { MyWork } from "./pages/MyWork";
 import { NewCase } from "./pages/NewCase";
 import { Workflows } from "./pages/Workflows";
+import { WorkflowEdit } from "./pages/WorkflowEdit";
 import { WorkflowView } from "./pages/WorkflowView";
 import { Shell } from "./Shell";
 
@@ -54,6 +55,7 @@ export function App() {
         />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/:id" element={<WorkflowView />} />
+        <Route path="/workflows/:id/edit" element={<WorkflowEdit />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

@@ -52,6 +52,25 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/assignees", s.assignableReferences)
 	mux.HandleFunc("GET /api/workflows", s.listWorkflows)
 	mux.HandleFunc("GET /api/workflows/{id}", s.showWorkflow)
+	mux.HandleFunc("POST /api/workflows", s.createWorkflow)
+
+	// Editing. Every one of these answers with the whole workflow, because one
+	// edit moves several things at once: adding an action can clear a concern,
+	// deleting a step can strand two others.
+	mux.HandleFunc("PATCH /api/workflows/{id}", s.renameWorkflow)
+	mux.HandleFunc("POST /api/workflows/{id}/activate", s.activateWorkflow)
+	mux.HandleFunc("POST /api/workflows/{id}/statuses", s.addStatus)
+	mux.HandleFunc("PATCH /api/workflows/{id}/statuses/{statusId}", s.updateStatus)
+	mux.HandleFunc("DELETE /api/workflows/{id}/statuses/{statusId}", s.deleteStatus)
+	mux.HandleFunc("POST /api/workflows/{id}/steps", s.addStep)
+	mux.HandleFunc("PATCH /api/workflows/{id}/steps/{stepId}", s.updateStep)
+	mux.HandleFunc("DELETE /api/workflows/{id}/steps/{stepId}", s.deleteStep)
+	mux.HandleFunc("POST /api/workflows/{id}/steps/{stepId}/entry", s.setEntryStep)
+	mux.HandleFunc("POST /api/workflows/{id}/steps/{stepId}/actions", s.addAction)
+	mux.HandleFunc("PATCH /api/workflows/{id}/actions/{actionId}", s.updateAction)
+	mux.HandleFunc("DELETE /api/workflows/{id}/actions/{actionId}", s.deleteAction)
+	mux.HandleFunc("GET /api/document-types", s.listDocumentTypes)
+	mux.HandleFunc("POST /api/document-types", s.createDocumentType)
 
 	// Everything else is the single-page application: its own router owns the
 	// paths, so any unmatched GET returns the shell.
