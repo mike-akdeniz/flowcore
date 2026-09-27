@@ -479,7 +479,13 @@ type sampleJSON struct {
 // listSamples serves the embedded set, so a hosted visitor has the same documents
 // available as someone who cloned the repository.
 func (s *Server) listSamples(w http.ResponseWriter, r *http.Request) {
+	// Narrowed to the submission type when the caller says which, so the picker
+	// on a policy application does not offer eight claim documents that no step
+	// in its workflow can act on.
 	documents := s.app.Samples.All()
+	if submissionType := r.URL.Query().Get("type"); submissionType != "" {
+		documents = s.app.Samples.For(submissionType)
+	}
 
 	payload := make([]sampleJSON, 0, len(documents))
 	for _, document := range documents {

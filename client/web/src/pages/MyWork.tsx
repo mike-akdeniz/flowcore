@@ -44,7 +44,7 @@ export function MyWork({ groups }: { groups: string[] }) {
             appears in the list below it waiting to be submitted. */}
         {takesDetails && (
           <Button component={Link} to="/cases/new" size="sm">
-            New claim
+            New submission
           </Button>
         )}
       </Group>
@@ -54,7 +54,7 @@ export function MyWork({ groups }: { groups: string[] }) {
       ) : items.length === 0 ? (
         <Text c="dimmed">
           Nothing is waiting on you. Switch to someone else from the account
-          menu{takesDetails ? ", or file a new claim" : ""}.
+          menu{takesDetails ? ", or file a new submission" : ""}.
         </Text>
       ) : (
         <Table highlightOnHover verticalSpacing="sm">

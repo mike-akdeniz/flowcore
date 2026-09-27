@@ -52,7 +52,7 @@ export const api = {
     request<Workflow>(`/api/workflows/${definitionId}`),
 
   case: (reference: string) => request<Case>(`/api/cases/${reference}`),
-  createCase: (body: NewCase) =>
+  createCase: (body: NewSubmission) =>
     request<{ reference: string }>("/api/cases", {
       method: "POST",
       body: JSON.stringify(body),
@@ -68,7 +68,10 @@ export const api = {
     }),
   submitCase: (reference: string) =>
     request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
-  samples: () => request<Sample[]>("/api/samples"),
+  samples: (submissionType?: string) =>
+    request<Sample[]>(
+      submissionType ? `/api/samples?type=${submissionType}` : "/api/samples",
+    ),
 
   decide: (reference: string, body: Decision) =>
     request<Case>(`/api/cases/${reference}/decide`, {
@@ -164,7 +167,9 @@ export type Case = {
   history: Visit[];
 };
 
-export type NewCase = {
+// The two field sets are disjoint, and kept that way deliberately: `type` is the
+// discriminator, and nothing reads a field belonging to the other kind.
+export type NewClaim = {
   type: "claim";
   policyNumber: string;
   claimantName: string;
@@ -172,6 +177,16 @@ export type NewCase = {
   occurredAt: string;
   incidentNarrative: string;
 };
+
+export type NewApplication = {
+  type: "application";
+  proposerName: string;
+  coverType: string;
+  sumInsured: string;
+  disclosures: string;
+};
+
+export type NewSubmission = NewClaim | NewApplication;
 
 // Exactly one of sampleFile, or fileName plus body.
 export type NewDocument = {

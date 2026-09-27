@@ -221,7 +221,7 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		StepName:    state.CurrentStep.Name,
 		Reference:   reference,
 		SubjectText: view.Text,
-		SourceFiles: view.SourceFiles,
+		Documents:   view.Documents,
 		Actions:     state.CurrentStep.Actions,
 	})
 	if err != nil {

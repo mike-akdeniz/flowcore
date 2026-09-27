@@ -152,7 +152,8 @@ create table casework.document (
     added_at_revision int not null,
     constraint ck_document_kind check (
         kind in ('police_report', 'estimate', 'witness_statement', 'intake_note',
-                 'photograph', 'correspondence')),
+                 'photograph', 'inspection_report', 'prior_insurer_letter',
+                 'correspondence')),
     constraint ck_document_revision check (added_at_revision >= 1)
 );
 

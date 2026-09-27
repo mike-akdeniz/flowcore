@@ -1,60 +1,41 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
+  Alert,
   Anchor,
-  Button,
-  Card,
-  Group,
-  NumberInput,
+  SegmentedControl,
   Stack,
   Text,
-  Textarea,
-  TextInput,
   Title,
 } from "@mantine/core";
-import { api } from "../api";
+import { api, type WorkflowSummary } from "../api";
+import { NewApplicationForm } from "../case/NewApplicationForm";
+import { NewClaimForm } from "../case/NewClaimForm";
 
-// Filing a claim: the details, and nothing else.
+type SubmissionType = "claim" | "application";
+
+// Filing, whichever kind it is.
 //
-// Documents are added on the case screen rather than here, because adding them
-// is a loop — pick, see what it supersedes, add another — and a form that has to
-// be completed in one pass is the wrong shape for that. Filing produces a draft,
-// which is a thing FlowCore has never heard of: submitting is what starts a run.
+// This route owns the choice and nothing else: the toggle, the line saying what
+// the choice will run, and which form to render. The fields live in the two form
+// components, which share no state and no markup — a claim and a policy
+// application have nothing in common at this level, and a single component with
+// conditional fields would only pretend otherwise.
 export function NewCase() {
-  const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string>();
-  const [form, setForm] = useState({
-    policyNumber: "",
-    claimantName: "",
-    amount: "",
-    occurredAt: "",
-    incidentNarrative: "",
-  });
+  const [type, setType] = useState<SubmissionType>("claim");
+  const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
 
-  function field(name: keyof typeof form) {
-    return {
-      value: form[name],
-      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        setForm({ ...form, [name]: event.currentTarget.value }),
-    };
-  }
+  useEffect(() => {
+    void api.workflows().then(setWorkflows);
+  }, []);
 
-  async function create() {
-    setBusy(true);
-    setFailure(undefined);
-
-    try {
-      const { reference } = await api.createCase({ type: "claim", ...form });
-      navigate(`/cases/${reference}`);
-    } catch (error) {
-      setFailure(error instanceof Error ? error.message : "could not file it");
-      setBusy(false);
-    }
-  }
-
-  const complete =
-    form.policyNumber && form.claimantName && form.amount && form.occurredAt;
+  // The registry, made visible. It is the whole mechanism behind "specify when a
+  // workflow applies" — FlowCore takes a definition id and has no notion of a
+  // claim — and this line is the only place in the application where a visitor
+  // can watch a submission's type choose its workflow.
+  const active = workflows.find(
+    (workflow) => workflow.submissionType === type && workflow.active,
+  );
 
   return (
     <Stack gap="md" maw={640}>
@@ -62,65 +43,37 @@ export function NewCase() {
         <Anchor component={Link} to="/" size="sm">
           ← My work
         </Anchor>
-        <Title order={3}>New claim</Title>
+        <Title order={3}>New submission</Title>
         <Text size="sm" c="dimmed">
           Taken over the phone or from an email. There is no claimant-facing
           portal, and a processing console works without one.
         </Text>
       </Stack>
 
-      <Card withBorder padding="md">
-        <Stack gap="sm">
-          <Group grow>
-            <TextInput
-              label="Policy number"
-              placeholder="MP-90114"
-              {...field("policyNumber")}
-            />
-            <TextInput
-              label="Claimant"
-              placeholder="Rosa Lindqvist"
-              {...field("claimantName")}
-            />
-          </Group>
+      <SegmentedControl
+        value={type}
+        onChange={(value) => setType(value as SubmissionType)}
+        data={[
+          { label: "Claim", value: "claim" },
+          { label: "Policy application", value: "application" },
+        ]}
+      />
 
-          <Group grow>
-            <NumberInput
-              label="Amount"
-              placeholder="11200.00"
-              min={0}
-              decimalScale={2}
-              value={form.amount}
-              onChange={(value) => setForm({ ...form, amount: String(value) })}
-            />
-            <TextInput
-              label="Date of incident"
-              type="date"
-              {...field("occurredAt")}
-            />
-          </Group>
-
-          <Textarea
-            label="Claimant's account"
-            description="In their words. One of the two texts the narrative-consistency agent reads."
-            autosize
-            minRows={4}
-            {...field("incidentNarrative")}
-          />
-
-          {failure && (
-            <Text size="sm" c="red">
-              {failure}
-            </Text>
+      <Alert variant="light" color={active ? "blue" : "orange"} p="xs">
+        <Text size="sm">
+          {active ? (
+            <>
+              This will run: <b>{active.name}</b>
+            </>
+          ) : (
+            <>
+              No workflow is active for this type, so it cannot be submitted yet.
+            </>
           )}
+        </Text>
+      </Alert>
 
-          <Group justify="flex-end">
-            <Button onClick={create} loading={busy} disabled={!complete}>
-              File as draft
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
+      {type === "claim" ? <NewClaimForm /> : <NewApplicationForm />}
     </Stack>
   );
 }

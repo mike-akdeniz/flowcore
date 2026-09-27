@@ -24,11 +24,22 @@ type CheckRequest struct {
 	// SubjectText is the prose an agent step reads, assembled by CaseWork from
 	// its own tables. FlowCore holds none of it.
 	SubjectText string
-	// SourceFiles are the files the documents on this case came from. The real
-	// checker ignores them and reads SubjectText; the simulated one has nothing
-	// else to go on.
-	SourceFiles []string
-	Actions     []flowcore.Action
+	// Documents are the current documents on the case, in arrival order. The real
+	// checker ignores them and reads SubjectText; the simulated one needs the kind
+	// to know which document answers the step it is standing on.
+	Documents []CaseDocument
+	Actions   []flowcore.Action
+}
+
+// CaseDocument is the little a checker needs to know about a document on file.
+//
+// Not the body: the real checker gets that as prose in SubjectText, assembled the
+// way a model should read it, and the simulated one never reads content at all.
+type CaseDocument struct {
+	Kind string
+	// FileName is the sample's name, or the name of an uploaded file. It is the
+	// only thing the simulated checker has to go on.
+	FileName string
 }
 
 // Verdict is an agent's answer: which action to take, and why.

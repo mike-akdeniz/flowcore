@@ -84,12 +84,15 @@ export function AddDocument({
   const [failure, setFailure] = useState<string>();
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Only the samples written for this kind of submission. A proposal has two
+  // that can drive its risk screen; offering it the six claim documents as well
+  // would bury them.
   useEffect(() => {
-    void api.samples().then((loaded) => {
+    void api.samples(subject.type).then((loaded) => {
       setSamples(loaded);
       setChosen(loaded[0]?.fileName ?? null);
     });
-  }, []);
+  }, [subject.type]);
 
   const sample = samples.find((candidate) => candidate.fileName === chosen);
   const kind = mode === "sample" ? sample?.kind : uploadKind;

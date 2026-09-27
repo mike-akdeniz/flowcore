@@ -84,9 +84,9 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		fileName   string
 		receivedAt time.Time
 	}{
-		{"6-intake-note-complex.txt", date(2026, 9, 15)},
-		{"7-estimate-incomplete.txt", date(2026, 9, 16)},
-		{"8-police-report-contradicts.txt", date(2026, 9, 16)},
+		{"6-intake-note-fail.txt", date(2026, 9, 15)},
+		{"7-estimate-fail.txt", date(2026, 9, 16)},
+		{"8-police-report-fail.txt", date(2026, 9, 16)},
 	}
 
 	for _, entry := range seeded {
@@ -149,7 +149,7 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 		return err
 	}
 
-	return a.Store.InsertApplicationDetail(ctx, store.ApplicationDetail{
+	if err := a.Store.InsertApplicationDetail(ctx, store.ApplicationDetail{
 		SubmissionID: submissionID,
 		ProposerName: "Halvard Aune",
 		CoverType:    "Comprehensive motor",
@@ -157,7 +157,33 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 		Disclosures: "Two speeding convictions in the last three years, most recently March. " +
 			"Vehicle is kept on the street. Business use one day a week. " +
 			"A previous insurer declined cover in 2023.",
+	}); err != nil {
+		return err
+	}
+
+	// The letter matches the disclosures rather than contradicting them: two
+	// convictions, a vehicle kept on the street, and a declinature. An adverse
+	// proposal that resolved as a clean risk would be the demonstration lying
+	// about itself.
+	//
+	// It is also what makes `risk screen` decidable at all without an API key.
+	// The simulated checker reads file names, so an application with no documents
+	// leaves it choosing at random — the same hole the intake note closed on the
+	// claim side.
+	sample := a.Samples.MustHave("4-prior-insurer-fail.txt")
+	body, fileName := sample.Body, sample.FileName
+
+	_, err = a.Store.AddDocument(ctx, store.Document{
+		ID:           uuid.Must(uuid.NewV7()),
+		SubmissionID: submissionID,
+		Name:         sample.Title,
+		Kind:         sample.Kind,
+		ReceivedAt:   date(2026, 9, 18),
+		Body:         &body,
+		SourceFile:   &fileName,
 	})
+
+	return err
 }
 
 // register records which FlowCore definition serves which kind of submission.

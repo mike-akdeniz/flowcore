@@ -1028,3 +1028,137 @@ covers `App.AgentReferences`, which feeds the cross-session recovery sweep and i
 templates and database agree because nothing can edit a workflow. It becomes wrong when slice 6 ships
 an editor. `AssignableReferences` was wrong already. Fixing what is broken now and leaving what
 breaks later is the same test applied consistently, not an inconsistency.
+
+## 24. Policy applications read documents too, and filing is one route with two forms
+
+**Context.**
+Slice 5 is the second submission type. Most of it already existed — the detail table, the underwriting
+workflow, the risk screen, and the detail screen shipped early in slice 3 — so what remained was a
+risk screen nobody could drive and a filing form that only knew about claims.
+
+**Decision.**
+Applications carry documents, on the same mechanism as claims. The risk screen's outcomes are `clean`
+and `adverse`. Filing is one route with a type toggle, and the two field sets live in separate
+components.
+
+**Why.**
+
+*The document hole was already open.* `Documents` and `AddDocument` render on an application's case
+screen unconditionally, while `applicationText` returned only the disclosures — no documents, no
+source files. A visitor could attach a vehicle inspection, watch it appear on the case, and have it
+affect nothing. Either documents matter for applications or that UI should not be there, and the
+second is clearly wrong: a motor proposal arrives with an inspection report and a letter from the
+previous insurer.
+
+*One mechanism rather than two.* The alternative was to give the risk screen the disclosures to read,
+which would have meant a sample that is a *field value* rather than a document — a second kind of
+sample that the samples package, the picker and the checker would each have to know about.
+Applications reusing documents inherits supersession, revisions and the `read:` line in the history,
+all of which already work.
+
+It is also the better demonstration of the library's actual claim. Two submission types with nothing
+in common at the detail level, running through the same document and agent machinery, is
+subject-agnosticism shown rather than asserted.
+
+*`clean` and `adverse`, though reuse was free.* `matchOutcome` already mapped the risk screen's
+actions — `"standard"` to `OutcomeSimple`, `"refer"` to `OutcomeComplex` — so naming the samples
+`-simple` and `-complex` would have worked with no code change at all. It was rejected on the file
+name. An inspection report is clean or adverse; "complex" is a word borrowed from a claim's intake
+note because two action names happened to line up. Decision 21's rule is one word per outcome across
+every kind of document, which means each word means one thing, and letting `complex` also mean "this
+risk needs a senior underwriter" is the first entry in a synonym list. The coincidence would have been
+invisible in the code while the sample names drifted from what they describe.
+
+*One filing route, because it makes the registry visible.* Switching the toggle changes a line that
+reads `This will run: New business underwriting`, taken from the workflow registry. That registry is
+the entire mechanism behind "specify when a workflow applies" — FlowCore takes a definition id and has
+no notion of a claim — and until now nothing in the interface showed it. Two separate filing routes
+would make the type choice before the form opens, so the connection between a submission's type and
+the workflow it runs would never appear on screen.
+
+*Two forms, not one form with conditionals.* The owner's instruction: *"make sure that the forms are
+clearly separated. They don't turn into a spaghetti of Claim and Policy."* So the route owns the
+toggle and the registry line, each type has its own component with its own fields, state and
+validation, and the only shared thing is `useFiling` — posting, failure, and navigating to the new
+case. Behaviour is shared; layout is not. Each form reads on its own and can be deleted on its own.
+
+**Consequence.**
+`ck_document_kind` gains `inspection_report` and `prior_insurer_letter`. Migration `00001` is still
+edited in place, so adopting this is a `make reset`.
+
+**The picker shows only the samples written for the submission type**, which the owner asked for on
+seeing a proposal offered a police report: *"Those are the sample documents we created for the demo.
+Just show the samples that apply."*
+
+The draft's answer was more elaborate and wrong — group them into "suggested" and "other", with
+suggestion derived at request time from whether a sample's outcome maps to an action the case's
+workflow actually has. That machinery would be right for a rule about which documents a case may
+hold. This is not that rule: these are ten files written by hand for a demonstration, and which
+scenario each belongs to was decided when it was written. `samples.Document` records it in the same
+switch that already assigns the kind and the title.
+
+It is deliberately not a constraint. Nothing stops a police report sitting on a proposal — CaseWork
+does not police what a case holds, and neither does the library — the picker simply does not suggest
+one.
+
+Slice 6's per-step document expectations, deferred by decision 20, remain the principled version of
+the question. They will say what each *step* reads, which is finer than what a scenario is about.
+
+## 25. Two outcomes, and the reason moves into the finding
+
+**Context.**
+The sample convention had grown a private vocabulary per agent step —
+`complete`/`incomplete`, `consistent`/`contradicts`, `simple`/`complex`, `clean`/`adverse` — eight
+words for four steps, with a ninth and tenth wanted by every step added after. The owner:
+*"All the vocabulary for the suffixes is confusing."*
+
+**Decision.**
+Two outcomes, `pass` and `fail`. The reason leaves the file name and becomes the finding the agent
+step records. File names are at most three words. Numbering restarts per submission type. Every
+document kind gets both a pass and a fail.
+
+**Why.**
+
+*One idea instead of four.* `pass` and `fail` say the only thing a sample needs to say: whether the
+step reading it is satisfied. It reads correctly on every agent step including `triage`, which is a
+screen — a claim that passes it takes the fast track, one that fails needs full assessment. What
+"pass" means is a property of the step, not of the vocabulary, so a new step needs no new word.
+
+*The finding is the better place for a reason.* The remark used to be about the machinery — "chose
+'incomplete' from the file name" — and can now be about the claim:
+
+> The estimate is a single approximate figure with no breakdown between parts and labour, no hours
+> or rate, and no VAT position. There is nothing here an assessor can check.
+
+That is what a real call returns, which makes the two modes comparable instead of one being visibly
+a stub. It is also the thing on screen and in the history, so it is where the effort belongs.
+
+*The disclosure is now load-bearing rather than polite.* Decision 21's rule was no hidden heuristics,
+make the mode visible. A finding that reads like an assessment is exactly where a visitor could
+believe one happened, so every canned finding is followed by a line naming the file it came from and
+saying that no model was consulted and nothing inside the document was read. The convention got
+friendlier and the disclosure got more necessary, not less.
+
+**What this cost, which was not obvious until it was examined.**
+
+With `pass` and `fail`, **every document answers every step**. The old words carried the step inside
+them: at `narrative consistency` an `estimate-incomplete` was skipped because "incomplete" was not
+one of that step's actions. Rename it `estimate-fail` and `fail` maps to every negative branch there
+is, so the checker takes whichever document arrived first — and the seeded claim's intake note would
+have decided whether its estimate was adequate.
+
+So `SimulatedChecker` gains `stepReads`: which document kind each agent step is about. Keyed by step
+name, which means a workflow a visitor builds is not in it and its steps are simulated at random —
+the honest outcome, stated in the remark rather than guessed at. `CheckRequest` carries
+`[]CaseDocument` rather than `[]string` so the kind is available at all.
+
+This is the coarse version of slice 6's per-step document expectations, deferred by decision 20. That
+slice makes it configuration; this makes it work now.
+
+**Consequence.**
+Twelve sample files, eight for claims and four for applications, replacing ten. Both branches of every
+agent step are drivable from the picker, where before an application could only be made to fail and
+an inspection could only pass.
+
+The canned findings are keyed by kind and outcome rather than by file name, so adding a numbered
+variant of a document does not silently fall through to generic wording.

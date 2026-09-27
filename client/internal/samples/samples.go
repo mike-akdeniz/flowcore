@@ -13,42 +13,39 @@ package samples
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 )
 
-// Outcome is what a sample document argues for, taken from its file name.
+// Outcome is what a sample document does to the check it is put in front of.
 //
-// One word per outcome across every kind of document, so the simulated checker
-// reads a fixed vocabulary rather than a list of synonyms.
+// Two words, and deliberately only two. There were eight — complete/incomplete,
+// consistent/contradicts, simple/complex, clean/adverse — one private pair per
+// agent step, and every new step wanted a ninth and tenth. `pass` and `fail` say
+// the one thing a sample needs to say: whether the step it reaches will be
+// satisfied. A claim that passes triage takes the fast track; one that fails
+// needs full assessment. Triage is a screen, so the words fit it as well as they
+// fit the risk screen.
+//
+// The *reason* is no longer in the file name. It is in the finding the simulated
+// checker stamps on the visit, where it can be a sentence about the claim rather
+// than a word squeezed into a file name.
 type Outcome string
 
 const (
-	// OutcomeNone is a document whose name carries no signal — anything a visitor
-	// uploaded themselves. Without a model there is nothing to read it with, so a
-	// step judging it is simulated at random, and the application says so.
+	// OutcomeNone is a document whose name carries no outcome — anything a
+	// visitor uploaded themselves. Without a model there is nothing to read it
+	// with, so a step judging it is simulated at random, and the application
+	// says so.
 	OutcomeNone Outcome = ""
-	// Complete and Incomplete are for `documentation check`: whether the file has
-	// what an assessor needs.
-	OutcomeComplete   Outcome = "complete"
-	OutcomeIncomplete Outcome = "incomplete"
-	// Consistent and Contradicts are for `narrative consistency`: whether a
-	// document agrees with the claimant's own account.
-	OutcomeConsistent  Outcome = "consistent"
-	OutcomeContradicts Outcome = "contradicts"
-	// Simple and Complex are for `triage`, the first step every claim meets.
-	// Without them the demonstration's opening move is a coin flip.
-	OutcomeSimple  Outcome = "simple"
-	OutcomeComplex Outcome = "complex"
+	OutcomePass Outcome = "pass"
+	OutcomeFail Outcome = "fail"
 )
 
-// Outcomes is the vocabulary, longest-matching first so that a name ending in
-// "-incomplete" is not read as "-complete".
-var Outcomes = []Outcome{
-	OutcomeIncomplete, OutcomeComplete,
-	OutcomeConsistent, OutcomeContradicts,
-	OutcomeSimple, OutcomeComplex,
-}
+// Outcomes is the vocabulary.
+var Outcomes = []Outcome{OutcomePass, OutcomeFail}
 
 // Document is one sample: its file name, the kind of document it represents, what
 // it argues for, and its text.
@@ -59,6 +56,14 @@ type Document struct {
 	// Title is what the document is called in a case file, derived from the kind.
 	Title string
 	Body  string
+	// AppliesTo is the submission type this sample was written for, "claim" or
+	// "application". Empty means it fits either.
+	//
+	// It is not a rule about what a case may hold — nothing stops a police report
+	// sitting on a proposal, and CaseWork does not police that. It only keeps the
+	// picker to the samples that can do something, since these are documents we
+	// wrote for the demonstration and we know which scenario each belongs to.
+	AppliesTo string
 }
 
 // Library is the loaded set.
@@ -91,14 +96,42 @@ func Load(files fs.FS) (*Library, error) {
 		library.byName[document.FileName] = document
 	}
 
+	// Grouped by submission type, then by number — the numbering restarts for each
+	// type, because the picker only ever shows one type's samples at a time and a
+	// list that began at nine would be odd.
+	//
+	// By the number and not the name: a string sort puts "10-" before "9-", which
+	// breaks the one thing the prefix is for, and only once a tenth sample exists.
 	sort.Slice(library.documents, func(i, j int) bool {
-		return library.documents[i].FileName < library.documents[j].FileName
+		left, right := library.documents[i], library.documents[j]
+		if left.AppliesTo != right.AppliesTo {
+			return left.AppliesTo < right.AppliesTo
+		}
+
+		if order(left.FileName) != order(right.FileName) {
+			return order(left.FileName) < order(right.FileName)
+		}
+
+		return left.FileName < right.FileName
 	})
 
 	return library, nil
 }
 
 func (l *Library) All() []Document { return l.documents }
+
+// For returns the samples written for a submission type, plus any that fit
+// either.
+func (l *Library) For(submissionType string) []Document {
+	matching := make([]Document, 0, len(l.documents))
+	for _, document := range l.documents {
+		if document.AppliesTo == "" || document.AppliesTo == submissionType {
+			matching = append(matching, document)
+		}
+	}
+
+	return matching
+}
 
 func (l *Library) ByName(fileName string) (Document, bool) {
 	document, ok := l.byName[fileName]
@@ -143,20 +176,54 @@ func parse(fileName, body string) Document {
 	case strings.HasPrefix(stem, "police-report"):
 		document.Kind = "police_report"
 		document.Title = "Police report"
+		document.AppliesTo = "claim"
 	case strings.HasPrefix(stem, "estimate"):
 		document.Kind = "estimate"
 		document.Title = "Repair estimate"
+		document.AppliesTo = "claim"
 	case strings.HasPrefix(stem, "witness-statement"):
 		document.Kind = "witness_statement"
 		document.Title = "Witness statement"
+		document.AppliesTo = "claim"
 	case strings.HasPrefix(stem, "intake-note"):
 		document.Kind = "intake_note"
 		document.Title = "Intake note"
+		document.AppliesTo = "claim"
+	case strings.HasPrefix(stem, "inspection"):
+		document.Kind = "inspection_report"
+		document.Title = "Vehicle inspection"
+		document.AppliesTo = "application"
+	case strings.HasPrefix(stem, "prior-insurer"):
+		document.Kind = "prior_insurer_letter"
+		document.Title = "Previous insurer's letter"
+		document.AppliesTo = "application"
 	default:
 		document.Title = titleFrom(stem)
 	}
 
 	return document
+}
+
+// order reads the leading `<n>-`. A file without one sorts last, since the
+// numbers are a recommendation and an unnumbered file is not part of it.
+func order(fileName string) int {
+	stem := strings.TrimSuffix(fileName, ".txt")
+
+	digits := 0
+	for digits < len(stem) && stem[digits] >= '0' && stem[digits] <= '9' {
+		digits++
+	}
+
+	if digits == 0 {
+		return math.MaxInt
+	}
+
+	number, err := strconv.Atoi(stem[:digits])
+	if err != nil {
+		return math.MaxInt
+	}
+
+	return number
 }
 
 // TrimOrder strips the leading `<n>-` that recommends the order to try the
