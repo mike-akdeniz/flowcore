@@ -79,9 +79,22 @@ writing it twice.
 - Draft then submitted: the workflow lookup from the registry, then `Start`.
 - The agent dispatcher adapted to database subjects, because the first AI step fires here and this
   is where it first becomes reachable.
+- One case screen serving a draft and a running case, the document control, and polling while an
+  agent holds the step — client decision 22.
 
 Done when a seeded draft can be submitted and the queue shows the run's first real step, decided by
 an agent rather than by anyone.
+
+*Grew three times, all recorded rather than absorbed:* the document model (client decision 20),
+policy applications rendered read-only ahead of slice 5, and the case screen itself. The first was
+a correctness condition of the document upload this slice builds; the other two are client decision
+22.
+
+**The Cases list belongs to no slice.** The nav item exists and is disabled, and neither slice 4 nor
+slice 5 owns it — slice 4 is the case detail, slice 5 is the second submission type. It is declined,
+not forgotten: the queue does its job for now, and "find a case nobody assigned me" wants a designed
+page with search and filters rather than an unfiltered table shipped to light up a greyed-out
+button. Decide it on its own terms or leave the button disabled.
 
 ### 4 — Working a case
 

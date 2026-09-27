@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Center, Loader } from "@mantine/core";
 import { api, type Session } from "./api";
 import { SignIn } from "./pages/SignIn";
+import { CaseView } from "./pages/CaseView";
 import { MyWork } from "./pages/MyWork";
+import { NewCase } from "./pages/NewCase";
 import { Workflows } from "./pages/Workflows";
 import { WorkflowView } from "./pages/WorkflowView";
 import { Shell } from "./Shell";
@@ -36,7 +38,15 @@ export function App() {
           re-reading on a switch is the rule rather than an exception — making it
           structural beats remembering to add a dependency to each new page. */}
       <Routes key={session.signedInAs.reference}>
-        <Route path="/" element={<MyWork />} />
+        <Route
+          path="/"
+          element={<MyWork groups={session.signedInAs.groups} />}
+        />
+        <Route path="/cases/new" element={<NewCase />} />
+        <Route
+          path="/cases/:reference"
+          element={<CaseView agentMode={session.agentMode} />}
+        />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/:id" element={<WorkflowView />} />
         <Route path="*" element={<Navigate to="/" replace />} />

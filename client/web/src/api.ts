@@ -50,6 +50,104 @@ export const api = {
   workflows: () => request<WorkflowSummary[]>("/api/workflows"),
   workflow: (definitionId: string) =>
     request<Workflow>(`/api/workflows/${definitionId}`),
+
+  case: (reference: string) => request<Case>(`/api/cases/${reference}`),
+  createCase: (body: NewCase) =>
+    request<{ reference: string }>("/api/cases", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  // Both of these return the whole case rather than the thing they created, so
+  // the screen never has to guess what changed. Adding a document moves the
+  // revision, which changes which documents are current — a response carrying
+  // only the new row would leave the caller to work that out.
+  addDocument: (reference: string, body: NewDocument) =>
+    request<Case>(`/api/cases/${reference}/documents`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  submitCase: (reference: string) =>
+    request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
+  samples: () => request<Sample[]>("/api/samples"),
+};
+
+export type CaseDocument = {
+  id: string;
+  name: string;
+  kind: string;
+  receivedAt: string;
+  body: string | null;
+  sourceFile: string | null;
+  addedAtRevision: number;
+  // Superseded means a newer document of the same kind has taken over. The row
+  // stays on the case: an agent's remark refers to the document it actually
+  // read, and hiding that document would leave the remark looking wrong.
+  superseded: boolean;
+};
+
+export type CaseStep = {
+  name: string;
+  assignee: string;
+  isAgent: boolean;
+  waitingSince: string;
+  visitId: string;
+  actions: { id: string; name: string }[];
+};
+
+export type Case = {
+  reference: string;
+  type: "claim" | "application";
+  status: "draft" | "submitted";
+  workflowName: string;
+  runStatus: string;
+  submittedAt: string | null;
+  // Revision is what the current documents are current as of, and what the next
+  // completion will stamp on its visit.
+  revision: number;
+  claim: {
+    policyNumber: string;
+    claimantName: string;
+    amount: string;
+    occurredAt: string;
+    incidentNarrative: string;
+  } | null;
+  application: {
+    proposerName: string;
+    coverType: string;
+    sumInsured: string;
+    disclosures: string;
+  } | null;
+  documents: CaseDocument[];
+  // Null on a draft, and null again once the run has finished.
+  currentStep: CaseStep | null;
+};
+
+export type NewCase = {
+  type: "claim";
+  policyNumber: string;
+  claimantName: string;
+  amount: string;
+  occurredAt: string;
+  incidentNarrative: string;
+};
+
+// Exactly one of sampleFile, or fileName plus body.
+export type NewDocument = {
+  sampleFile?: string;
+  fileName?: string;
+  body?: string;
+  kind?: string;
+  name?: string;
+};
+
+export type Sample = {
+  fileName: string;
+  title: string;
+  kind: string;
+  // What the document argues for, read out of its file name. Empty for a file
+  // carrying no outcome.
+  outcome: string;
+  body: string;
 };
 
 export type WorkflowSummary = {

@@ -849,10 +849,13 @@ the behaviour with nothing wired up, because `matchOutcome` maps to action names
 *Both halves come from the same files.* The seed is built from the samples rather than from literals
 beside them, so the text a visitor adds and the text already on the seeded claim cannot drift.
 
-*Three surfaces offered, one cut.* Remark, upload warning, and a mode badge in the header. The owner
-took the first two: *"remark plus upload warning, no badge"*. The remark is the one that matters,
-because it is the only one that survives into the record — a badge describes the session, a remark
-describes the decision.
+*Three surfaces offered, one cut.* Remark, upload warning, and a per-document badge marking which
+documents the simulation could read. The owner took the first two: *"remark plus upload warning, no
+badge"*. The remark is the one that matters, because it is the only one that survives into the
+record — a badge describes the session, a remark describes the decision.
+
+The header badge that already showed `agents: simulated (no API key)` was not what was cut, and it
+stays; that was confirmed when this entry was corrected.
 
 *Numbers recommend an order.* The prefix is stripped before anything reads the name. It sorts the
 list so the document that unblocks the seeded claim is offered first, which is the one instruction a
@@ -865,6 +868,76 @@ text, so a text file pretending to be one is a lie the format cannot carry — a
 `witness-statement-corroborates.txt` became `-consistent.txt`, since one word per outcome across
 every kind is the whole point of a fixed vocabulary.
 
+**Correction.**
+This entry first claimed that nothing in the interface reads `agentMode`, and that the mode badge had
+been cut. Both were wrong: `Shell.tsx` has rendered it in the header since slice 1. The error came
+from a grep for "simulat" that never matched the field's name — a reminder that "I searched and found
+nothing" is a claim about the search.
+
 **Not built yet.**
-`agentMode` is on the session payload; nothing in the interface reads it, and the upload warning does
-not exist. Both are the React half of slice 3.
+The upload warning. It is the React half of slice 3, and client decision 22 settles its shape.
+
+## 22. One case screen in two states, and a control that says what will happen
+
+**Context.**
+Slice 3's Go half was finished and none of it was reachable: four endpoints, eight sample documents,
+a document model, and three routes in the browser that led to a queue, a workflow list and a canvas.
+This settles the screens that reach it.
+
+**Decision.**
+One case screen at `/cases/:reference`, serving a draft and a running case as two states of one
+thing. Queue rows link to it; the Cases nav item stays disabled. A new claim is filed at
+`/cases/new`, details only, and lands on the new case's screen. Documents are added from a single
+card with a `Sample | Upload` segmented control. While an agent holds the current step the screen
+polls; otherwise it is silent.
+
+**Why.**
+
+*One screen, because the payload already decided it.* `composeCase` returns a draft and a running
+case as the same resource with `currentStep` nullable. A draft-only screen would have been discarded
+in slice 4. It also puts the demonstration's one moment where the visitor is already looking:
+Submit, and two agent steps resolve in front of them. Bouncing back to the queue would leave that as
+a row reading `fast-track review` and the inference that something must have happened.
+
+*Policy applications render now, ahead of slice 5.* Fifteen read-only fields against a payload that
+already carries them. The alternative was not "less work" but different work — a conditional in the
+queue to suppress the link, written now and deleted in slice 5 — plus a dead row in the demonstration
+for the whole of slice 4. Slice 5 still owns the application branch of the submission form and the
+underwriting path end to end.
+
+*A new claim is filed from My work.* It is the landing page, it already carries drafts, and the draft
+a visitor has just filed appears in the list they are looking at, waiting to be submitted. The Cases
+nav stays disabled because the list it promises belongs to no slice, and "find a case nobody assigned
+me" deserves a designed page rather than an unfiltered table shipped to fill a greyed-out button.
+
+*The control states what will happen, rather than warning after the fact.* The owner asked for two
+messages — one for an upload with no key, one for a sample with no key — and both are the same job.
+So it is one line under the control, always present, always true, changing with the mode and the key:
+the model will read this, or the file name will be read, or nothing will be read and the action is
+chosen at random. A single line cannot drift out of step with itself the way two warnings would.
+
+It is also where decision 20 becomes visible. The picker says *"supersedes the estimate already on
+file"* before the document is added, so per-kind currency is an explanation rather than the surprise
+of an older document greying out afterwards.
+
+*Uploads carry an explicit kind.* Kind is the axis currency turns on, so a file defaulting to
+`correspondence` would supersede nothing and be read by no step — decorative. Inferring the kind from
+an uploaded file's name is the hidden heuristic decision 21 refused, so the visitor picks it.
+
+*Polling, and only while an agent holds the step.* The pause after Submit is deliberate — the run
+sits open in the database with nothing attending it, which is decision 4's whole point — so the
+screen says that in words rather than showing a spinner. The condition is `currentStep.isAgent`, so
+it runs for the two seconds the simulation takes or the ten a model takes, and then stops: a case
+parked on `group:adjusters` polls nothing. Server-sent events were refused for adding a streaming
+transport to an application whose subject is a library boundary.
+
+**Deferred, with the reasons.**
+
+*History stays in slice 4.* This is the closest call in the entry. The agents' remarks are the payoff
+of decision 21 and they are invisible without it, but slice 3's done-when survives — the assignee
+moves through two agents while the visitor touches nothing, which is "decided by an agent rather than
+by anyone" in plain view. Slice 3 had already grown three times. The layout leaves room for the
+panel so slice 4 adds rather than rearranges.
+
+*The Cases list belongs to no slice.* Recorded here and in the slice plan, because a disabled nav
+item with no owner reads as something forgotten rather than something declined.
