@@ -11,6 +11,7 @@ import {
   Title,
 } from "@mantine/core";
 import { api, type QueueItem } from "../api";
+import { submissionName } from "../vocabulary";
 
 // The queue carries both kinds of submission, because "what should I do next"
 // does not sort by where the work came from.
@@ -75,8 +76,8 @@ export function MyWork({ groups }: { groups: string[] }) {
                   </Anchor>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" color={item.type === "claim" ? "blue" : "grape"}>
-                    {item.type}
+                  <Badge variant="light" color={item.type === "claim" ? "teal" : "grape"}>
+                    {submissionName(item.type)}
                   </Badge>
                 </Table.Td>
                 <Table.Td>

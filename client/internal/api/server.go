@@ -131,8 +131,14 @@ func sessionFrom(r *http.Request) string {
 type staffJSON struct {
 	Reference string   `json:"reference"`
 	Name      string   `json:"name"`
-	Title     string   `json:"title"`
 	Groups    []string `json:"groups"`
+	// Teams is the groups spelled for a person to read — "Claims adjusters".
+	// Groups stays because it is what the interface matches against a step's
+	// assignee; this is only ever displayed.
+	//
+	// It replaced a job title, which described the same person in words nothing
+	// matched on.
+	Teams string `json:"teams"`
 }
 
 type sessionJSON struct {
@@ -234,7 +240,6 @@ func (s *Server) showQueue(w http.ResponseWriter, r *http.Request) {
 	items, err := s.app.Queue(r.Context(), sessionFrom(r), app.Identity{
 		Reference: member.Reference,
 		Name:      member.Name,
-		Title:     member.Title,
 		Groups:    member.Groups,
 	})
 	if err != nil {
@@ -269,8 +274,10 @@ func toStaffJSON(member store.Staff) staffJSON {
 	return staffJSON{
 		Reference: member.Reference,
 		Name:      member.Name,
-		Title:     member.Title,
 		Groups:    groups,
+		// The same spelling the reassignment list uses, from the same function,
+		// so a team is never named two ways.
+		Teams: app.TeamsOf(groups),
 	}
 }
 

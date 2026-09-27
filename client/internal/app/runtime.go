@@ -155,7 +155,7 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 		if member, ok := people[reference]; ok {
 			assignees = append(assignees, Assignee{
 				Reference: reference,
-				Label:     member.Name + " — " + member.Title,
+				Label:     member.Name + " — " + TeamsOf(member.Groups),
 				Kind:      KindPerson,
 			})
 
@@ -164,7 +164,7 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 
 		assignees = append(assignees, Assignee{
 			Reference: reference,
-			Label:     teamLabel(reference),
+			Label:     TeamLabel(reference),
 			Kind:      KindTeam,
 		})
 	}
@@ -196,35 +196,47 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 	return assignees, nil
 }
 
-// teamLabel makes a group reference readable: "group:senior-uw" reads as
-// "Senior UW".
+// TeamLabel makes a group reference readable: "group:claims-adjusters" reads as
+// "Claims adjusters".
 //
 // Cosmetic only, and deliberately so — a team has no name anywhere in CaseWork,
 // because a group exists solely as a string on a person and on a step. Inventing
 // display names in a table would be inventing data.
 //
-// The acronym list will go stale, and that is tolerable here in a way the stale
-// roster was not: a missing entry yields "Siu" instead of "SIU", which is ugly.
-// It cannot produce a wrong assignment, because the reference travels untouched
-// and this touches only what is shown.
-func teamLabel(reference string) string {
-	acronyms := map[string]string{"siu": "SIU", "uw": "UW", "qa": "QA"}
-
+// There was an acronym map here, for `group:siu` and `group:senior-uw`. The
+// groups were renamed to read as their own labels instead, which deleted it: a
+// reference that spells itself needs no translation, and a translation table is
+// one more thing that can drift from what it describes.
+func TeamLabel(reference string) string {
 	_, name, found := strings.Cut(reference, ":")
 	if !found {
 		name = reference
 	}
 
+	// Only the first word is capitalised: "Claims adjusters", not "Claims
+	// Adjusters". A team is a noun phrase, not a title.
 	words := strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' })
-	for i, word := range words {
-		if expanded, ok := acronyms[word]; ok {
-			words[i] = expanded
-
-			continue
-		}
-
-		words[i] = strings.ToUpper(word[:1]) + word[1:]
+	if len(words) == 0 {
+		return reference
 	}
 
+	words[0] = strings.ToUpper(words[0][:1]) + words[0][1:]
+
 	return strings.Join(words, " ")
+}
+
+// TeamsOf spells a person's groups for display.
+//
+// This replaced a job title on `staff`, which said the same thing in different
+// words — "Claims adjuster" beside a group reading "Adjusters" — and said it
+// about the half that does no work. The group is what gets matched against a
+// step's assignee, so it is the half that explains why somebody's queue looks the
+// way it does.
+func TeamsOf(groups []string) string {
+	labels := make([]string, 0, len(groups))
+	for _, group := range groups {
+		labels = append(labels, TeamLabel(group))
+	}
+
+	return strings.Join(labels, " · ")
 }

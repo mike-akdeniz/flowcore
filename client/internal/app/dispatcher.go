@@ -216,12 +216,34 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
+	// What this step reads, from CaseWork's own tables. FlowCore has no notion of
+	// a document and never will, so the association between a step and the kinds
+	// of document that answer it lives entirely on this side of the boundary —
+	// keyed to the definition step the snapshot came from.
+	expected, err := d.app.Store.DocumentTypesForStep(
+		ctx, item.SessionID, state.CurrentStep.StepDefinitionID)
+	if err != nil {
+		d.logger.Warn("agent step: reading expectations", "visit", item.VisitID, "err", err)
+
+		return
+	}
+
+	expects := make([]ExpectedDocument, 0, len(expected))
+	for _, documentType := range expected {
+		expects = append(expects, ExpectedDocument{
+			Name:        documentType.Name,
+			PassFinding: documentType.PassFinding,
+			FailFinding: documentType.FailFinding,
+		})
+	}
+
 	verdict, err := d.checker.Check(ctx, CheckRequest{
 		Agent:       state.CurrentStep.AssigneeID,
 		StepName:    state.CurrentStep.Name,
 		Reference:   reference,
 		SubjectText: view.Text,
 		Documents:   view.Documents,
+		Expects:     expects,
 		Actions:     state.CurrentStep.Actions,
 	})
 	if err != nil {

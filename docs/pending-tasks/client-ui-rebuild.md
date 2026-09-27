@@ -148,13 +148,16 @@ that announces itself in every remark.
 
 **To settle in its grilling, not before:**
 
-- Does the picker narrow hard to the step's types, or show them first with the rest below? A visitor
-  adding a witness statement early is doing something sensible.
-- Is the per-type text a canned finding, or assessor guidance a real model would use as prompt
-  material? The second is more interesting and more scope.
-- What keys a type to a step. `CurrentStep` exposes only the snapshot step id, so the options are
-  `(definition_id, step_name)` with CaseWork migrating its own rows on a rename, or landing
-  `StepDefinitionID` in the library. FlowCore decision 45; this slice is what makes it load-bearing.
+- ~~Narrow hard, or suggest first?~~ **Settled: narrow.** A step that should accept a witness
+  statement has one attached, so a wrong list is a configuration mistake with a visible cause rather
+  than a guess in code. A step with nothing attached shows everything.
+- ~~Canned finding or assessor guidance?~~ **Settled: canned findings**, as columns on the type, so a
+  type created in the interface is complete. Guidance belongs with `checker_claude.go`'s per-agent
+  `instructions` map — a fifth scattered literal, keyed by agent reference, which is step
+  configuration and so belongs to the next slice.
+- ~~What keys a type to a step.~~ **Settled: the step definition id.** FlowCore decision 45 landed on
+  `CurrentStep` — four lines, no migration — rather than keying metadata to a name a later editor is
+  free to change.
 
 Done when the right documents are offered at the right step, and adding a document kind needs no
 migration.

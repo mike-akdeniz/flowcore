@@ -11,24 +11,12 @@ import {
 } from "@mantine/core";
 import { api, type Case, type NewDocument, type Sample } from "../api";
 
-// The kinds a document can be. Kind is the axis currency turns on — a newer
-// document of a kind supersedes the older one — so an upload has to name its
-// own rather than defaulting to correspondence and superseding nothing.
+// A document's kind is now configuration, so there is no list of them here. The
+// case carries every type this session knows about, for the upload selector, and
+// the names the current step expects, for the picker.
 //
-// Inferring it from the uploaded file's name was the other option, and it is the
-// hidden heuristic decision 21 refused: the sample convention reads file names
-// because samples are ours, not because file names are trustworthy.
-const kinds = [
-  { value: "estimate", label: "Repair estimate" },
-  { value: "police_report", label: "Police report" },
-  { value: "witness_statement", label: "Witness statement" },
-  { value: "intake_note", label: "Intake note" },
-  { value: "correspondence", label: "Correspondence" },
-];
-
-function kindLabel(kind: string) {
-  return kinds.find((candidate) => candidate.value === kind)?.label ?? kind;
-}
+// This replaced a Go literal that had to agree with three other places and a SQL
+// CHECK constraint, none of which failed when they drifted.
 
 // whatHappensNext is the one line this control exists around.
 //
@@ -43,7 +31,7 @@ function whatHappensNext(
 ): { colour: string; text: string } {
   if (hasKey) {
     return {
-      colour: "blue",
+      colour: "gray",
       text: "A model will read this document's text and decide for itself.",
     };
   }
@@ -76,10 +64,34 @@ export function AddDocument({
   onAdded: (updated: Case) => void;
 }) {
   const [samples, setSamples] = useState<Sample[]>([]);
+  const titles = new Map(subject.documentTypes.map((t) => [t.name, t.title]));
+
+  function kindLabel(kind: string) {
+    return titles.get(kind) ?? kind;
+  }
+
+  // The step's own list, and everything when it declares none. A step that should
+  // accept a witness statement has one attached to it — a wrong list here is a
+  // configuration mistake with a visible cause, not a guess made in code.
+  //
+  // Sorted by title so a type's pass and fail sit together, and pass first within
+  // each so the ordinary case leads. The numeric prefix the files carry is a
+  // reading order for the folder, and it is not shown here — the label is the
+  // type's title — so nothing about the two orderings conflicts.
+  const offered = samples
+    .filter(
+      (candidate) =>
+        subject.expects.length === 0 || subject.expects.includes(candidate.kind),
+    )
+    .sort((left, right) => {
+      const byTitle = kindLabel(left.kind).localeCompare(kindLabel(right.kind));
+
+      return byTitle !== 0 ? byTitle : left.outcome.localeCompare(right.outcome) * -1;
+    });
   const [mode, setMode] = useState<"sample" | "upload">("sample");
   const [chosen, setChosen] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ fileName: string; body: string }>();
-  const [uploadKind, setUploadKind] = useState<string>("estimate");
+  const [uploadKind, setUploadKind] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -88,11 +100,26 @@ export function AddDocument({
   // that can drive its risk screen; offering it the six claim documents as well
   // would bury them.
   useEffect(() => {
-    void api.samples(subject.type).then((loaded) => {
-      setSamples(loaded);
-      setChosen(loaded[0]?.fileName ?? null);
-    });
-  }, [subject.type]);
+    void api.samples().then(setSamples);
+  }, []);
+
+  useEffect(() => {
+    setUploadKind((current) => current || (subject.documentTypes[0]?.name ?? ""));
+  }, [subject.documentTypes]);
+
+  // Nothing is selected until someone selects it. Auto-picking the first sample
+  // meant pressing Add without reading filed whatever happened to be at the top,
+  // which is a real way to add a document you did not mean to.
+  //
+  // The selection is cleared when the offered set changes — a new step, a
+  // different case — so the picker never holds a file it is no longer offering.
+  useEffect(() => {
+    setChosen((current) =>
+      current && offered.some((candidate) => candidate.fileName === current)
+        ? current
+        : null,
+    );
+  }, [offered.map((candidate) => candidate.fileName).join(",")]);
 
   const sample = samples.find((candidate) => candidate.fileName === chosen);
   const kind = mode === "sample" ? sample?.kind : uploadKind;
@@ -144,15 +171,15 @@ export function AddDocument({
 
         {mode === "sample" ? (
           <Select
-            data={samples.map((candidate) => ({
+            data={offered.map((candidate) => ({
               value: candidate.fileName,
               label: candidate.outcome
-                ? `${candidate.fileName} — ${candidate.outcome}`
-                : candidate.fileName,
+                ? `${kindLabel(candidate.kind)} — ${candidate.outcome}`
+                : kindLabel(candidate.kind),
             }))}
             value={chosen}
             onChange={setChosen}
-            placeholder="Choose a sample"
+            placeholder="Select a document"
             allowDeselect={false}
           />
         ) : (
@@ -173,9 +200,13 @@ export function AddDocument({
             />
             <Select
               label="Kind"
-              data={kinds}
+              // Every type, never narrowed: you file whatever arrived.
+              data={subject.documentTypes.map((documentType) => ({
+                value: documentType.name,
+                label: documentType.title,
+              }))}
               value={uploadKind}
-              onChange={(value) => setUploadKind(value ?? "correspondence")}
+              onChange={(value) => setUploadKind(value ?? uploadKind)}
               allowDeselect={false}
             />
           </Group>
@@ -190,9 +221,14 @@ export function AddDocument({
           </Text>
         )}
 
-        <Alert color={note.colour} variant="light" p="xs">
-          <Text size="sm">{note.text}</Text>
-        </Alert>
+        {/* Both of these describe the selected document, so neither appears
+            before there is one. The header badge already says which mode the
+            agent steps are in, so nothing is lost by waiting. */}
+        {ready && (
+          <Alert color={note.colour} variant="light" p="xs">
+            <Text size="sm">{note.text}</Text>
+          </Alert>
+        )}
 
         {failure && (
           <Text size="sm" c="red">

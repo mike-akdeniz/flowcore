@@ -28,7 +28,12 @@ type CheckRequest struct {
 	// checker ignores them and reads SubjectText; the simulated one needs the kind
 	// to know which document answers the step it is standing on.
 	Documents []CaseDocument
-	Actions   []flowcore.Action
+	// Expects is what this step has been configured to read, and is what tells a
+	// checker which of the documents on file answers the question in front of it.
+	// Empty when the step declares nothing, which is not an error — it means the
+	// simulation has nothing to go on and says so.
+	Expects []ExpectedDocument
+	Actions []flowcore.Action
 }
 
 // CaseDocument is the little a checker needs to know about a document on file.
@@ -40,6 +45,18 @@ type CaseDocument struct {
 	// FileName is the sample's name, or the name of an uploaded file. It is the
 	// only thing the simulated checker has to go on.
 	FileName string
+}
+
+// ExpectedDocument is a document type a step reads, with what the simulation
+// should say about one.
+//
+// The findings come from the database rather than from a map in this package, so
+// a document type created in the interface arrives complete. A real checker
+// ignores them and writes its own.
+type ExpectedDocument struct {
+	Name        string
+	PassFinding string
+	FailFinding string
 }
 
 // Verdict is an agent's answer: which action to take, and why.

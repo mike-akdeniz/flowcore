@@ -10,6 +10,7 @@ import {
   Title,
 } from "@mantine/core";
 import { api, type Workflow } from "../api";
+import { submissionPlural } from "../vocabulary";
 import { WorkflowGraph } from "../workflow/WorkflowGraph";
 
 // Understanding a workflow, with nothing competing with the diagram.
@@ -42,9 +43,7 @@ export function WorkflowView() {
           <Text size="sm" c="dimmed">
             {workflow.steps.length} steps, {agentSteps.length} of them decided by
             an agent · applies to{" "}
-            {workflow.submissionType === "claim"
-              ? "claims"
-              : "new policy applications"}
+            {submissionPlural(workflow.submissionType)}
           </Text>
         </Stack>
         {workflow.active && (

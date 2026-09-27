@@ -50,7 +50,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 			{
 				// One side of the branch, with a cross-over out of it.
 				ID: fastTrack, WorkflowStatusDefinitionID: inAssessment,
-				Name: "fast-track review", AssigneeID: "group:adjusters",
+				Name: "fast-track review", AssigneeID: "group:claims-adjusters",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "settle", TerminalWorkflowStatusDefinitionID: &settled},
 					{Name: "escalate", NextStepDefinitionID: &documentation},
@@ -69,7 +69,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 			{
 				// The loop target: an AI step re-run against a genuinely different file.
 				ID: awaiting, WorkflowStatusDefinitionID: inAssessment,
-				Name: "awaiting documents", AssigneeID: "group:intake",
+				Name: "awaiting documents", AssigneeID: "group:intake-handlers",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "resubmit", NextStepDefinitionID: &documentation},
 				},
@@ -86,7 +86,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 			{
 				// The main human decision, with the cross-over back.
 				ID: adjuster, WorkflowStatusDefinitionID: inAssessment,
-				Name: "adjuster review", AssigneeID: "group:adjusters",
+				Name: "adjuster review", AssigneeID: "group:claims-adjusters",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "settle", TerminalWorkflowStatusDefinitionID: &settled},
 					{Name: "downgrade", NextStepDefinitionID: &fastTrack},
@@ -96,7 +96,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 			{
 				// A side branch that rejoins the main path or ends the run.
 				ID: fraud, WorkflowStatusDefinitionID: inAssessment,
-				Name: "fraud referral", AssigneeID: "group:siu",
+				Name: "fraud referral", AssigneeID: "group:fraud-investigators",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "cleared", NextStepDefinitionID: &adjuster},
 					{Name: "confirmed", TerminalWorkflowStatusDefinitionID: &declined},
@@ -120,7 +120,7 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 	)
 
 	return flowcore.WorkflowDefinition{
-		Name:                    "New business underwriting",
+		Name:                    "Policy assessment",
 		InitialStepDefinitionID: &riskScreen,
 		Statuses: []flowcore.WorkflowStatusDefinition{
 			{ID: inUnderwriting, Name: "in underwriting"},
@@ -147,7 +147,7 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 			},
 			{
 				ID: senior, WorkflowStatusDefinitionID: inUnderwriting,
-				Name: "senior underwriter", AssigneeID: "group:senior-uw",
+				Name: "senior underwriter", AssigneeID: "group:senior-underwriters",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "accept", TerminalWorkflowStatusDefinitionID: &accepted},
 					{Name: "decline", TerminalWorkflowStatusDefinitionID: &declined},

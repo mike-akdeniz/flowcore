@@ -19,7 +19,6 @@ type Identity struct {
 	// convention and means nothing to the library.
 	Reference string
 	Name      string
-	Title     string
 	// Groups are this person's memberships, resolved here and passed to the
 	// worklist as extra references to match. Deciding whether Dana is in
 	// group:security is exactly the question FlowCore refuses to answer, which is

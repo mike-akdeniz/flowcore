@@ -47,23 +47,23 @@ const (
 // Outcomes is the vocabulary.
 var Outcomes = []Outcome{OutcomePass, OutcomeFail}
 
-// Document is one sample: its file name, the kind of document it represents, what
-// it argues for, and its text.
+// Document is one sample: its file name, the document type it is an example of,
+// what it does to the check that reads it, and its text.
+//
+// No title and no submission type. Both used to be decided here by a switch on
+// the file name's prefix, and both now live on the document type in the database
+// — the title on the type row, and whether a type belongs to claims or to
+// applications derived from the steps it is attached to. What is left is
+// structural: this package knows the *shape* of a sample's name and nothing about
+// any particular kind of document.
 type Document struct {
 	FileName string
-	Kind     string
-	Outcome  Outcome
-	// Title is what the document is called in a case file, derived from the kind.
-	Title string
-	Body  string
-	// AppliesTo is the submission type this sample was written for, "claim" or
-	// "application". Empty means it fits either.
-	//
-	// It is not a rule about what a case may hold — nothing stops a police report
-	// sitting on a proposal, and CaseWork does not police that. It only keeps the
-	// picker to the samples that can do something, since these are documents we
-	// wrote for the demonstration and we know which scenario each belongs to.
-	AppliesTo string
+	// Kind is the document type's name, which is the file name's middle segment
+	// verbatim: `estimate`, `police-report`, `prior-insurer`. One spelling across
+	// the file, the row and the document.
+	Kind    string
+	Outcome Outcome
+	Body    string
 }
 
 // Library is the loaded set.
@@ -96,18 +96,14 @@ func Load(files fs.FS) (*Library, error) {
 		library.byName[document.FileName] = document
 	}
 
-	// Grouped by submission type, then by number — the numbering restarts for each
-	// type, because the picker only ever shows one type's samples at a time and a
-	// list that began at nine would be odd.
+	// Grouped by document type, then by the number the file name carries. The
+	// numbering restarts for each kind of submission, and the picker only ever
+	// shows one kind at a time, so grouping keeps each list reading from one.
 	//
 	// By the number and not the name: a string sort puts "10-" before "9-", which
 	// breaks the one thing the prefix is for, and only once a tenth sample exists.
 	sort.Slice(library.documents, func(i, j int) bool {
 		left, right := library.documents[i], library.documents[j]
-		if left.AppliesTo != right.AppliesTo {
-			return left.AppliesTo < right.AppliesTo
-		}
-
 		if order(left.FileName) != order(right.FileName) {
 			return order(left.FileName) < order(right.FileName)
 		}
@@ -119,19 +115,6 @@ func Load(files fs.FS) (*Library, error) {
 }
 
 func (l *Library) All() []Document { return l.documents }
-
-// For returns the samples written for a submission type, plus any that fit
-// either.
-func (l *Library) For(submissionType string) []Document {
-	matching := make([]Document, 0, len(l.documents))
-	for _, document := range l.documents {
-		if document.AppliesTo == "" || document.AppliesTo == submissionType {
-			matching = append(matching, document)
-		}
-	}
-
-	return matching
-}
 
 func (l *Library) ByName(fileName string) (Document, bool) {
 	document, ok := l.byName[fileName]
@@ -150,55 +133,27 @@ func (l *Library) MustHave(fileName string) Document {
 	return document
 }
 
-// parse splits `<order>-<kind>-<outcome>.txt` into its parts.
+// parse splits `<order>-<type>-<outcome>.txt` into its parts.
+//
+// Entirely structural: strip the number, strip the outcome, and whatever is left
+// is the document type's name. There is no list of kinds here, so adding one is
+// two files and a row rather than a code change.
 //
 // A name that does not match the convention still loads — it is simply a document
 // with no outcome, which is exactly what an uploaded file is.
 func parse(fileName, body string) Document {
 	stem := TrimOrder(strings.TrimSuffix(fileName, ".txt"))
 
-	document := Document{FileName: fileName, Body: body, Kind: "correspondence"}
+	document := Document{FileName: fileName, Body: body, Kind: stem}
 
 	for _, outcome := range Outcomes {
 		suffix := "-" + string(outcome)
 		if strings.HasSuffix(stem, suffix) {
 			document.Outcome = outcome
-			stem = strings.TrimSuffix(stem, suffix)
+			document.Kind = strings.TrimSuffix(stem, suffix)
 
 			break
 		}
-	}
-
-	// The kind is the axis currency turns on: a newer document of a kind
-	// supersedes an older one of the same kind, so a witness statement and an
-	// intake note cannot share `correspondence` without displacing each other.
-	switch {
-	case strings.HasPrefix(stem, "police-report"):
-		document.Kind = "police_report"
-		document.Title = "Police report"
-		document.AppliesTo = "claim"
-	case strings.HasPrefix(stem, "estimate"):
-		document.Kind = "estimate"
-		document.Title = "Repair estimate"
-		document.AppliesTo = "claim"
-	case strings.HasPrefix(stem, "witness-statement"):
-		document.Kind = "witness_statement"
-		document.Title = "Witness statement"
-		document.AppliesTo = "claim"
-	case strings.HasPrefix(stem, "intake-note"):
-		document.Kind = "intake_note"
-		document.Title = "Intake note"
-		document.AppliesTo = "claim"
-	case strings.HasPrefix(stem, "inspection"):
-		document.Kind = "inspection_report"
-		document.Title = "Vehicle inspection"
-		document.AppliesTo = "application"
-	case strings.HasPrefix(stem, "prior-insurer"):
-		document.Kind = "prior_insurer_letter"
-		document.Title = "Previous insurer's letter"
-		document.AppliesTo = "application"
-	default:
-		document.Title = titleFrom(stem)
 	}
 
 	return document
@@ -244,13 +199,4 @@ func TrimOrder(stem string) string {
 	}
 
 	return stem[digits+1:]
-}
-
-func titleFrom(stem string) string {
-	words := strings.ReplaceAll(stem, "-", " ")
-	if words == "" {
-		return "Document"
-	}
-
-	return strings.ToUpper(words[:1]) + words[1:]
 }

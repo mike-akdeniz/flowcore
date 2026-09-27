@@ -11,6 +11,7 @@ import {
 import { api, type WorkflowSummary } from "../api";
 import { NewApplicationForm } from "../case/NewApplicationForm";
 import { NewClaimForm } from "../case/NewClaimForm";
+import { submissionName } from "../vocabulary";
 
 type SubmissionType = "claim" | "application";
 
@@ -54,12 +55,14 @@ export function NewCase() {
         value={type}
         onChange={(value) => setType(value as SubmissionType)}
         data={[
-          { label: "Claim", value: "claim" },
-          { label: "Policy application", value: "application" },
+          { label: submissionName("claim"), value: "claim" },
+          { label: submissionName("application"), value: "application" },
         ]}
       />
 
-      <Alert variant="light" color={active ? "blue" : "orange"} p="xs">
+      {/* Grey when it is telling you something, orange when it is warning you.
+          Never blue: there is nothing here to click. */}
+      <Alert variant="light" color={active ? "gray" : "orange"} p="xs">
         <Text size="sm">
           {active ? (
             <>

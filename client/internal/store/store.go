@@ -73,14 +73,14 @@ func (s *Store) ExpiredSessions(ctx context.Context, ttl time.Duration) ([]strin
 
 func (s *Store) Roster(ctx context.Context) ([]Staff, error) {
 	rows, err := s.pool.Query(ctx,
-		`select reference, name, title, groups from casework.staff order by sort_order`)
+		`select reference, name, groups from casework.staff order by sort_order`)
 	if err != nil {
 		return nil, err
 	}
 
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Staff, error) {
 		var member Staff
-		err := row.Scan(&member.Reference, &member.Name, &member.Title, &member.Groups)
+		err := row.Scan(&member.Reference, &member.Name, &member.Groups)
 
 		return member, err
 	})
@@ -89,8 +89,8 @@ func (s *Store) Roster(ctx context.Context) ([]Staff, error) {
 func (s *Store) StaffByReference(ctx context.Context, reference string) (Staff, error) {
 	var member Staff
 	err := s.pool.QueryRow(ctx,
-		`select reference, name, title, groups from casework.staff where reference = $1`,
-		reference).Scan(&member.Reference, &member.Name, &member.Title, &member.Groups)
+		`select reference, name, groups from casework.staff where reference = $1`,
+		reference).Scan(&member.Reference, &member.Name, &member.Groups)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Staff{}, ErrNotFound
 	}
@@ -132,7 +132,7 @@ func (s *Store) InsertSubmission(ctx context.Context, submission Submission) err
 func (s *Store) Submissions(ctx context.Context, sessionID string) ([]Submission, error) {
 	rows, err := s.pool.Query(ctx,
 		`select `+submissionColumns+` from casework.submission
-		 where session_id = $1 order by created_at`,
+		 where session_id = $1 order by created_at desc`,
 		sessionID)
 	if err != nil {
 		return nil, err
@@ -333,7 +333,7 @@ func scanRegistered(row pgx.CollectableRow) (RegisteredWorkflow, error) {
 func (s *Store) RegisteredWorkflows(ctx context.Context, sessionID string) ([]RegisteredWorkflow, error) {
 	rows, err := s.pool.Query(ctx,
 		`select `+registryColumns+` from casework.workflow_registry
-		 where session_id = $1 order by submission_type, created_at`,
+		 where session_id = $1 order by created_at desc`,
 		sessionID)
 	if err != nil {
 		return nil, err
@@ -359,4 +359,119 @@ func (s *Store) ActiveWorkflow(ctx context.Context, sessionID string, submission
 	}
 
 	return workflow, err
+}
+
+// --- document types --------------------------------------------------------
+
+const documentTypeColumns = `id, session_id, name, title, pass_finding, fail_finding, created_at`
+
+func scanDocumentType(row pgx.CollectableRow) (DocumentType, error) {
+	var documentType DocumentType
+	err := row.Scan(&documentType.ID, &documentType.SessionID, &documentType.Name,
+		&documentType.Title, &documentType.PassFinding, &documentType.FailFinding,
+		&documentType.CreatedAt)
+
+	return documentType, err
+}
+
+// EnsureDocumentType writes a type if the session does not have one by that name,
+// and returns the id either way.
+//
+// Idempotent because a type can belong to more than one scenario —
+// `correspondence` is on both claims and policy applications — and the two are
+// seeded separately. Which of them "owns" it is not a question worth having: a
+// document type is a type, and being expected by steps of two workflows is
+// ordinary.
+func (s *Store) EnsureDocumentType(ctx context.Context, documentType DocumentType) (uuid.UUID, error) {
+	var id uuid.UUID
+
+	err := s.pool.QueryRow(ctx,
+		`insert into casework.document_type (`+documentTypeColumns+`)
+		 values ($1, $2, $3, $4, $5, $6, $7)
+		 on conflict (session_id, name) do update set name = excluded.name
+		 returning id`,
+		documentType.ID, documentType.SessionID, documentType.Name, documentType.Title,
+		documentType.PassFinding, documentType.FailFinding, documentType.CreatedAt).Scan(&id)
+
+	return id, err
+}
+
+// DocumentTypes is every type this session knows about, for the upload form's
+// kind selector — which offers all of them, because you file whatever arrived.
+func (s *Store) DocumentTypes(ctx context.Context, sessionID string) ([]DocumentType, error) {
+	rows, err := s.pool.Query(ctx,
+		`select `+documentTypeColumns+` from casework.document_type
+		 where session_id = $1 order by title`,
+		sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, scanDocumentType)
+}
+
+// AttachDocumentType records that a step expects a kind of document.
+func (s *Store) AttachDocumentType(
+	ctx context.Context,
+	definitionID uuid.UUID,
+	stepDefinitionID uuid.UUID,
+	documentTypeID uuid.UUID,
+) error {
+	_, err := s.pool.Exec(ctx,
+		`insert into casework.step_document_type
+		 (flowcore_definition_id, step_definition_id, document_type_id)
+		 values ($1, $2, $3) on conflict do nothing`,
+		definitionID, stepDefinitionID, documentTypeID)
+
+	return err
+}
+
+// DocumentTypesForStep is what one step expects.
+//
+// Keyed by the step definition id rather than the step's name, because a name is
+// something the workflow editor can change and metadata keyed to one orphans
+// without anything failing. FlowCore exposes the definition id on a running step.
+func (s *Store) DocumentTypesForStep(
+	ctx context.Context,
+	sessionID string,
+	stepDefinitionID uuid.UUID,
+) ([]DocumentType, error) {
+	rows, err := s.pool.Query(ctx,
+		`select t.id, t.session_id, t.name, t.title, t.pass_finding, t.fail_finding, t.created_at
+		 from casework.document_type t
+		 join casework.step_document_type a on a.document_type_id = t.id
+		 where t.session_id = $1 and a.step_definition_id = $2
+		 order by t.title`,
+		sessionID, stepDefinitionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, scanDocumentType)
+}
+
+// DocumentTypesForDefinition is every type any step of a workflow expects.
+//
+// This is what answers "which documents belong to a claim" without a column
+// saying so: a type is a claim document because a step of the claim workflow
+// reads it. It is what the picker falls back to on a draft, which has no running
+// step to ask about.
+func (s *Store) DocumentTypesForDefinition(
+	ctx context.Context,
+	sessionID string,
+	definitionID uuid.UUID,
+) ([]DocumentType, error) {
+	rows, err := s.pool.Query(ctx,
+		`select distinct t.id, t.session_id, t.name, t.title, t.pass_finding,
+		        t.fail_finding, t.created_at
+		 from casework.document_type t
+		 join casework.step_document_type a on a.document_type_id = t.id
+		 where t.session_id = $1 and a.flowcore_definition_id = $2
+		 order by t.title`,
+		sessionID, definitionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.CollectRows(rows, scanDocumentType)
 }

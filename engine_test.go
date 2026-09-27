@@ -184,6 +184,14 @@ func TestStartWritesTheWholeSnapshotWithProvenance(t *testing.T) {
 		t.Errorf("snapshot step records definition step %s, want %s", stepDefinitionID, ids.managerStep)
 	}
 
+	// The same provenance, through the API rather than the column. A caller
+	// hanging its own configuration on a definition step needs this to reach a
+	// running one, and the frozen name is the only alternative — see decision 45.
+	if state.CurrentStep.StepDefinitionID != stepDefinitionID {
+		t.Errorf("CurrentStep reports definition step %s, want %s",
+			state.CurrentStep.StepDefinitionID, stepDefinitionID)
+	}
+
 	if statusDefinitionID != ids.status || statusName != "in progress" {
 		t.Errorf("snapshot step status = %s/%q, want %s/%q",
 			statusDefinitionID, statusName, ids.status, "in progress")

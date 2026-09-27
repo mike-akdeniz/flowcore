@@ -117,15 +117,16 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 		// JOIN: a finished run has no open visit, so the whole group scans as NULL
 		// even though none of the columns is nullable. They are dereferenced only
 		// under visitID != nil, which is exactly when the join matched.
-		stepAssigneeID *string
-		enteredAt      *time.Time
+		stepAssigneeID   *string
+		enteredAt        *time.Time
+		stepDefinitionID *uuid.UUID
 	)
 
 	err := q.QueryRow(ctx,
 		`select w.id, w.name, w.subject_reference, w.subject_version_token,
 		        w.workflow_status_definition_id, w.workflow_status_name,
 		        w.started_at, w.completed_at,
-		        v.id, s.id, s.name, v.assignee_id, v.entered_at
+		        v.id, s.id, s.step_definition_id, s.name, v.assignee_id, v.entered_at
 		 from flowcore.workflow w
 		 left join flowcore.step_visit v
 		        on v.workflow_id = w.id and v.completed_at is null
@@ -142,6 +143,7 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 		&state.CompletedAt,
 		&visitID,
 		&stepID,
+		&stepDefinitionID,
 		&stepName,
 		&stepAssigneeID,
 		&enteredAt)
@@ -155,11 +157,12 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 
 	if visitID != nil {
 		state.CurrentStep = &CurrentStep{
-			ID:         *stepID,
-			VisitID:    *visitID,
-			Name:       *stepName,
-			AssigneeID: *stepAssigneeID,
-			EnteredAt:  *enteredAt,
+			ID:               *stepID,
+			StepDefinitionID: *stepDefinitionID,
+			VisitID:          *visitID,
+			Name:             *stepName,
+			AssigneeID:       *stepAssigneeID,
+			EnteredAt:        *enteredAt,
 		}
 	}
 

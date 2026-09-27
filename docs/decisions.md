@@ -1829,33 +1829,37 @@ This is the one place where "the column is NOT NULL" and "the scan target may be
 Four exported identifiers left the public API.
 That is a breaking change with no one to break, and the same timing argument covers it.
 
-## 45. A running step does not say which definition step it came from
+## 45. A running step says which definition step it came from
 
 **Context.**
 The reference client needs to hang configuration-side metadata on a step — which document kinds that step reads, authored against the definition and consulted while a run is sitting on the step.
-That needs a key spanning both sides, and there isn't one.
+That needs a key spanning both sides.
 
 **The gap.**
 `flowcore.step` carries `step_definition_id`, commented "Provenance, no foreign key", `not null`, with `uq_step_workflow_step_definition` on it since 00003.
-None of `CurrentStep`, `AssignedStep`, or `StepVisit` exposes it.
-A client holding a running step has the snapshot step id and the frozen name, and no way to reach the definition step the snapshot was copied from.
+None of `CurrentStep`, `AssignedStep`, or `StepVisit` exposed it.
+A client holding a running step had the snapshot step id and the frozen name, and no way to reach the definition step the snapshot was copied from.
 
-The only bridge available is the name: `Catalog.Get` returns definition steps with names, a run returns snapshot steps with names, and names are unique within a definition.
+**First decision: deferred.**
+Recorded when the gap was found, on the `CLAUDE.md` test: a field with no reader today is speculative structure, and nothing about it got harder by waiting.
+The client keyed by name in the meantime, since names are unique within a definition.
 
-**Decision.**
-Deferred.
-The client keys by name, and this is recorded rather than built because no caller exists yet — CaseWork's per-step expectations land in its document-types slice.
+**Second decision: landed, on `CurrentStep` only.**
+The client's document-types slice is the caller that was missing.
+It attaches document types to steps in its own schema and looks them up while a run sits on one, so `CurrentStep.StepDefinitionID` now has a reader and the deferral no longer applies.
 
-**Why deferred rather than taken now.**
-It is the `CLAUDE.md` test applied honestly: a field with no reader today is speculative structure, and nothing about it gets harder by waiting.
-No migration is involved — the column exists and is populated — so landing it later costs three struct fields and three scans, and adding a field to a returned struct breaks no caller.
+**Why the name key was not good enough after all.**
+It works, and it would have kept working until the client's workflow editor shipped a rename.
+The failure then is silent: metadata keyed to the old name orphans, nothing joins, so nothing can fail.
+The client had already been bitten twice by literals keyed to strings that something else was free to change, and this was the same shape with a scheduled trigger.
+Paying four lines now beats writing rename-migration code later and remembering it exists.
 
-**What will force it.**
-A rename.
-CaseWork cannot edit a definition today, so name-keyed metadata is safe by construction.
-Its workflow-configuration slice adds the editor, and renaming a step would then silently orphan whatever the client keyed to the old name — silently, because nothing joins, so nothing can fail.
-That is the point at which the name key stops being adequate, and it is worth noticing that the failure mode is quiet rather than loud.
+**What was not done, and why.**
+`AssignedStep` and `StepVisit` still do not expose it.
+Nothing reads them for this, and adding it to all three because it is easy is the exact reasoning the first decision refused.
+They are one line each when a caller appears.
 
-**Worth separating from a neighbouring deferral.**
-This is not `step_visit.step_definition_id`, which decision 42 left out along with the two indexes keyed on it.
-Different table, different purpose: that one is for history queries, this one is for joining a live step back to its template.
+**Cost.**
+`store_workflow.go` already joined `flowcore.step` and selected `s.id, s.name`, so this is one column in that select, one scan variable, and one struct field.
+No migration: the column exists, is `not null`, and has been populated since 00003.
+No caller breaks — adding a field to a returned struct is additive.

@@ -11,31 +11,49 @@ application filling it.
 It is not an SDK. FlowCore is a library you import, not a service you call, so there is
 nothing here that wraps it; this is an example of *being* the client.
 
-> **The UI layer is being rebuilt** on React, TypeScript and Mantine — see
-> [the slices](../docs/pending-tasks/client-ui-rebuild.md). What follows describes the HTMX UI it
-> replaces; the Go side underneath is unchanged.
-
 ## Run it
 
 ```
-docker compose up -d
-go run .
+make fresh
 ```
 
-Then <http://localhost:8080>. Nothing else to configure — the client applies the library's
-schema itself, seeds your session on first request, and runs its agent steps from
-pre-written findings when no API key is set.
+Then <http://localhost:8080>. Nothing else to configure — the client applies the library's schema
+itself, seeds your session on first request, and runs its agent steps from pre-written findings when
+no API key is set.
 
 To have a model make those judgments instead:
 
 ```
 export ANTHROPIC_API_KEY=...
-go run .
+make fresh
 ```
 
-Everything else on the path is identical either way: the same queue, the same worker, the
-same `CompleteStep` call, the same remark stamped on the same visit. Only the source of
-the judgment changes, and the interface says which is live.
+Everything else on the path is identical either way: the same queue, the same worker, the same
+`CompleteStep` call, the same remark stamped on the same visit. Only the source of the judgment
+changes, and the interface says which is live.
+
+### The commands, and which one you want
+
+| | what it does | when |
+| --- | --- | --- |
+| `make fresh` | reset, build, serve on 8080 | **start here**, and whenever the schema has changed |
+| `make run` | build, serve on 8080 | keep the cases you have created, and see current code |
+| `make dev` | API on 8080, Vite on **5173** with hot reload | editing `.tsx` and wanting the browser to keep up |
+| `make reset` | drop the database | rarely on its own — `fresh` includes it |
+
+**`make run` is the deployment shape**: one binary serving its own embedded front end, which is what
+somebody visiting a hosted instance gets. `make dev` is not — Vite serves the front end from source
+and proxies `/api` to the Go process. Faster to iterate against, two processes, and not what ships.
+
+Three things worth knowing:
+
+- **With `make dev`, open 5173, not 8080.** Port 8080 is up and will serve you a page, but it is the
+  embedded front end from the last build — the same application, older code, and nothing says so.
+- **Neither reloads Go.** A change to a `.go` file means stopping and starting again. Only the front
+  end hot-reloads.
+- **`make fresh` wipes the database**, which is the point of it: migrations are edited in place
+  rather than added while this has no users and no data, so a schema change is applied by throwing
+  the database away. Cases you created are gone; the seeded examples come back.
 
 ## Why it exists
 

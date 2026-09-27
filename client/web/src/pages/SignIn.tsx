@@ -68,7 +68,7 @@ export function SignIn({
                 <Stack gap={0}>
                   <Text fw={500}>{member.name}</Text>
                   <Text size="sm" c="dimmed">
-                    {member.title}
+                    {member.teams}
                   </Text>
                 </Stack>
                 <Button

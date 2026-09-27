@@ -57,6 +57,17 @@ type WorkflowState struct {
 type CurrentStep struct {
 	// ID identifies the snapshot step, which is stable across every visit to it.
 	ID uuid.UUID
+	// StepDefinitionID is the definition step this snapshot was copied from.
+	//
+	// It is provenance, and the library does nothing with it. It is returned
+	// because a caller that hangs its own configuration on a step — which
+	// documents it expects, who to notify — needs a key that survives the
+	// snapshot, and the frozen name is the only alternative. A name is something
+	// an editor can change, which makes name-keyed metadata orphan silently.
+	//
+	// AssignedStep and StepVisit deliberately do not carry it: nothing reads it
+	// there, and it is one line each if something does.
+	StepDefinitionID uuid.UUID
 	// VisitID identifies this particular visit, and is what Complete acts on.
 	// It is not interchangeable with ID: a loop can bring a run back to the same
 	// step, so the step id alone cannot distinguish this visit from an earlier

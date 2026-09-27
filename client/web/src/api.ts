@@ -7,8 +7,13 @@
 export type Staff = {
   reference: string;
   name: string;
-  title: string;
+  // groups is what the interface matches against a step's assignee; teams is the
+  // same thing spelled for a person to read, and is what gets displayed.
+  //
+  // There was a job title here too. It described the same person in words nothing
+  // matched on, next to a group saying almost the same thing.
   groups: string[];
+  teams: string;
 };
 
 export type Session = {
@@ -68,10 +73,7 @@ export const api = {
     }),
   submitCase: (reference: string) =>
     request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
-  samples: (submissionType?: string) =>
-    request<Sample[]>(
-      submissionType ? `/api/samples?type=${submissionType}` : "/api/samples",
-    ),
+  samples: () => request<Sample[]>("/api/samples"),
 
   decide: (reference: string, body: Decision) =>
     request<Case>(`/api/cases/${reference}/decide`, {
@@ -163,6 +165,11 @@ export type Case = {
   documents: CaseDocument[];
   // Null on a draft, and null again once the run has finished.
   currentStep: CaseStep | null;
+  // Every kind this session knows about, for the upload selector.
+  documentTypes: DocumentType[];
+  // What the step this case is waiting on has been configured to read. Empty
+  // means it declares nothing, and the picker narrows nothing.
+  expects: string[];
   // Every visit, oldest first. Empty on a draft.
   history: Visit[];
 };
@@ -197,9 +204,15 @@ export type NewDocument = {
   name?: string;
 };
 
+export type DocumentType = {
+  name: string;
+  title: string;
+};
+
 export type Sample = {
   fileName: string;
-  title: string;
+  // The document type's name. Its title comes from the case's documentTypes, so
+  // renaming a type relabels every sample of it.
   kind: string;
   // What the document argues for, read out of its file name. Empty for a file
   // carrying no outcome.

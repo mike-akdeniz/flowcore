@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Card, Group, Stack, Text, Title } from "@mantine/core";
 import { api, type WorkflowSummary } from "../api";
+import { submissionPlural } from "../vocabulary";
 
 // The workflow list. Which submission type a workflow serves, and whether it is
 // live, are CaseWork's own facts — FlowCore stores the graph and has no
@@ -39,9 +40,7 @@ export function Workflows() {
                 <Text fw={500}>{workflow.name}</Text>
                 <Text size="sm" c="dimmed">
                   {workflow.stepCount} steps ·{" "}
-                  {workflow.submissionType === "claim"
-                    ? "claims"
-                    : "new policy applications"}
+                  {submissionPlural(workflow.submissionType)}
                 </Text>
               </Stack>
               {workflow.active ? (

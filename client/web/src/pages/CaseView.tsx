@@ -14,6 +14,7 @@ import {
 } from "@mantine/core";
 import { api, type Case, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
+import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
 import { History } from "../case/History";
 
@@ -92,8 +93,8 @@ export function CaseView({
           </Anchor>
           <Group gap="sm">
             <Title order={3}>{subject.reference}</Title>
-            <Badge variant="light" color={subject.type === "claim" ? "blue" : "grape"}>
-              {subject.type}
+            <Badge variant="light" color={subject.type === "claim" ? "teal" : "grape"}>
+              {submissionName(subject.type)}
             </Badge>
           </Group>
           <Text size="sm" c="dimmed">

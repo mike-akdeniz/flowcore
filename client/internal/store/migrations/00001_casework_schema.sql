@@ -25,12 +25,16 @@ create table casework.session (
 -- Whitfield. `reference` is what FlowCore records as completedBy and matches
 -- against assignees; the library never interprets it.
 --
+-- No job title. It used to be here and said the same thing as the group in
+-- slightly different words — "Claims adjuster" beside a group reading
+-- "Adjusters" — while being the half nothing matches on. The group is what
+-- FlowCore compares against a step's assignee, so it is the half worth showing.
+--
 -- Named `staff` rather than `user` because `user` is a reserved word in Postgres
 -- and would need quoting at every site.
 create table casework.staff (
     reference  text primary key,
     name       text not null,
-    title      text not null,
     -- The groups this person also answers to. Expanding a person into their
     -- group references is work the library deliberately does not do.
     groups     text[] not null default '{}',
@@ -121,6 +125,60 @@ create table casework.application_detail (
     disclosures   text not null
 );
 
+-- A kind of document, and what an agent step should make of one.
+--
+-- Configuration, not a constant. This began as four Go literals that had to agree
+-- — a prefix switch in the sample parser, a map of which step reads which kind, a
+-- map of canned findings, and a CHECK constraint listing the kinds — keyed by
+-- three different things, with nothing failing when they drifted. Most of that is
+-- an ordinary feature in disguise: which documents a stage expects is case
+-- management, not demonstration scaffolding.
+--
+-- No submission type column. Whether a type belongs to claims or to applications
+-- follows from the steps it is attached to, and storing it as well would be the
+-- same fact written twice with nothing keeping the two honest.
+create table casework.document_type (
+    id           uuid primary key,
+    session_id   text not null references casework.session (id) on delete cascade,
+    -- name is the value stored on a document, and the prefix a sample file uses:
+    -- `estimate`, `police-report`, `prior-insurer`. One spelling, so the sample
+    -- parser needs no per-kind knowledge at all.
+    name         text not null,
+    title        text not null,
+    -- What a simulated agent step says when a document of this kind passes or
+    -- fails its check. Simulation only — a real model writes its own findings and
+    -- never reads these. They live here so a type created in the interface is
+    -- complete rather than falling through to generic wording.
+    pass_finding text not null,
+    fail_finding text not null,
+    created_at   timestamptz not null
+);
+
+create unique index ux_document_type_name on casework.document_type (session_id, name);
+
+-- Which steps expect which kinds of document.
+--
+-- Keyed by the step *definition* id, which FlowCore exposes on a running step
+-- since its decision 45. The alternative was the step's frozen name, and a name is
+-- something the workflow editor is free to change — metadata keyed to one orphans
+-- silently, because nothing joins and nothing can fail.
+--
+-- Descriptive, never a gate: this narrows what the document picker offers and
+-- tells an agent step which document answers it. Nothing here stops a run
+-- advancing, because deciding whether the file is adequate is a step's own job.
+create table casework.step_document_type (
+    -- Recorded, never enforced, for the same reason workflow_registry records its
+    -- definition id without a foreign key: a constraint across schemas would
+    -- couple CaseWork's lifecycle to the library's.
+    flowcore_definition_id uuid not null,
+    step_definition_id     uuid not null,
+    document_type_id       uuid not null references casework.document_type (id) on delete cascade,
+    primary key (step_definition_id, document_type_id)
+);
+
+create index ix_step_document_type_definition
+    on casework.step_document_type (flowcore_definition_id);
+
 -- Documents are records carrying text, not files.
 --
 -- The documents that matter are prose: a police report and a repair estimate are
@@ -135,6 +193,11 @@ create table casework.document (
     id                uuid primary key,
     submission_id     uuid not null references casework.submission (id) on delete cascade,
     name              text not null,
+    -- The document type's name. Not a foreign key, deliberately: deleting a type
+    -- must not take the documents filed under it, and a case keeps saying what it
+    -- holds either way. The CHECK constraint that used to list the kinds is gone
+    -- with it — adding a kind was a migration, which is absurd for something a
+    -- user configures.
     kind              text not null,
     received_at       date not null,
     body              text,
@@ -150,10 +213,6 @@ create table casework.document (
     -- documents that arrived the same day — and which would mean comparing
     -- CaseWork's clock against FlowCore's across two schemas.
     added_at_revision int not null,
-    constraint ck_document_kind check (
-        kind in ('police_report', 'estimate', 'witness_statement', 'intake_note',
-                 'photograph', 'inspection_report', 'prior_insurer_letter',
-                 'correspondence')),
     constraint ck_document_revision check (added_at_revision >= 1)
 );
 

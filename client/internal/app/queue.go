@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,7 +44,7 @@ func (a *App) Queue(ctx context.Context, sessionID string, identity Identity) ([
 	items := make([]QueueItem, 0, len(submissions))
 
 	// Drafts sit with intake, whose job is taking details and submitting them.
-	if identity.CanActAs("group:intake") {
+	if identity.CanActAs("group:intake-handlers") {
 		for _, submission := range submissions {
 			if !submission.IsDraft() {
 				continue
@@ -53,7 +54,7 @@ func (a *App) Queue(ctx context.Context, sessionID string, identity Identity) ([
 				Reference:    submission.Reference,
 				Type:         submission.Type,
 				SubmissionID: submission.ID,
-				Assignee:     "group:intake",
+				Assignee:     "group:intake-handlers",
 				WaitingSince: submission.CreatedAt,
 				IsDraft:      true,
 			})
@@ -89,6 +90,18 @@ func (a *App) Queue(ctx context.Context, sessionID string, identity Identity) ([
 			WaitingSince: step.EnteredAt,
 		})
 	}
+
+	// One list, newest first. Drafts and open steps are not separated, for the
+	// same reason claims and applications are not: "what should I do next" does
+	// not sort by where the work came from.
+	//
+	// Newest rather than oldest, which is the other defensible answer — a real
+	// console would likely lead with what has waited longest, because ageing is
+	// what an SLA measures. Newest-first suits a demonstration, where the thing
+	// you just did should be the thing you see.
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].WaitingSince.After(items[j].WaitingSince)
+	})
 
 	return items, nil
 }

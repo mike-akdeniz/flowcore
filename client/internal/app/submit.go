@@ -150,3 +150,41 @@ func (a *App) nextReference(ctx context.Context, sessionID string, submissionTyp
 
 	return fmt.Sprintf("%s%d", prefix, next), nil
 }
+
+// OfferedDocumentTypes is which kinds of document a case can usefully take,
+// derived from the workflow it runs rather than from a column saying "claim".
+//
+// A submitted case has its workflow stamped; a draft has none, so the registry
+// answers what its type would run. Either way the set is the types some step of
+// that workflow reads, which is what makes "a claim document" a fact about the
+// configuration instead of a second place to keep in step.
+func (a *App) OfferedDocumentTypes(
+	ctx context.Context,
+	sessionID string,
+	submission store.Submission,
+) ([]string, error) {
+	definitionID := submission.FlowcoreDefinitionID
+
+	if definitionID == nil {
+		workflow, err := a.Store.ActiveWorkflow(ctx, sessionID, submission.Type)
+		if err != nil {
+			// No workflow for this type yet. Nothing to narrow by, so narrow
+			// nothing rather than offering an empty picker.
+			return []string{}, nil
+		}
+
+		definitionID = &workflow.FlowcoreDefinitionID
+	}
+
+	types, err := a.Store.DocumentTypesForDefinition(ctx, sessionID, *definitionID)
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(types))
+	for _, documentType := range types {
+		names = append(names, documentType.Name)
+	}
+
+	return names, nil
+}

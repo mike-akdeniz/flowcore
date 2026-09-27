@@ -1070,7 +1070,7 @@ risk needs a senior underwriter" is the first entry in a synonym list. The coinc
 invisible in the code while the sample names drifted from what they describe.
 
 *One filing route, because it makes the registry visible.* Switching the toggle changes a line that
-reads `This will run: New business underwriting`, taken from the workflow registry. That registry is
+reads `This will run: Policy assessment`, taken from the workflow registry. That registry is
 the entire mechanism behind "specify when a workflow applies" — FlowCore takes a definition id and has
 no notion of a claim — and until now nothing in the interface showed it. Two separate filing routes
 would make the type choice before the form opens, so the connection between a submission's type and
@@ -1162,3 +1162,160 @@ an inspection could only pass.
 
 The canned findings are keyed by kind and outcome rather than by file name, so adding a numbered
 variant of a document does not silently fall through to generic wording.
+
+## 26. Document types are configuration, not four Go literals
+
+**Context.**
+The canned mechanism had spread. To know one thing about one kind of document, four places had to
+agree, keyed by three different things: a prefix switch in `samples.parse`, a `stepReads` map, a
+`findings` map, and a SQL CHECK constraint listing the kinds. Nothing failed when they drifted — you
+got a generic finding, or a step that silently went random, or a constraint violation at seed time.
+A fifth was found on the way in: `checker_claude.go` keys its prompts by agent reference.
+
+The owner stopped the work rather than letting it grow a fifth reader: *"Are you sure you can make
+this implementation in a somewhat straightforward way that is possible to maintain if we change the
+example docs and workflows later?"* The honest answer was no.
+
+**Decision.**
+A document type is a row: a name, a title, and what a simulated step says when a document of that
+kind passes or fails. A second table records which steps expect which types. Both seeded, both
+per-session, both editable in the next slice.
+
+**Why.**
+
+*The owner's reframing is what made this worth doing*, and it was better than the consolidation being
+proposed: *"most of this canning mechanism can be turned into a realistic app feature and serve for
+the demo instead of being a burden on it."* Which documents a stage expects is ordinary case
+management. Tidying four literals into one would have left scaffolding that was merely neater;
+turning them into rows makes the demonstration's own subject — configuration — richer, and removes
+the scaffolding as a side effect.
+
+*The CHECK constraint is gone rather than moved.* Adding a kind of document used to require editing a
+migration, which is absurd for something a user configures. `document.kind` is deliberately **not** a
+foreign key: deleting a type must not take the documents filed under it, and a case keeps saying what
+it holds either way.
+
+*No submission type column.* Whether a type belongs to claims or to policy applications follows from
+the steps attached to it — an estimate is a claim document because `documentation check` reads it.
+Storing it as well would be the same fact in two places with nothing keeping them honest, which is
+precisely the failure this entry exists to remove.
+
+*Keyed by step definition id, not by name.* That needed FlowCore decision 45, which had been deferred
+for want of a caller and now has one. The alternative was the frozen step name, and the next slice
+adds a rename to the workflow editor: name-keyed metadata would orphan silently, because nothing
+joins so nothing can fail. Four lines in the library against rename-migration code later.
+
+*The parser lost its switch entirely.* A type's name is the sample file's middle segment verbatim —
+`estimate`, `police-report`, `prior-insurer` — so `samples.parse` is structural and knows nothing
+about any particular kind. One of the four places stopped existing rather than moving.
+
+**The picker narrows, and what happens when it cannot.**
+
+Offered types are the step's own, or failing that every type any step of the case's workflow reads.
+The second is not a loose fallback: it is the derived answer to "which documents belong to a claim",
+and without it a policy application sitting on `senior underwriter` — which declares nothing — was
+offered police reports. That was caught by running it, not by reading it.
+
+A hard narrowing is safe now in a way it would not have been before, because a wrong list is a
+configuration mistake with a visible cause rather than a guess in code. `awaiting documents` expects
+an estimate, a police report and a witness statement, because a step that waits for documents waits
+for whatever is missing — which is also why the one-hop graph walk the draft proposed was never
+needed. A human declares it.
+
+The upload selector keeps offering every type, narrowed by nothing: you file whatever arrived.
+
+**Deliberately not done.**
+
+`checker_claude.go`'s per-agent `instructions` map is the fifth scattered literal and stays. It is a
+property of a step — what this step judges — rather than of a document type, and steps become
+configurable in the next slice. Per-type assessor guidance, which a real model would use as prompt
+material, belongs with it and not here.
+
+## 27. One name per thing, and a workflow is not a submission type
+
+**Context.**
+The two kinds of submission had four spellings between them on screen: a badge reading
+`application`, a toggle reading "Policy application", prose reading "new policy applications", and
+the wire value `claim` showing through. The owner: *"the vocabulary ... is so confusing. There should
+be one name for the same thing."*
+
+**Decision.**
+A submission type is an **Insurance claim** or a **Policy application**, spelled that way everywhere
+including badges, from one module. The workflows are **Claim assessment** and **Policy assessment**.
+
+**Why.**
+
+*Unabbreviated, because of who is reading.* The owner's reasoning, and it is the right one: *"people
+looking at this example are almost always not professional insurers."* "Claim" alone is ambiguous
+outside the trade, and "Insurance claim" costs a word to remove the question. Neither name is
+inaccurate for the domain, which is the only thing that would have ruled them out.
+
+*A workflow keeps a name of its own.* The draft was asked whether "New business underwriting" was a
+third name for the same thing, and it is not: a submission type is what arrived, a workflow is how it
+is handled, and which handles which is configuration. That is the entire reason `workflow_registry`
+exists — retire a workflow, activate another, and cases already running keep the one they started
+under. Naming the workflow after the type would make the filing form read *"Policy application will
+run: Policy application"*, and would undercut the README's claim of two workflows with nothing in
+common.
+
+*But the jargon went.* "New business underwriting" is precise and opaque — "new business" means new
+policies rather than renewals, which is invisible to the reader this application is for. The owner
+chose **Policy assessment** over the draft's "Underwriting review", and it is the better name: it
+pairs with "Claim assessment", so the two read as siblings rather than as two unrelated inventions.
+
+**Consequence.**
+`web/src/vocabulary.ts` is the only place either name is spelled. It deliberately does not name
+workflows, and says why — a workflow's name is data, configured per session, and hard-coding one in
+the interface would be the registry's own lesson unlearnt.
+
+## 28. A person is shown by their team, and the job title goes
+
+**Context.**
+The account menu read "Dana Whitfield · Claims adjuster" while the header beside it read "Adjusters".
+Two words for one fact, differing cosmetically. The owner: *"I'm not sure what the current things on
+the selector are, roles? Anyway if they are not needed for the system we should remove the roles."*
+
+**Decision.**
+`staff.title` is deleted — column, struct field, `Identity.Title`, and four display sites. A person is
+shown by their teams, spelled from the group reference. The five groups are renamed to read as their
+own labels. Tom belongs to one group, like everyone else.
+
+**Why.**
+
+*The group is the half that works.* It is what FlowCore compares against a step's assignee, so it is
+why Dana's queue has adjuster steps in it. A title is matched against nothing and branches nothing —
+confirmed before deleting it: four display sites, no logic. Showing both invited the reader to look
+for a difference that did not exist, and showing only the title would have hidden the one that does
+something.
+
+*The names come from the references, not from a table.* The owner's names — "Fraud investigators",
+"Intake handlers" — are not derivable from `group:siu` or `group:intake`, so the obvious
+implementation was a lookup map. That would have been the third display-name literal in this
+codebase after `app.Roster` and the acronym list, two of which had already drifted. Renaming the
+references instead makes `TeamLabel`'s existing derivation produce them exactly:
+
+| was | is |
+| --- | --- |
+| `group:intake` | `group:intake-handlers` |
+| `group:adjusters` | `group:claims-adjusters` |
+| `group:siu` | `group:fraud-investigators` |
+| `group:senior-uw` | `group:senior-underwriters` |
+
+The acronym map went with it — `siu` and `uw` were the only reasons it existed. A reference that
+spells itself needs no translation, and a translation table is one more thing that can drift.
+
+*Tom is in one group now, and the owner's reason is the right one:* *"We should not try to
+demonstrate group membership logic which has nothing to do with flowcore."* His second group looked
+like it demonstrated the boundary — `ListAssignedSteps` takes a set of references because the library
+cannot expand a person into their groups — but that is already shown by anyone with one group, since
+`WorklistReferences` returns the person *and* the team. The second entry only added multi-group
+membership, which is identity modelling the library refuses to have an opinion about.
+
+It also improved the demonstration. `refer up` is now Priya handing work to Tom rather than one
+person passing it to themselves, and every group has exactly one member, so switching identity always
+changes the queue legibly.
+
+**Consequence.**
+`TeamsOf` is the one place a person's teams are spelled, used by the header, the switcher, the sign-in
+list and the reassignment dropdown. Capitalisation is sentence case — "Claims adjusters", not "Claims
+Adjusters" — because a team is a noun phrase rather than a title.

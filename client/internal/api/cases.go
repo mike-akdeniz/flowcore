@@ -84,6 +84,20 @@ type caseJSON struct {
 	// case while an agent holds the step — a separate endpoint would mean polling
 	// twice, or a history that lags the step it explains.
 	History []visitJSON `json:"history"`
+	// DocumentTypes is every kind this session knows about, for the upload form's
+	// selector: you file whatever arrived, so that list is never narrowed.
+	DocumentTypes []documentTypeJSON `json:"documentTypes"`
+	// Expects names the document types to offer on this case, narrowest first:
+	// what the step it is waiting on reads, or failing that what any step of its
+	// workflow reads. Empty only when no workflow can be resolved at all, and
+	// then the picker narrows nothing — being unable to file a document that has
+	// arrived would be worse than offering too many.
+	Expects []string `json:"expects"`
+}
+
+type documentTypeJSON struct {
+	Name  string `json:"name"`
+	Title string `json:"title"`
 }
 
 type claimJSON struct {
@@ -128,6 +142,27 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 		Status:    submission.Status,
 		Revision:  submission.Revision,
 		History:   []visitJSON{},
+		Expects:   []string{},
+	}
+
+	documentTypes, err := s.app.Store.DocumentTypes(r.Context(), sessionID)
+	if err != nil {
+		return caseJSON{}, err
+	}
+
+	payload.DocumentTypes = make([]documentTypeJSON, 0, len(documentTypes))
+	for _, documentType := range documentTypes {
+		payload.DocumentTypes = append(payload.DocumentTypes,
+			documentTypeJSON{Name: documentType.Name, Title: documentType.Title})
+	}
+
+	// The workflow's own types, which is what "a claim document" means without a
+	// column saying so: a type belongs to claims because a step of the claim
+	// workflow reads it. This is the answer for a draft, which has no running
+	// step, and the fallback for a step that declares nothing of its own.
+	payload.Expects, err = s.app.OfferedDocumentTypes(r.Context(), sessionID, submission)
+	if err != nil {
+		return caseJSON{}, err
 	}
 
 	if submission.SubmittedAt != nil {
@@ -224,6 +259,28 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 	}
 
 	if state.CurrentStep != nil {
+		// What this step expects, keyed by the definition step the snapshot was
+		// copied from. FlowCore exposes that since its decision 45; the frozen
+		// name was the only alternative, and a name is something the workflow
+		// editor can change out from under these rows.
+		//
+		// Only when the step declares something. A step that declares nothing
+		// keeps the workflow's list rather than falling all the way back to every
+		// type there is — a policy application should never be offered a police
+		// report, whichever step it is sitting on.
+		expected, err := s.app.Store.DocumentTypesForStep(
+			r.Context(), sessionID, state.CurrentStep.StepDefinitionID)
+		if err != nil {
+			return caseJSON{}, err
+		}
+
+		if len(expected) > 0 {
+			payload.Expects = payload.Expects[:0]
+			for _, documentType := range expected {
+				payload.Expects = append(payload.Expects, documentType.Name)
+			}
+		}
+
 		payload.CurrentStep = &currentStepJSON{
 			Name:     state.CurrentStep.Name,
 			Assignee: state.CurrentStep.AssigneeID,
@@ -414,8 +471,15 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		title, err := s.app.DocumentTitle(r.Context(), sessionID, sample.Kind)
+		if err != nil {
+			http.Error(w, "no document type named "+sample.Kind, http.StatusBadRequest)
+
+			return
+		}
+
 		text, fileName := sample.Body, sample.FileName
-		document.Name = sample.Title
+		document.Name = title
 		document.Kind = sample.Kind
 		document.Body = &text
 		document.SourceFile = &fileName
@@ -470,28 +534,28 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 
 type sampleJSON struct {
 	FileName string `json:"fileName"`
-	Title    string `json:"title"`
-	Kind     string `json:"kind"`
-	Outcome  string `json:"outcome"`
-	Body     string `json:"body"`
+	// Kind is the document type's name. The title lives on the type, which the
+	// case payload carries, so the two are joined in the browser rather than
+	// denormalised here — a visitor can rename a type, and a sample would then
+	// be carrying a stale label.
+	Kind    string `json:"kind"`
+	Outcome string `json:"outcome"`
+	Body    string `json:"body"`
 }
 
-// listSamples serves the embedded set, so a hosted visitor has the same documents
-// available as someone who cloned the repository.
-func (s *Server) listSamples(w http.ResponseWriter, r *http.Request) {
-	// Narrowed to the submission type when the caller says which, so the picker
-	// on a policy application does not offer eight claim documents that no step
-	// in its workflow can act on.
+// listSamples serves the whole embedded set, so a hosted visitor has the same
+// documents available as someone who cloned the repository.
+//
+// Unfiltered on purpose. Which of them a particular step should be offered is
+// answered by the case — `expects` on its payload — and doing it here as well
+// would be the same question answered twice.
+func (s *Server) listSamples(w http.ResponseWriter, _ *http.Request) {
 	documents := s.app.Samples.All()
-	if submissionType := r.URL.Query().Get("type"); submissionType != "" {
-		documents = s.app.Samples.For(submissionType)
-	}
 
 	payload := make([]sampleJSON, 0, len(documents))
 	for _, document := range documents {
 		payload = append(payload, sampleJSON{
 			FileName: document.FileName,
-			Title:    document.Title,
 			Kind:     document.Kind,
 			Outcome:  string(document.Outcome),
 			Body:     document.Body,
@@ -542,7 +606,6 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 	identity := app.Identity{
 		Reference: member.Reference,
 		Name:      member.Name,
-		Title:     member.Title,
 		Groups:    member.Groups,
 	}
 

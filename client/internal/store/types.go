@@ -11,7 +11,6 @@ import (
 type Staff struct {
 	Reference string
 	Name      string
-	Title     string
 	// Groups are the references this person also answers to. Expanding a person
 	// into their groups is what CaseWork does before asking FlowCore for a
 	// worklist, because the library has no identity model to do it with.
@@ -136,4 +135,25 @@ type RegisteredWorkflow struct {
 	FlowcoreDefinitionID uuid.UUID
 	Active               bool
 	CreatedAt            time.Time
+}
+
+// DocumentType is a kind of document CaseWork knows about, and what a simulated
+// agent step says when one passes or fails the check that reads it.
+//
+// Configuration rather than a constant: a visitor can add one, and which steps
+// expect it is a separate set of rows. There is no submission type here —
+// whether a type belongs to claims or to applications follows from the steps it
+// is attached to.
+type DocumentType struct {
+	ID        uuid.UUID
+	SessionID string
+	// Name is what a document records as its kind, and the middle segment of a
+	// sample's file name. One spelling for all three.
+	Name  string
+	Title string
+	// PassFinding and FailFinding are what the simulation reports. A real model
+	// writes its own and never reads these.
+	PassFinding string
+	FailFinding string
+	CreatedAt   time.Time
 }

@@ -32,10 +32,9 @@ Each of these is deferred on the record, but somewhere a reader would have to al
 - **`last_visit_id` on the workflow.**
   Decision 25 measured bulk history at 157 ms / 353k buffers for the final step of 90k completed runs, and declined to fix it: it is a reporting query, and "where did this run end up" is better answered by the stamped terminal status.
   Recorded as a known cost rather than a bug.
-- **`step_definition_id` on a running step.**
-  Decision 45: the column exists on `flowcore.step` and no returned struct exposes it, so a client cannot join a live step back to the definition step it was copied from.
-  Deferred because nothing reads it yet; the reference client keys by step name in the meantime.
-  What forces it is a step rename in the client's workflow editor, which would orphan name-keyed metadata without anything failing.
+- **`step_definition_id` on `AssignedStep` and `StepVisit`.**
+  Decision 45 landed it on `CurrentStep` once the reference client's document-types slice needed it, and deliberately left the other two alone: nothing reads them for this.
+  One line each when something does.
 - **Soft delete on the definition side.**
   Decision 24 calls it "available and unbuilt" — the provenance columns it would need already exist, so adopting it later costs nothing extra.
 - **Display-label resolution for a deleted definition row.**

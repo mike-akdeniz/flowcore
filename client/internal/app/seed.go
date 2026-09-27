@@ -22,11 +22,21 @@ import (
 // visitor's first action is submitting the draft, so they watch the workflow
 // begin rather than arriving part-way through one.
 func (a *App) SeedSession(ctx context.Context, sessionID string) error {
-	if err := a.seedClaimExample(ctx, sessionID); err != nil {
+	// The application first, so the claim is the newer of the two.
+	//
+	// Both lists a visitor lands on — the queue and the workflows — are ordered
+	// newest first, so creation order is what puts the claim above the policy
+	// application. The claim is the front door: it has the longer workflow, three
+	// agent steps, and the `awaiting documents` loop the samples are built around.
+	//
+	// Ordering the lists by kind would have done the same thing and been a lie,
+	// since nothing about a claim makes it sort before an application. Seeding in
+	// the order we want them read costs one comment and no query.
+	if err := a.seedApplicationExample(ctx, sessionID); err != nil {
 		return err
 	}
 
-	return a.seedApplicationExample(ctx, sessionID)
+	return a.seedClaimExample(ctx, sessionID)
 }
 
 func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
@@ -36,6 +46,11 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 	}
 
 	if err := a.register(ctx, sessionID, store.TypeClaim, definition); err != nil {
+		return err
+	}
+
+	if err := a.seedDocumentTypes(ctx, sessionID, definition,
+		claimDocumentTypes, claimAttachments); err != nil {
 		return err
 	}
 
@@ -94,12 +109,17 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		body := sample.Body
 		fileName := sample.FileName
 
+		title, err := a.DocumentTitle(ctx, sessionID, sample.Kind)
+		if err != nil {
+			return err
+		}
+
 		// Seeding takes the same path as an upload, so the seeded claim's revision
 		// is a real count of what is on it rather than a number written by hand.
 		if _, err := a.Store.AddDocument(ctx, store.Document{
 			ID:           uuid.Must(uuid.NewV7()),
 			SubmissionID: submissionID,
-			Name:         sample.Title,
+			Name:         title,
 			Kind:         sample.Kind,
 			ReceivedAt:   entry.receivedAt,
 			Body:         &body,
@@ -129,7 +149,12 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 func (a *App) seedApplicationExample(ctx context.Context, sessionID string) error {
 	definition, err := a.Catalog.Create(ctx, underwritingDefinition())
 	if err != nil {
-		return fmt.Errorf("seed underwriting workflow: %w", err)
+		return fmt.Errorf("seed policy assessment workflow: %w", err)
+	}
+
+	if err := a.seedDocumentTypes(ctx, sessionID, definition,
+		applicationDocumentTypes, applicationAttachments); err != nil {
+		return err
 	}
 
 	if err := a.register(ctx, sessionID, store.TypeApplication, definition); err != nil {
@@ -173,10 +198,15 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	sample := a.Samples.MustHave("4-prior-insurer-fail.txt")
 	body, fileName := sample.Body, sample.FileName
 
+	title, err := a.DocumentTitle(ctx, sessionID, sample.Kind)
+	if err != nil {
+		return err
+	}
+
 	_, err = a.Store.AddDocument(ctx, store.Document{
 		ID:           uuid.Must(uuid.NewV7()),
 		SubmissionID: submissionID,
-		Name:         sample.Title,
+		Name:         title,
 		Kind:         sample.Kind,
 		ReceivedAt:   date(2026, 9, 18),
 		Body:         &body,
@@ -208,4 +238,24 @@ func (a *App) register(
 
 func date(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+// DocumentTitle is what a document of this kind is called on a case.
+//
+// Looked up rather than carried on the sample, because the title belongs to the
+// document type and a visitor can change it. The kind is stored on the document
+// either way, so a type renamed or deleted later leaves the document readable.
+func (a *App) DocumentTitle(ctx context.Context, sessionID, kind string) (string, error) {
+	types, err := a.Store.DocumentTypes(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+
+	for _, documentType := range types {
+		if documentType.Name == kind {
+			return documentType.Title, nil
+		}
+	}
+
+	return "", fmt.Errorf("no document type named %q", kind)
 }

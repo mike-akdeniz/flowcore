@@ -56,7 +56,9 @@ export function Shell({
           </Group>
 
           <Group gap="sm">
-            <Badge variant="light" size="sm">
+            {/* Grey, not the default primary. Blue is reserved for things you
+                can click — a badge that reports the mode is not one of them. */}
+            <Badge variant="light" size="sm" color="gray">
               agents: {session.agentMode}
             </Badge>
             {/* Switching identity lives in the account menu, where a real
@@ -68,7 +70,7 @@ export function Shell({
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Label>Signed in as {person.title}</Menu.Label>
+                <Menu.Label>Signed in as {person.teams}</Menu.Label>
                 <Menu.Divider />
                 <Menu.Label>Switch to</Menu.Label>
                 {session.roster
@@ -84,12 +86,20 @@ export function Shell({
                       {member.name}
                       <Text span c="dimmed" size="xs">
                         {" "}
-                        · {member.title}
+                        · {member.teams}
                       </Text>
                     </Menu.Item>
                   ))}
               </Menu.Dropdown>
             </Menu>
+
+            {/* Outside the menu button on purpose: it is information, not a
+                control, and putting it inside would make it look clickable. */}
+            {person.teams && (
+              <Text size="xs" c="dimmed">
+                {person.teams}
+              </Text>
+            )}
           </Group>
         </Group>
       </AppShell.Header>

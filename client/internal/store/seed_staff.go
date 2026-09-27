@@ -10,27 +10,38 @@ import "context"
 //
 // Idempotent, so it runs on every boot without a guard.
 func (s *Store) SeedStaff(ctx context.Context) error {
+	// One group each, and every group has exactly one member, so switching
+	// identity always changes the queue in a legible way.
+	//
+	// Tom used to be in two. It demonstrated nothing FlowCore is responsible for —
+	// expanding a person into references is already shown by anyone with one
+	// group, since `WorklistReferences` returns the person *and* the group — while
+	// raising a question about multi-group membership, which is identity modelling
+	// the library deliberately has no opinion on.
+	//
+	// Losing it also improves the underwriting path: `refer up` is now a handoff
+	// between two people rather than one person passing work to themselves.
 	cast := []Staff{
-		{Reference: "user:ines", Name: "Inés Moreau", Title: "Intake handler",
-			Groups: []string{"group:intake"}},
-		{Reference: "user:dana", Name: "Dana Whitfield", Title: "Claims adjuster",
-			Groups: []string{"group:adjusters"}},
-		{Reference: "user:marek", Name: "Marek Sobczak", Title: "Fraud investigator",
-			Groups: []string{"group:siu"}},
-		{Reference: "user:priya", Name: "Priya Raman", Title: "Underwriter",
+		{Reference: "user:ines", Name: "Inés Moreau",
+			Groups: []string{"group:intake-handlers"}},
+		{Reference: "user:dana", Name: "Dana Whitfield",
+			Groups: []string{"group:claims-adjusters"}},
+		{Reference: "user:marek", Name: "Marek Sobczak",
+			Groups: []string{"group:fraud-investigators"}},
+		{Reference: "user:priya", Name: "Priya Raman",
 			Groups: []string{"group:underwriters"}},
-		{Reference: "user:tom", Name: "Tom Bexley", Title: "Senior underwriter",
-			Groups: []string{"group:underwriters", "group:senior-uw"}},
+		{Reference: "user:tom", Name: "Tom Bexley",
+			Groups: []string{"group:senior-underwriters"}},
 	}
 
 	for order, member := range cast {
 		_, err := s.pool.Exec(ctx,
-			`insert into casework.staff (reference, name, title, groups, sort_order)
-			 values ($1, $2, $3, $4, $5)
+			`insert into casework.staff (reference, name, groups, sort_order)
+			 values ($1, $2, $3, $4)
 			 on conflict (reference) do update
-			 set name = excluded.name, title = excluded.title,
-			     groups = excluded.groups, sort_order = excluded.sort_order`,
-			member.Reference, member.Name, member.Title, member.Groups, order)
+			 set name = excluded.name, groups = excluded.groups,
+			     sort_order = excluded.sort_order`,
+			member.Reference, member.Name, member.Groups, order)
 		if err != nil {
 			return err
 		}
