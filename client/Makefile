@@ -78,17 +78,20 @@ reset: up
 		-c "drop table if exists public.casework_goose_db_version" \
 		-c "drop table if exists public.flowcore_goose_db_version"
 
-# Throw the database away, rebuild the front end, and serve: the whole loop in
-# one command, for seeing the seeded examples from the start.
+# Throw the database away and serve from scratch: the whole loop in one command,
+# for seeing the seeded examples from the start.
+#
+# Two steps, not three. `run` builds, so naming `build` here as well ran it twice
+# — recursive $(MAKE) calls do not share Make's record of what it has already
+# built, so the second invocation rebuilt what the first had just finished.
+#
+# Recursive $(MAKE) rather than `fresh: reset run`, because prerequisites are only
+# ordered when Make is not running in parallel: under -j the reset could race the
+# build that `run` pulls in.
 #
 # Deliberately not called `all`. By convention `all` is the default target, builds
 # everything, terminates, and is safe to repeat — this drops both schemas and then
 # blocks, and `all` is the one target name people type from reflex.
-#
-# Recursive $(MAKE) rather than `fresh: reset build run`, because prerequisites
-# are only ordered when Make is not running in parallel: under -j the reset could
-# race the build.
 fresh:
 	$(MAKE) reset
-	$(MAKE) build
 	$(MAKE) run

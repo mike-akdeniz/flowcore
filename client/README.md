@@ -36,7 +36,7 @@ changes, and the interface says which is live.
 
 | | what it does | when |
 | --- | --- | --- |
-| `make fresh` | reset, build, serve on 8080 | **start here**, and whenever the schema has changed |
+| `make fresh` | reset, then build and serve on 8080 | **start here**, and whenever the schema has changed |
 | `make run` | build, serve on 8080 | keep the cases you have created, and see current code |
 | `make dev` | API on 8080, Vite on **5173** with hot reload | editing `.tsx` and wanting the browser to keep up |
 | `make reset` | drop the database | rarely on its own — `fresh` includes it |
