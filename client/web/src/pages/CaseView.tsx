@@ -12,8 +12,10 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { api, type Case } from "../api";
+import { api, type Case, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
+import { Decide } from "../case/Decide";
+import { History } from "../case/History";
 
 // A case, in whichever state it is in.
 //
@@ -21,7 +23,13 @@ import { AddDocument } from "../case/AddDocument";
 // returns them as one resource: `currentStep` is null on a draft, and null again
 // once the run has finished. Splitting them would have meant building a second
 // screen in slice 4 and discarding this one.
-export function CaseView({ agentMode }: { agentMode: string }) {
+export function CaseView({
+  agentMode,
+  identity,
+}: {
+  agentMode: string;
+  identity: Staff;
+}) {
   const { reference } = useParams();
   const [subject, setSubject] = useState<Case | null>(null);
   const [failure, setFailure] = useState<string>();
@@ -105,7 +113,7 @@ export function CaseView({ agentMode }: { agentMode: string }) {
         )}
       </Group>
 
-      <RunPanel subject={subject} />
+      <RunPanel subject={subject} identity={identity} onChanged={setSubject} />
 
       {subject.claim && (
         <Card withBorder padding="md">
@@ -140,7 +148,16 @@ export function CaseView({ agentMode }: { agentMode: string }) {
 
       <Documents subject={subject} />
 
-      {subject.status === "draft" && (
+      <History subject={subject} />
+
+      {/* Offered for as long as the case can still use one — a draft being
+          assembled, and a run in flight. Restricting this to drafts was a bug:
+          `awaiting documents` exists so that the missing document can arrive
+          mid-run, and supersession, revisions and the "read:" line in the
+          history were all built for exactly that loop. Hidden once the run has
+          finished, where a new document would move the revision and no step
+          would ever read it. */}
+      {(subject.status === "draft" || subject.currentStep) && (
         <AddDocument
           subject={subject}
           hasKey={!noKey(agentMode)}
@@ -155,6 +172,14 @@ export function CaseView({ agentMode }: { agentMode: string }) {
 // and this is the one place that reads meaning into the string. Interpreting it
 // further would mean the server and the browser both deciding what the modes
 // are; the server decides, and this asks one question of the answer.
+// The same rule the server enforces in the decide handler: an identity acts as
+// itself or as a group it belongs to. Duplicated here only to decide what to
+// render — the server refuses regardless, because a rule that lives in the
+// browser is a suggestion.
+function canActAs(identity: Staff, assignee: string) {
+  return identity.reference === assignee || identity.groups.includes(assignee);
+}
+
 function noKey(mode: string) {
   return /no api key/i.test(mode);
 }
@@ -173,7 +198,15 @@ function Field({ label, value }: { label: string; value: string }) {
 // Where the run stands. Slice 4 adds the history beneath this and the ability to
 // act on the step; the layout leaves room so that is an addition rather than a
 // rearrangement.
-function RunPanel({ subject }: { subject: Case }) {
+function RunPanel({
+  subject,
+  identity,
+  onChanged,
+}: {
+  subject: Case;
+  identity: Staff;
+  onChanged: (updated: Case) => void;
+}) {
   if (subject.status === "draft") return null;
 
   if (!subject.currentStep) {
@@ -206,16 +239,28 @@ function RunPanel({ subject }: { subject: Case }) {
           // The pause is the demonstration, not a delay to apologise for: the
           // run is open in the database with nothing attending it, which is what
           // a workflow engine exists to survive.
-          <Text size="sm" c="dimmed">
-            {step.assignee} has this. Nothing is holding it open — the run is
-            sitting in the database waiting for a worker to pick it up.
-          </Text>
+          <>
+            <Text size="sm" c="dimmed">
+              {step.assignee} has this. Nothing is holding it open — the run is
+              sitting in the database waiting for a worker to pick it up.
+            </Text>
+            {/* Reassignment is offered even here, and it is the only way a step
+                an agent keeps failing ever reaches a person: nobody can decide
+                an agent's step, because deciding belongs to the assignee. */}
+            <Decide subject={subject} canDecide={false} onChanged={onChanged} />
+          </>
         ) : (
-          <Text size="sm" c="dimmed">
-            Waiting on {step.assignee} since{" "}
-            {new Date(step.waitingSince).toLocaleString()}. Deciding it comes in
-            the next slice.
-          </Text>
+          <>
+            <Text size="sm" c="dimmed">
+              Waiting on {step.assignee} since{" "}
+              {new Date(step.waitingSince).toLocaleString()}.
+            </Text>
+            <Decide
+              subject={subject}
+              canDecide={canActAs(identity, step.assignee)}
+              onChanged={onChanged}
+            />
+          </>
         )}
       </Stack>
     </Card>

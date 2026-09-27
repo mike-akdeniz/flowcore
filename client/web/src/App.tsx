@@ -45,7 +45,12 @@ export function App() {
         <Route path="/cases/new" element={<NewCase />} />
         <Route
           path="/cases/:reference"
-          element={<CaseView agentMode={session.agentMode} />}
+          element={
+            <CaseView
+              agentMode={session.agentMode}
+              identity={session.signedInAs}
+            />
+          }
         />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/:id" element={<WorkflowView />} />

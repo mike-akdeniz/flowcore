@@ -941,3 +941,90 @@ panel so slice 4 adds rather than rearranges.
 
 *The Cases list belongs to no slice.* Recorded here and in the slice plan, because a disabled nav
 item with no owner reads as something forgotten rather than something declined.
+
+## 23. Deciding is the assignee's; reassigning is anyone's
+
+**Context.**
+FlowCore records who completed a step and never asks whether they were allowed to — authorization is
+the client's, deliberately and permanently. CaseWork had no policy at all, because until slice 4 only
+the dispatcher completed anything.
+
+**Decision.**
+A step is decided by its assignee: the signed-in identity, or a group it answers to, matched against
+`CurrentStep.AssigneeID` with the same `CanActAs` the queue uses. Everyone else sees the step
+read-only.
+
+Reassignment is open to anyone looking at the case.
+
+The remark on a human decision is optional, matching the library.
+
+**Why.**
+
+**The draft's recommendation was wrong and the owner rejected it.** It proposed that anyone could
+decide, through an affordance labelled as an override, and argued that restricting to the assignee
+was *impossible* because no human is ever the assignee of an agent step. The owner: *"To me it's
+clearly A, anything other than that is not even an option in any real world app, and we are trying to
+make this as realistic as possible. Agent steps are assigned and completed by the agents, I don't see
+the issue here."*
+
+That is correct, and the draft's argument had inflated a failure path into a requirement. Agent steps
+are completed by agents; nobody needs to override one in any normal run. The override was a mechanism
+built for a problem that had not been shown to exist.
+
+*What the correction did expose* is that `dispatcher.go` promises something the assignee-only rule
+makes false: when a check fails, "the visit stays open, so the sweep will try again and a person can
+step in and complete it by hand." No person is the assignee of an agent step, so under this rule
+nobody can.
+
+*Reassignment is what closes it*, and that is why it lands in this slice rather than in none at all.
+A stuck agent step is moved to a human, who is then the assignee and decides it normally. Two narrow
+rules covering the whole surface, instead of one rule plus a concept invented to escape it — and the
+recovery path is now the one a real console uses rather than a special case.
+
+*Reassigning is a different kind of act from deciding*, which is why it takes a different rule rather
+than inheriting this one. It settles nothing about the claim: the case sits exactly where it sat, and
+only the name beside it changes. A team lead moves work around a queue without being the person the
+work is currently on. Restricting it to the assignee would also reopen the hole above, since a failed
+agent step could then never be moved by anyone.
+
+*The record stays honest under both rules.* FlowCore stamps `completed_by` with whoever actually
+decided, and `Reassign` rewrites only the live assignee on the open visit — never who past decisions
+were assigned to, which the schema keeps on the frozen step.
+
+*The remark stays optional.* Requiring one is defensible for an insurer, but it would be CaseWork
+inventing a policy the library declined to have, and the first thing a visitor met would be a
+validation error.
+
+**Consequence.**
+Reassignment stops being decorative. It had no caller anywhere in the client and belonged to no slice
+— a shipped iteration-2 capability the reference client could not demonstrate — and it is now the
+mechanism a documented recovery path depends on.
+
+`AssignableReferences` gets its first caller here — and giving it one immediately exposed that it was
+wrong. See the correction below.
+
+**Correction: the reassignment list named a cast that no longer existed.**
+
+The owner found it by using the feature: *"I just reassigned something to user:alex but there is no
+alex on the user switcher."*
+
+There were two casts. `casework.staff` held the insurance cast — Inés, Dana, Marek, Priya, Tom — and
+drove sign-in, the switcher, and the queue. A Go literal named `app.Roster` held the software-release
+cast from before decision 12 replaced the scenario: Alex the release author, Dana as a *security
+engineer*, `group:qa`, `group:legal`. Its own comment still said "the seeded release workflow". It
+had no callers at all until this entry gave it one.
+
+So the dropdown offered people who did not exist, gave two who did the wrong jobs, and omitted every
+group the live workflows use. Nothing failed: FlowCore accepts any string as an assignee, so the
+endpoint worked perfectly on a list that was nonsense. It was only ever tested by passing a reference
+directly, never by reading the list that feeds it — the mechanism was checked and its input was not.
+
+`AssignableReferences` now derives everything from the database: the cast from `casework.staff`, the
+assignees from the definitions this session has registered. `app.Roster` and `IdentityByReference`
+are deleted, both dead once that one caller moved.
+
+*Why this is not the same as the slice 6 note*, which the draft initially claimed it was. That note
+covers `App.AgentReferences`, which feeds the cross-session recovery sweep and is **correct today** —
+templates and database agree because nothing can edit a workflow. It becomes wrong when slice 6 ships
+an editor. `AssignableReferences` was wrong already. Fixing what is broken now and leaving what
+breaks later is the same test applied consistently, not an inconsistency.

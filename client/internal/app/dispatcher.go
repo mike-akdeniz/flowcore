@@ -225,8 +225,11 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		Actions:     state.CurrentStep.Actions,
 	})
 	if err != nil {
-		// The visit stays open, so the sweep will try again and a person can step
-		// in and complete it by hand. A failed agent does not strand a run.
+		// The visit stays open, so the sweep will try again. If it keeps failing, a
+		// person reassigns the step to themselves and decides it by hand — they
+		// cannot decide it as it stands, because deciding belongs to the assignee
+		// and no person is ever the assignee of an agent step (client decision
+		// 23). Either way a failed agent does not strand a run.
 		d.logger.Warn("agent step: check failed", "visit", item.VisitID, "err", err)
 
 		return

@@ -69,6 +69,46 @@ export const api = {
   submitCase: (reference: string) =>
     request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
   samples: () => request<Sample[]>("/api/samples"),
+
+  decide: (reference: string, body: Decision) =>
+    request<Case>(`/api/cases/${reference}/decide`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  reassign: (reference: string, visitId: string, assignee: string) =>
+    request<Case>(`/api/cases/${reference}/reassign`, {
+      method: "POST",
+      body: JSON.stringify({ visitId, assignee }),
+    }),
+  assignees: () => request<Assignee[]>("/api/assignees"),
+};
+
+export type Assignee = {
+  reference: string;
+  label: string;
+  kind: "person" | "team";
+};
+
+export type Decision = {
+  visitId: string;
+  actionId: string;
+  remark: string;
+};
+
+export type Visit = {
+  stepName: string;
+  assignee: string;
+  isAgent: boolean;
+  enteredAt: string;
+  completedAt: string | null;
+  completedBy: string | null;
+  actionName: string | null;
+  remark: string | null;
+  // The revision this decision was made against, and the documents in force at
+  // it. Both null and empty on an open visit, and on one whose version token
+  // CaseWork did not write.
+  revision: number | null;
+  documentIds: string[];
 };
 
 export type CaseDocument = {
@@ -120,6 +160,8 @@ export type Case = {
   documents: CaseDocument[];
   // Null on a draft, and null again once the run has finished.
   currentStep: CaseStep | null;
+  // Every visit, oldest first. Empty on a draft.
+  history: Visit[];
 };
 
 export type NewCase = {

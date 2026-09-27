@@ -99,8 +99,12 @@ button. Decide it on its own terms or leave the button disabled.
 ### 4 — Working a case
 
 - Claim detail with its documents, and a panel showing where the run stands.
+  *Shipped early, in slice 3.*
 - Complete a step, with a remark.
-- The agents' findings visible in the history.
+- The agents' findings visible in the history, each against the documents in force when it was made.
+- Reassignment — **added to this slice**, client decision 23. It belonged to no slice, had no caller
+  anywhere in the client, and is the mechanism that makes a failed agent step recoverable once
+  deciding is restricted to the assignee.
 
 Done when the core loop works: open, decide, watch it move — including the steps nobody touches.
 
@@ -119,12 +123,16 @@ Done when one queue carries both kinds and the two detail screens share nothing 
 **Required, and easy to miss:** derive agent references and assignment targets from the
 **registered definitions in the database**, not from the Go templates in `internal/app/workflows.go`.
 
-Those templates exist to create rows during seeding and nothing more, but two callers still read
-them at runtime — `App.AgentReferences`, which the dispatcher's sweep uses to find stranded agent
-work, and `AssignableReferences`, which lists reassignment targets. Today the template and the
-database agree by construction, because nothing can edit a workflow. The moment this slice ships
-they diverge: a step assigned to `agent:something-new` would never be swept after a restart, and a
-new group would never appear as a reassignment target.
+Those templates exist to create rows during seeding and nothing more, but `App.AgentReferences` still
+reads them at runtime — the dispatcher's sweep uses it to find stranded agent work. Today the
+template and the database agree by construction, because nothing can edit a workflow. The moment this
+slice ships they diverge: a step assigned to `agent:something-new` would never be swept after a
+restart.
+
+`AssignableReferences` was the other half of this note and is **done** — it reads `casework.staff` and
+the session's registered definitions, after shipping a reassignment dropdown full of a cast that no
+longer existed. Client decision 23 records what that cost. The remaining half is the same bug waiting
+for this slice to trigger it.
 
 **Also required, deferred here by client decision 20:** per-step document expectations — which document
 kinds each step reads. Descriptive, never a gate: gating would kill the `incomplete → awaiting

@@ -46,7 +46,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/cases", s.createCase)
 	mux.HandleFunc("POST /api/cases/{reference}/documents", s.addDocument)
 	mux.HandleFunc("POST /api/cases/{reference}/submit", s.submitCase)
+	mux.HandleFunc("POST /api/cases/{reference}/decide", s.decide)
+	mux.HandleFunc("POST /api/cases/{reference}/reassign", s.reassign)
 	mux.HandleFunc("GET /api/samples", s.listSamples)
+	mux.HandleFunc("GET /api/assignees", s.assignableReferences)
 	mux.HandleFunc("GET /api/workflows", s.listWorkflows)
 	mux.HandleFunc("GET /api/workflows/{id}", s.showWorkflow)
 
