@@ -29,6 +29,9 @@ export type QueueItem = {
   assignee: string;
   waitingSince: string;
   isDraft: boolean;
+  // Only ever true in the all-cases list. A worklist has nothing finished in it
+  // by definition: nothing is waiting on anyone.
+  finished: boolean;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -59,6 +62,7 @@ export const api = {
       body: JSON.stringify({ reference }),
     }),
   queue: () => request<QueueItem[]>("/api/queue"),
+  allCases: () => request<QueueItem[]>("/api/cases"),
   workflows: () => request<WorkflowSummary[]>("/api/workflows"),
   workflow: (definitionId: string) =>
     request<Workflow>(`/api/workflows/${definitionId}`),

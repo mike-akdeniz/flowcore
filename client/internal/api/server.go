@@ -42,6 +42,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/session", s.showSession)
 	mux.HandleFunc("POST /api/session", s.signIn)
 	mux.HandleFunc("GET /api/queue", s.showQueue)
+	mux.HandleFunc("GET /api/cases", s.listAllCases)
 	mux.HandleFunc("GET /api/cases/{reference}", s.showCase)
 	mux.HandleFunc("POST /api/cases", s.createCase)
 	mux.HandleFunc("POST /api/cases/{reference}/documents", s.addDocument)
@@ -246,6 +247,9 @@ type queueItemJSON struct {
 	Assignee     string `json:"assignee"`
 	WaitingSince string `json:"waitingSince"`
 	IsDraft      bool   `json:"isDraft"`
+	// Finished is only ever true in the all-cases list. A worklist has nothing
+	// finished in it by definition.
+	Finished bool `json:"finished"`
 }
 
 func (s *Server) showQueue(w http.ResponseWriter, r *http.Request) {

@@ -1375,3 +1375,48 @@ nothing are litter a later reader has to reason about.
 
 `UpdateStatus` and `UpdateAction` gain wrappers. Both existed in the library and neither had a caller,
 so a status or an action could be created and deleted but not renamed.
+
+## 30. All work, and the filing button nobody could see
+
+**Context.**
+Three findings from the owner using the application: a permanently disabled "Cases" nav item, no way
+to reach a case that was not in your own queue, and no way to file a submission at all.
+
+**Decision.**
+The dead nav item becomes **All work**, listing every submission whoever holds it. Filing moves to
+the header, ungated. The policy application is seeded last so it leads both lists.
+
+**Why.**
+
+*The filing button was broken, not hidden.* `MyWork` gated it on `groups.includes("group:intake")`
+while the group had been renamed to `group:intake-handlers` in the same session. The check was
+therefore false for everyone, Inés included, and nobody could file anything from the interface.
+
+That is the third time a string in one place had to agree with a string in another with nothing
+checking — after `app.Roster` and the acronym map. The first two were fixed by removing the
+duplicate; so is this one. The gate existed because a draft appears only in intake's queue, so anyone
+else would file one and lose sight of it. All work shows every submission, so the reason is gone, and
+the literal goes with it.
+
+*A disabled nav item is a promise not kept.* It was recorded as declined rather than forgotten, and
+the reasoning was sound — a Cases page deserved designing rather than being an unfiltered table
+shipped to light up a grey button. What was missing was a concrete need, and "I should not have to
+juggle the user selector to find a submission" is one.
+
+*All work is not the queue with a filter.* They answer different questions and are mostly different
+systems. A queue is "what is waiting on me", which is FlowCore's worklist narrowed to this session.
+All work is "where is everything", which the library cannot answer at all — it has no notion of a
+case, only of steps waiting on references — so it is CaseWork's own submissions with the library
+asked where each run stands. Putting them behind one endpoint with a flag would hide that.
+
+It also shows finished cases, which a worklist never does: nothing is waiting on anyone.
+
+*The policy application leads.* The owner reversed the earlier call, and the reason is better:
+underwriting is three steps against the claim's seven, so the whole shape of a run can be seen in a
+minute before meeting the `awaiting documents` loop and three agent steps at once. Seeding order
+decides it, as before.
+
+**Consequence.**
+Two documents claimed the claim was the front door — `seed.go` and the samples README's "Start here".
+Both now point at the policy application. A screen and a document disagreeing about where to begin is
+worse than either answer.

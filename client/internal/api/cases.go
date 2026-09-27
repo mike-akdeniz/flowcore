@@ -798,3 +798,35 @@ func (s *Server) writeCase(w http.ResponseWriter, r *http.Request, sessionID, re
 
 	s.write(w, payload)
 }
+
+// listAllCases is every submission this session has, whoever holds it.
+//
+// Separate from the queue rather than a parameter on it, because they answer
+// different questions: a queue is "what is waiting on me" and is the library's
+// worklist filtered to this session, while this is CaseWork's own submissions
+// with the library asked where each one stands. Conflating them behind a flag
+// would hide that one of them is mostly FlowCore's answer and the other is
+// mostly not.
+func (s *Server) listAllCases(w http.ResponseWriter, r *http.Request) {
+	items, err := s.app.AllWork(r.Context(), sessionFrom(r))
+	if err != nil {
+		s.fail(w, "could not read the cases", err)
+
+		return
+	}
+
+	payload := make([]queueItemJSON, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, queueItemJSON{
+			Reference:    item.Reference,
+			Type:         string(item.Type),
+			StepName:     item.StepName,
+			Assignee:     item.Assignee,
+			WaitingSince: item.WaitingSince.Format(time.RFC3339),
+			IsDraft:      item.IsDraft,
+			Finished:     item.Finished,
+		})
+	}
+
+	s.write(w, payload)
+}

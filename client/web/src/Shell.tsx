@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   AppShell,
   Badge,
@@ -13,10 +13,13 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { api, type Session } from "./api";
 
+// Every item here goes somewhere. There was a disabled "Cases" entry for a page
+// that belonged to no slice, which is a promise not kept — a nav item that never
+// activates reads as something forgotten rather than something declined.
 const nav = [
-  { to: "/", label: "My work", ready: true },
-  { to: "/cases", label: "Cases", ready: false },
-  { to: "/workflows", label: "Workflows", ready: true },
+  { to: "/", label: "My work" },
+  { to: "/cases", label: "All work" },
+  { to: "/workflows", label: "Workflows" },
 ];
 
 // A nav item is current when the path is it, or sits beneath it — so the
@@ -56,6 +59,16 @@ export function Shell({
           </Group>
 
           <Group gap="sm">
+            {/* Filing lives in the header because it is reachable from anywhere,
+                and because it used to be gated on membership of the intake team
+                — a gate whose reason was that a draft only appeared in intake's
+                queue, so anyone else would file one and lose sight of it. "All
+                work" shows every submission, so that reason is gone and with it
+                a hardcoded group name that had already drifted. */}
+            <Button component={Link} to="/cases/new" size="compact-sm" variant="light">
+              New submission
+            </Button>
+
             {/* Grey, not the default primary. Blue is reserved for things you
                 can click — a badge that reports the mode is not one of them. */}
             <Badge variant="light" size="sm" color="gray">
@@ -105,32 +118,19 @@ export function Shell({
       </AppShell.Header>
 
       <AppShell.Navbar p="sm">
-        {nav.map((item) =>
-          item.ready ? (
-            <Button
-              key={item.to}
-              component={NavLink}
-              to={item.to}
-              variant={isCurrent(location.pathname, item.to) ? "light" : "subtle"}
-              justify="flex-start"
-              fullWidth
-              mb={4}
-            >
-              {item.label}
-            </Button>
-          ) : (
-            <Button
-              key={item.to}
-              variant="subtle"
-              justify="flex-start"
-              fullWidth
-              mb={4}
-              disabled
-            >
-              {item.label}
-            </Button>
-          ),
-        )}
+        {nav.map((item) => (
+          <Button
+            key={item.to}
+            component={NavLink}
+            to={item.to}
+            variant={isCurrent(location.pathname, item.to) ? "light" : "subtle"}
+            justify="flex-start"
+            fullWidth
+            mb={4}
+          >
+            {item.label}
+          </Button>
+        ))}
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>

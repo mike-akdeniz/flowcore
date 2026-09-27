@@ -4,6 +4,7 @@ import { Center, Loader } from "@mantine/core";
 import { api, type Session } from "./api";
 import { SignIn } from "./pages/SignIn";
 import { CaseView } from "./pages/CaseView";
+import { AllWork } from "./pages/AllWork";
 import { MyWork } from "./pages/MyWork";
 import { NewCase } from "./pages/NewCase";
 import { Workflows } from "./pages/Workflows";
@@ -39,10 +40,8 @@ export function App() {
           re-reading on a switch is the rule rather than an exception — making it
           structural beats remembering to add a dependency to each new page. */}
       <Routes key={session.signedInAs.reference}>
-        <Route
-          path="/"
-          element={<MyWork groups={session.signedInAs.groups} />}
-        />
+        <Route path="/" element={<MyWork />} />
+        <Route path="/cases" element={<AllWork />} />
         <Route path="/cases/new" element={<NewCase />} />
         <Route
           path="/cases/:reference"

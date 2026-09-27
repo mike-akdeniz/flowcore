@@ -34,9 +34,12 @@ a time.
 
 ## Claims
 
+The longer workflow: seven steps, three of them decided by an agent, and a loop back through
+`awaiting documents`. Worth doing second.
+
 | # | File | What it does |
 |---|------|--------------|
-| 1 | `1-estimate-pass.txt` | The document the seeded claim is waiting for. Add it at `awaiting documents` and the claim moves on. **Start here.** |
+| 1 | `1-estimate-pass.txt` | The document the seeded claim is waiting for. Add it at `awaiting documents` and the claim moves on. |
 | 2 | `2-police-report-pass.txt` | Changes the ending: `narrative consistency` sends the claim to the adjuster instead of to fraud. |
 | 3 | `3-witness-statement-fail.txt` | A second voice against the claimant's account. |
 | 4 | `4-witness-statement-pass.txt` | A second voice for it. |
@@ -49,7 +52,7 @@ a time.
 
 | # | File | What it does |
 |---|------|--------------|
-| 1 | `1-prior-insurer-pass.txt` | Supersedes the letter on the seeded application, so `risk screen` passes it to an ordinary underwriter. **Start here.** |
+| 1 | `1-prior-insurer-pass.txt` | Supersedes the letter on the seeded application, so `risk screen` passes it to an ordinary underwriter. **Start here** — the policy application is the shorter workflow and the better one to meet first. |
 | 2 | `2-inspection-fail.txt` | A vehicle that is not the one proposed. |
 | 3 | `3-inspection-pass.txt` | A vehicle that is. |
 | 4 | `4-prior-insurer-fail.txt` | Already on the seeded application — the reason it goes to a senior underwriter. |

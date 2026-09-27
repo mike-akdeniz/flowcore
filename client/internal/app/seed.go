@@ -22,21 +22,23 @@ import (
 // visitor's first action is submitting the draft, so they watch the workflow
 // begin rather than arriving part-way through one.
 func (a *App) SeedSession(ctx context.Context, sessionID string) error {
-	// The application first, so the claim is the newer of the two.
+	// The claim first, so the policy application is the newer of the two and
+	// leads both lists a visitor lands on — the queue and the workflows are
+	// ordered newest first, so creation order is what decides.
 	//
-	// Both lists a visitor lands on — the queue and the workflows — are ordered
-	// newest first, so creation order is what puts the claim above the policy
-	// application. The claim is the front door: it has the longer workflow, three
-	// agent steps, and the `awaiting documents` loop the samples are built around.
+	// The policy application leads deliberately. Its workflow is three steps
+	// against the claim's seven, so the whole shape of a run — submit, an agent
+	// decides, a person decides, it ends — can be seen in a minute, before
+	// meeting the `awaiting documents` loop and three agent steps at once.
 	//
 	// Ordering the lists by kind would have done the same thing and been a lie,
-	// since nothing about a claim makes it sort before an application. Seeding in
-	// the order we want them read costs one comment and no query.
-	if err := a.seedApplicationExample(ctx, sessionID); err != nil {
+	// since nothing about an application makes it sort before a claim. Seeding in
+	// the order we want them read costs a comment and no query.
+	if err := a.seedClaimExample(ctx, sessionID); err != nil {
 		return err
 	}
 
-	return a.seedClaimExample(ctx, sessionID)
+	return a.seedApplicationExample(ctx, sessionID)
 }
 
 func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
