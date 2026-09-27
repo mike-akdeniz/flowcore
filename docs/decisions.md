@@ -1844,7 +1844,7 @@ The only bridge available is the name: `Catalog.Get` returns definition steps wi
 
 **Decision.**
 Deferred.
-The client keys by name, and this is recorded rather than built because no caller exists yet — CaseWork's per-step expectations land in its slice 6.
+The client keys by name, and this is recorded rather than built because no caller exists yet — CaseWork's per-step expectations land in its document-types slice.
 
 **Why deferred rather than taken now.**
 It is the `CLAUDE.md` test applied honestly: a field with no reader today is speculative structure, and nothing about it gets harder by waiting.
@@ -1853,7 +1853,7 @@ No migration is involved — the column exists and is populated — so landing i
 **What will force it.**
 A rename.
 CaseWork cannot edit a definition today, so name-keyed metadata is safe by construction.
-Its slice 6 adds the editor, and renaming a step would then silently orphan whatever the client keyed to the old name — silently, because nothing joins, so nothing can fail.
+Its workflow-configuration slice adds the editor, and renaming a step would then silently orphan whatever the client keyed to the old name — silently, because nothing joins, so nothing can fail.
 That is the point at which the name key stops being adequate, and it is worth noticing that the failure mode is quiet rather than loud.
 
 **Worth separating from a neighbouring deferral.**

@@ -40,6 +40,8 @@ Leaving it last would risk finding the split wrong after everything is built on 
 
 ### 1 — Walking skeleton
 
+**Complete.**
+
 - Client schema and migrations: `submission`, `claim_detail`, `application_detail`, `document`,
   `user`, `workflow_registry`, each session-scoped except `user`.
 - Per-session seeding as a data copy: the two workflows through `Catalog.Create`, two drafted
@@ -56,6 +58,8 @@ honest gap beats two half-wired UIs.
 
 ### 2 — Understanding workflows
 
+**Complete.**
+
 - Workflow list: name, which submission type it serves, active or retired.
 - Read-only canvas: React Flow with automatic layout, no stored coordinates.
 
@@ -63,6 +67,8 @@ Done when a workflow can be understood at a glance.
 This is the de-risking slice; if the canvas is going to be a problem, it surfaces here.
 
 ### 3 — Submitting
+
+**Complete.**
 
 *Swapped with what was slice 4, agreed 2026-09-26. The original order could not work: "complete a
 step" and "watch the agents run" both need a run to exist, and nothing starts one until a
@@ -98,6 +104,8 @@ button. Decide it on its own terms or leave the button disabled.
 
 ### 4 — Working a case
 
+**Complete.**
+
 - Claim detail with its documents, and a panel showing where the run stands.
   *Shipped early, in slice 3.*
 - Complete a step, with a remark.
@@ -110,11 +118,48 @@ Done when the core loop works: open, decide, watch it move — including the ste
 
 ### 5 — The second submission type
 
+**Complete.**
+
 - Policy applications: detail table, detail screen, its workflow, its risk screen.
 
 Done when one queue carries both kinds and the two detail screens share nothing but a header.
 
-### 6 — Configuring workflows
+### 6 — Document types
+
+*Added 2026-09-27, replacing a canned mechanism with a feature.*
+
+A document type is a thing CaseWork configures: a name, a title, the submission type it belongs to,
+and the workflow steps that read it. Seeded for both example workflows. The picker offers a step's
+types; the simulated checker uses the same rows to know which document answers which step.
+
+- `casework.document_type`, and the rows associating types with steps.
+- `ck_document_kind` becomes a foreign key, so adding a kind stops needing a migration.
+- The picker and `SimulatedChecker` read from the database.
+
+**Why this exists as a slice.** The canned mechanism had spread across four places that must agree,
+keyed by three different things — a prefix switch in `samples.parse`, a `stepReads` map, a `findings`
+map, and a SQL CHECK constraint — with no failure when they drift. Most of that is a real feature
+wearing a disguise: which documents a stage requires is ordinary case management, and it is the thing
+decision 20 already deferred. Turning it into rows collapses the four into one table and deletes the
+constraint.
+
+What stays canned is the `-pass`/`-fail` suffix and the finding text, which is a small honest core
+that announces itself in every remark.
+
+**To settle in its grilling, not before:**
+
+- Does the picker narrow hard to the step's types, or show them first with the rest below? A visitor
+  adding a witness statement early is doing something sensible.
+- Is the per-type text a canned finding, or assessor guidance a real model would use as prompt
+  material? The second is more interesting and more scope.
+- What keys a type to a step. `CurrentStep` exposes only the snapshot step id, so the options are
+  `(definition_id, step_name)` with CaseWork migrating its own rows on a rename, or landing
+  `StepDefinitionID` in the library. FlowCore decision 45; this slice is what makes it load-bearing.
+
+Done when the right documents are offered at the right step, and adding a document kind needs no
+migration.
+
+### 7 — Configuring workflows
 
 - The editor on the same canvas: click a node to edit it, drag an edge to create an action, add and
   delete steps and statuses, set the entry step.
@@ -134,24 +179,19 @@ the session's registered definitions, after shipping a reassignment dropdown ful
 longer existed. Client decision 23 records what that cost. The remaining half is the same bug waiting
 for this slice to trigger it.
 
-**Also required, deferred here by client decision 20:** per-step document expectations — which document
-kinds each step reads. Descriptive, never a gate: gating would kill the `incomplete → awaiting
-documents` branch, since deciding whether the file is complete is that step's whole job. Two readers:
-the configuration screen, where a node reading `estimate, police report` explains the workflow in a
-way a name and an assignee cannot, and the `awaiting documents` screen, which uses it to say what to
-upload.
+**Document types become editable here**, on the same step editor as everything else — slice 6 builds
+the rows and seeds them, this makes them configurable. Descriptive, never a gate: gating would kill
+the `incomplete → awaiting documents` branch, since deciding whether the file is complete is that
+step's whole job (client decision 20).
 
-The open question is what to key them to. `CurrentStep` and `AssignedStep` expose only the snapshot
-step id, so the sole bridge from a running step to its definition step is the **name** — see FlowCore
-decision 45. This slice is what breaks it: adding a rename to the editor orphans name-keyed metadata
-silently, because nothing joins and nothing can fail. Decide between landing
-`StepDefinitionID` in the library first and accepting the name key with a rename that migrates its
-own metadata. Raise it with the owner; do not settle it in passing.
+**A rename is the hazard.** If slice 6 keyed document types to steps by name, adding a rename here
+orphans those rows silently, because nothing joins and nothing can fail. Whatever slice 6 settles, the
+rename path has to carry it.
 
 Done when a workflow can be built and a type switched onto it — and cases already running keep the
 one they started under.
 
-### 7 — Close out
+### 8 — Close out
 
 - `client/README.md` and the library `README.md`.
 - A polish pass.

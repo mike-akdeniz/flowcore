@@ -748,8 +748,8 @@ Four parts, all in CaseWork.
    the file, listed and readable, labelled superseded — derived at read time, not stored.
 4. Completion passes the revision as FlowCore's `subject_version_token`.
 
-Per-step document expectations are deferred to slice 6, where they become a property of a step that
-the configuration screen displays.
+Per-step document expectations are deferred to the document-types slice, where they become a
+property of a step that the configuration screen displays.
 
 **Why.**
 
@@ -807,7 +807,7 @@ Keying per-step expectations to a step is unsolved, and the fact that settled it
 mid-interview: `CurrentStep` and `AssignedStep` expose only the snapshot step id, not
 `step_definition_id`, so the only bridge from a running step back to its definition is the step name.
 Recorded as FlowCore decision 45, because it is the library's to fix. The client's half waits for
-slice 6.
+the document-types slice.
 
 ## 21. Sample documents drive the simulation, and the simulation says so
 
@@ -1023,10 +1023,10 @@ directly, never by reading the list that feeds it — the mechanism was checked 
 assignees from the definitions this session has registered. `app.Roster` and `IdentityByReference`
 are deleted, both dead once that one caller moved.
 
-*Why this is not the same as the slice 6 note*, which the draft initially claimed it was. That note
-covers `App.AgentReferences`, which feeds the cross-session recovery sweep and is **correct today** —
-templates and database agree because nothing can edit a workflow. It becomes wrong when slice 6 ships
-an editor. `AssignableReferences` was wrong already. Fixing what is broken now and leaving what
+*Why this is not the same as the workflow-configuration note*, which the draft initially claimed it
+was. That note covers `App.AgentReferences`, which feeds the cross-session recovery sweep and is
+**correct today** — templates and database agree because nothing can edit a workflow. It becomes wrong
+when that slice ships an editor. `AssignableReferences` was wrong already. Fixing what is broken now and leaving what
 breaks later is the same test applied consistently, not an inconsistency.
 
 ## 24. Policy applications read documents too, and filing is one route with two forms
@@ -1152,8 +1152,8 @@ name, which means a workflow a visitor builds is not in it and its steps are sim
 the honest outcome, stated in the remark rather than guessed at. `CheckRequest` carries
 `[]CaseDocument` rather than `[]string` so the kind is available at all.
 
-This is the coarse version of slice 6's per-step document expectations, deferred by decision 20. That
-slice makes it configuration; this makes it work now.
+This is the coarse version of the document-types slice's per-step expectations, deferred by decision
+20. That slice makes it data; this makes it work now.
 
 **Consequence.**
 Twelve sample files, eight for claims and four for applications, replacing ten. Both branches of every
