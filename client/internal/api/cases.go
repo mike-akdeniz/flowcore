@@ -35,6 +35,22 @@ type documentJSON struct {
 	// and hiding that document would leave the remark looking wrong.
 	AddedAtRevision int  `json:"addedAtRevision"`
 	Superseded      bool `json:"superseded"`
+	// Version is this document's ordinal among its own kind, oldest first, so an
+	// archive reads "Repair estimate v1" beside "v2". Per kind rather than per
+	// case: AddedAtRevision is a case-level number and makes an odd version.
+	Version int `json:"version"`
+	// ReadBy names the decisions that had this document on file, in order and
+	// without repeats.
+	//
+	// It is the inverse of the history's list of documents, and it is also what
+	// decides whether the document can be removed — a document no decision has
+	// seen can be removed while draft, so there is no `deletable` flag to keep
+	// true beside this one.
+	//
+	// "On file" rather than "read by the step": a visit's set is every kind
+	// current at its revision, because that is what SubjectText puts in front of
+	// a model.
+	ReadBy []string `json:"readBy"`
 }
 
 // visitJSON is one entry into a step, with what was decided and what the file
@@ -214,12 +230,43 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 		return caseJSON{}, err
 	}
 
+	// Every decision ever made on this case, across every run of it.
+	//
+	// Read before the documents are composed, because each document reports the
+	// decisions that had it on file — and before the draft check below, because a
+	// reopened case is a draft with a history, which is the whole point of
+	// reopening one.
+	history, err := s.app.SubjectHistory(r.Context(), sessionID, submission)
+	if err != nil {
+		return caseJSON{}, err
+	}
+
+	for _, visit := range history {
+		payload.History = append(payload.History, toVisitJSON(visit, documents))
+	}
+
 	// Superseded is derived, not stored: a document is superseded exactly when a
 	// newer one of its kind exists, so there is no flag that can drift out of step
 	// with the rows it describes.
 	inForce := make(map[uuid.UUID]bool)
 	for _, document := range store.Current(documents, submission.Revision) {
 		inForce[document.ID] = true
+	}
+
+	// A document's version among its own kind, and the decisions that had it on
+	// file. Both derived from rows already read — nothing is stored for either,
+	// so neither can disagree with the documents it describes.
+	versions := make(map[uuid.UUID]int, len(documents))
+	seenOfKind := make(map[string]int)
+
+	for _, document := range documents {
+		seenOfKind[document.Kind]++
+		versions[document.ID] = seenOfKind[document.Kind]
+	}
+
+	readBy, err := app.DocumentReaders(history, documents)
+	if err != nil {
+		return caseJSON{}, err
 	}
 
 	payload.Documents = make([]documentJSON, 0, len(documents))
@@ -234,19 +281,9 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			Outcome:         s.sampleOutcome(document.SourceFile),
 			AddedAtRevision: document.AddedAtRevision,
 			Superseded:      !inForce[document.ID],
+			Version:         versions[document.ID],
+			ReadBy:          readBy[document.ID],
 		})
-	}
-
-	// Every decision ever made on this case, across every run of it. Read before
-	// the draft check below rather than after: a reopened case is a draft with a
-	// history, which is the whole point of reopening one.
-	history, err := s.app.SubjectHistory(r.Context(), sessionID, submission)
-	if err != nil {
-		return caseJSON{}, err
-	}
-
-	for _, visit := range history {
-		payload.History = append(payload.History, toVisitJSON(visit, documents))
 	}
 
 	// A draft has no *current* run. Everything below only exists once it has
@@ -338,10 +375,9 @@ func toVisitJSON(visit flowcore.StepVisit, documents []store.Document) visitJSON
 	entry.ActionName = &visit.Completion.ActionName
 	entry.Remark = visit.Completion.Remark
 
-	// An unparseable token is not an error. FlowCore accepts any string, so a run
-	// started by something other than CaseWork — or by an older CaseWork — would
-	// carry one this cannot read, and the right answer is to show the decision
-	// without claiming to know what it was made against.
+	// Only CaseWork's numeric revision tokens can resolve a document set.
+	// DocumentReaders also validates completed revisions before the case is sent,
+	// so unknown historical use cannot make a document appear removable.
 	if visit.Completion.SubjectVersionToken == nil {
 		return entry
 	}
@@ -876,6 +912,35 @@ func (s *Server) reopenCase(w http.ResponseWriter, r *http.Request) {
 	// Conflict rather than bad request: the case is real and the verb is right,
 	// it is the state that refuses — a run still in flight cannot be reopened.
 	if err := s.app.Reopen(r.Context(), sessionID, submission); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+
+		return
+	}
+
+	s.writeCase(w, r, sessionID, submission.Reference)
+}
+
+// removeDocument deletes a document no decision has seen.
+func (s *Server) removeDocument(w http.ResponseWriter, r *http.Request) {
+	sessionID := sessionFrom(r)
+
+	submission, err := s.app.Store.SubmissionByReference(r.Context(), sessionID, r.PathValue("reference"))
+	if err != nil {
+		http.Error(w, "no such case", http.StatusNotFound)
+
+		return
+	}
+
+	documentID, err := uuid.Parse(r.PathValue("documentId"))
+	if err != nil {
+		http.NotFound(w, r)
+
+		return
+	}
+
+	// Conflict rather than forbidden: the document is real and removing one is
+	// allowed, it is this document's history that refuses.
+	if err := s.app.RemoveDocument(r.Context(), sessionID, submission, documentID); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 
 		return

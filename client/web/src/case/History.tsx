@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text, Timeline } from "@mantine/core";
+import { Anchor, Badge, Card, Group, Stack, Text, Timeline } from "@mantine/core";
 import type { Case, Visit } from "../api";
 
 // What happened, and what it was decided against.
@@ -9,10 +9,13 @@ import type { Case, Visit } from "../api";
 // each time. The server derives that from the revision each visit stamped, so
 // the rule lives in one place — `store.Current` — rather than being reimplemented
 // here in TypeScript.
-export function History({ subject }: { subject: Case }) {
+export function History({ subject, onOpenDocument }: {
+  subject: Case;
+  onOpenDocument: (documentId: string) => void;
+}) {
   if (subject.history.length === 0) return null;
 
-  const named = new Map(subject.documents.map((d) => [d.id, d]));
+  const named = new Map(subject.documents.map((document) => [document.id, document]));
 
   return (
     <Card withBorder padding="md">
@@ -56,21 +59,20 @@ export function History({ subject }: { subject: Case }) {
                 {visit.documentIds.length > 0 && (
                   <Text size="xs" c="dimmed">
                     read:{" "}
-                    {/* Named as the picker names them — "Repair estimate —
-                        fail" — not by file. A file name is a fact about the
-                        repository, and the person reading a case history has no
-                        reason to know the repository exists. */}
-                    {visit.documentIds
-                      .map((id) => {
-                        const document = named.get(id);
-                        if (!document) return null;
+                    {visit.documentIds.map((id, index) => {
+                      const document = named.get(id);
+                      if (!document) return null;
 
-                        return document.outcome
-                          ? `${document.name} — ${document.outcome}`
-                          : document.name;
-                      })
-                      .filter(Boolean)
-                      .join(" · ")}
+                      return (
+                        <span key={id}>
+                          {index > 0 && " · "}
+                          <Anchor component="button" type="button" size="xs" onClick={() => onOpenDocument(id)}>
+                            {document.name} · v{document.version}
+                            {document.outcome && ` — ${document.outcome}`}
+                          </Anchor>
+                        </span>
+                      );
+                    })}
                   </Text>
                 )}
               </Stack>

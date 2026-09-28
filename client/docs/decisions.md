@@ -1575,3 +1575,49 @@ underwriter review     open
 
 The declined decision is still there, still attributed, still stamped with the revision it was made
 against — which is the point of reopening rather than deleting and re-filing.
+
+## 34. Making revisions legible: content, versions, and draft-only deletion
+
+**Context.**
+The owner: *"The revisions mean something only when you are able to see easily the latest versions of the documents and the versions that were used on a decision. Without that, it's just a number on the screen."*
+Document bodies were already on the payload, but nothing rendered them.
+
+**The first interview.**
+The owner proposed Current and Archive tabs, clickable documents in both tabs and decision history, and removal of documents not used in a decision.
+Claude recommended a right-hand drawer over a modal or inline expansion, because history should stay in place while a reader compares documents.
+The owner chose **A**, the drawer.
+Claude then offered a `deletable` boolean or a `readBy` list of decision step names; the owner chose **B**, the list, which both explains protection and supplies the drawer's readers.
+The list contains distinct step names in history order, across all runs.
+Every kind current at a decision's revision counts, including photographs, because that is the set placed before the checker.
+Deletion bumps the revision, per-kind versions are computed server-side, and removal requires no particular assignee.
+The delete control lives in the drawer, after the user has opened the document.
+
+**The interrupted implementation and follow-up interview.**
+The first implementation checked completed visits and skipped open ones.
+That left a gap: an agent could read a document, the document could be deleted while the agent was thinking, and the agent could then record a decision about it.
+The owner's objection was: *"isn't the document used in the step before it's sent to the agent? If so the invariant should already cover this case."*
+Codex initially recommended recording the documents taken for an agent assessment before sending them.
+The owner challenged the scope: *"this is not an agent issue, what happens when a document is added to a step owned buy a human and the step is open?"*
+The fact that changed the question was that documents belong to cases, not steps; an open visit stores no revision, and the association is reconstructed only from a completed visit's stamped revision.
+Codex then suggested treating documents as used when available to any open step, which would protect additions immediately.
+Neither proposal survived.
+
+The owner simplified the rule: *"documents can only be deleted when a case is draft (workflow not started) and the document was not used on any previous workflow run"*.
+Codex recommended this, clarified that a reopened draft retains protection from every previous run, and the owner answered **yes**.
+No record of in-progress reads or new schema is needed.
+
+**Settled behavior.**
+Current shows the newest document of each kind; Archive shows the rest, ordered by kind then version.
+Both tabs and the history's document links open the same drawer.
+The drawer shows the body, version, received date, current or superseded status, and which decision steps had it on file.
+A bodyless document says "No text on this document."
+Removal is offered and enforced only for a draft with no completed decision containing that document in any previous run.
+A submitted case permits no removal, including while a human or agent step is open and after the run finishes, until it is reopened.
+
+**Implementation consequences.**
+Submission and deletion lock the same case row and recheck draft status, so concurrent requests cannot bypass the rule with an old draft payload.
+History read failures must fail deletion rather than being interpreted as no prior use.
+Deleting and incrementing the revision commit together.
+Removing an unused document cannot change any past decision's document set: at each completed decision's revision it either had not arrived or was already superseded.
+Removing a current document makes the newest surviving document of that kind current again.
+Version labels are the agreed computed ordinals among surviving documents; deleting an earlier unused document can renumber later labels, while ids and case revision stamps remain unchanged.

@@ -86,6 +86,10 @@ export const api = {
     request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
   reopenCase: (reference: string) =>
     request<Case>(`/api/cases/${reference}/reopen`, { method: "POST" }),
+  removeDocument: (reference: string, documentId: string) =>
+    request<Case>(`/api/cases/${reference}/documents/${documentId}`, {
+      method: "DELETE",
+    }),
   samples: () => request<Sample[]>("/api/samples"),
 
   decide: (reference: string, body: Decision) =>
@@ -186,6 +190,12 @@ export type CaseDocument = {
   // interface name a document the way the picker does.
   outcome: string;
   addedAtRevision: number;
+  // This document's ordinal among its own kind, oldest first — "Repair estimate
+  // v2". Per kind, not per case: addedAtRevision is a case-level number.
+  version: number;
+  // The decisions that had this document on file. Empty means no decision has
+  // seen it. Removal also requires the case to be draft.
+  readBy: string[];
   // Superseded means a newer document of the same kind has taken over. The row
   // stays on the case: an agent's remark refers to the document it actually
   // read, and hiding that document would leave the remark looking wrong.

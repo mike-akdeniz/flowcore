@@ -13,6 +13,9 @@ import (
 // ErrNotFound is returned when a row a caller named does not exist.
 var ErrNotFound = errors.New("casework: not found")
 
+// ErrNotDraft rejects an operation that requires a draft case.
+var ErrNotDraft = errors.New("this operation requires a draft case")
+
 // Store is CaseWork's data access. Hand-written SQL over pgx, matching the
 // library's approach in the same repository.
 type Store struct {
@@ -160,15 +163,46 @@ func (s *Store) SubmissionByReference(ctx context.Context, sessionID, reference 
 	return submission, err
 }
 
+// LockDraft holds the case row until the caller commits or rolls back.
+// Submission and document removal share this lock, and use the revision read
+// after acquiring it rather than one from an earlier HTTP request.
+func (s *Store) LockDraft(ctx context.Context, id uuid.UUID) (pgx.Tx, int, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var status string
+	var revision int
+	err = tx.QueryRow(ctx,
+		`select status, revision from casework.submission where id = $1 for update`,
+		id).Scan(&status, &revision)
+	if err == nil && status != "draft" {
+		err = ErrNotDraft
+	}
+
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = ErrNotFound
+		}
+
+		return nil, 0, err
+	}
+
+	return tx, revision, nil
+}
+
 // MarkSubmitted records that a run has begun. It is the only thing that moves a
 // submission out of draft, and it stamps the workflow the run started under.
 func (s *Store) MarkSubmitted(
 	ctx context.Context,
+	tx pgx.Tx,
 	id uuid.UUID,
 	definitionID uuid.UUID,
 	subjectReference string,
 ) error {
-	_, err := s.pool.Exec(ctx,
+	_, err := tx.Exec(ctx,
 		`update casework.submission
 		 set status = 'submitted', submitted_at = $2,
 		     flowcore_definition_id = $3, subject_reference = $4
@@ -678,4 +712,25 @@ func (s *Store) Reopen(ctx context.Context, id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+// RemoveDocument removes a row and bumps the revision in the transaction that
+// already holds LockDraft. The app checks historical use while holding that lock.
+func (s *Store) RemoveDocument(ctx context.Context, tx pgx.Tx, submissionID, documentID uuid.UUID) error {
+	tag, err := tx.Exec(ctx,
+		`delete from casework.document where id = $1 and submission_id = $2`,
+		documentID, submissionID)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	_, err = tx.Exec(ctx,
+		`update casework.submission set revision = revision + 1 where id = $1`,
+		submissionID)
+
+	return err
 }

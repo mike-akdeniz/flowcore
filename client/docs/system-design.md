@@ -140,7 +140,7 @@ _Submission_ — what the queue needs, common to both types
 - created_at, submitted_at
 - flowcore_definition_id // the workflow it was submitted under, nullable while a draft
 - subject_reference // what FlowCore was given, derived and stored so lookups need no re-derivation
-- revision // bumped whenever a document is added or a detail edited; what FlowCore records as the subject version token
+- revision // bumped whenever a document is added or removed or a detail edited; what FlowCore records as the subject version token
 
 _Claim detail_ — everything the claim screens show
 
@@ -170,7 +170,11 @@ The two claim AI steps read them, so the text is the point; a binary would add u
 
 Documents are superseded, never replaced.
 A second estimate does not overwrite the first: both rows stay, and the **current** document of a kind is the newest one of that kind.
-Older ones are listed and readable, labelled superseded — a derived fact, since a document is superseded exactly when a newer one of its kind exists, so there is no flag to keep in sync.
+The Documents box has Current and Archive tabs; Current shows the newest document of each kind, and Archive shows superseded documents ordered by kind and version.
+Both tabs and each history entry open the same right-hand drawer with the document text, version, received date, currency, and distinct names of the steps whose completed decisions included it.
+A document with no body explicitly says that it has no text.
+Versions are computed as ordinals among the surviving documents of each kind, oldest first.
+Removal can therefore renumber later documents; document ids and case revision stamps remain the historical references.
 
 This is what makes the `awaiting documents` loop answerable afterwards.
 A run that reaches a step twice has two visits, each stamping the revision it decided against, so "what did that visit read" resolves to the current document of each kind _as of_ that revision.
@@ -291,9 +295,14 @@ _Rules that must not break._
 - **An agent step is an ordinary step.**
   Nothing in the schema, the API, or the library marks one as special; only CaseWork's `agent:` prefix convention decides that its worker picks it up.
 - **A remark is written with the decision it explains**, in one call, so a failure cannot separate them.
-- **A document is never overwritten or deleted.**
-  A newer document of the same kind supersedes an older one; both rows survive, and the superseded one stays visible on the case.
-  A decision's remark would otherwise outlive the document it was about.
+- **A document is never overwritten, and can be deleted only while its case is draft and no decision in any previous run had it on file.**
+  A newer document of the same kind supersedes an older one; both rows survive, and the superseded one stays on the case.
+  A decision's remark would otherwise outlive the document it was about — an unused document can be removed only before submission or after reopening to draft.
+  Submission and deletion serialize on the case row, so a stale draft request cannot remove a document after a new run starts.
+  Deleting bumps the case revision and can make an older document current again.
+  That is safe rather than merely permitted.
+  A visit resolves its documents as the newest of each kind at or below the revision it stamped, so a document appearing in no visit's set is one that, at every earlier revision, either did not exist yet or had already been superseded.
+  Removing it changes no past answer.
 - **Every completion records the revision it was decided against.**
   CaseWork bumps `submission.revision` on any change an agent could read, and passes it as FlowCore's subject version token.
   The library records it and never compares it — noticing that a subject moved on is CaseWork's job, and it is the only thing that makes a second visit to a step distinguishable from the first.

@@ -9,14 +9,16 @@ import {
   Loader,
   Stack,
   Table,
+  Tabs,
   Text,
   Title,
 } from "@mantine/core";
-import { api, type Case, type Staff } from "../api";
+import { api, type Case, type CaseDocument, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
 import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
 import { History } from "../case/History";
+import { DocumentDrawer } from "../case/DocumentDrawer";
 
 // A case, in whichever state it is in.
 //
@@ -36,6 +38,7 @@ export function CaseView({
   const [failure, setFailure] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [reopening, setReopening] = useState(false);
+  const [documentId, setDocumentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!reference) return;
@@ -138,9 +141,18 @@ export function CaseView({
         canAdd={canAddDocuments}
         hasKey={!noKey(agentMode)}
         onAdded={setSubject}
+        onOpen={setDocumentId}
       />
 
-      <History subject={subject} />
+      <History subject={subject} onOpenDocument={setDocumentId} />
+
+      <DocumentDrawer
+        key={`${subject.reference}:${documentId ?? "closed"}`}
+        subject={subject}
+        document={subject.documents.find((document) => document.id === documentId) ?? null}
+        onClose={() => setDocumentId(null)}
+        onChanged={setSubject}
+      />
 
       {subject.claim && (
         <Card withBorder padding="md">
@@ -311,11 +323,13 @@ function Documents({
   canAdd,
   hasKey,
   onAdded,
+  onOpen,
 }: {
   subject: Case;
   canAdd: boolean;
   hasKey: boolean;
   onAdded: (updated: Case) => void;
+  onOpen: (documentId: string) => void;
 }) {
   return (
     <Card withBorder padding="md">
@@ -332,50 +346,56 @@ function Documents({
             document would move the revision and no step would ever read it. */}
         {canAdd && <AddDocument subject={subject} hasKey={hasKey} onAdded={onAdded} />}
 
-        {subject.documents.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            Nothing on file yet.
-          </Text>
-        ) : (
-          <Table verticalSpacing="xs">
-            <Table.Tbody>
-              {subject.documents.map((document) => (
-                <Table.Tr key={document.id}>
-                  <Table.Td>
-                    <Text size="sm" c={document.superseded ? "dimmed" : undefined}>
-                      {document.name}
-                    </Text>
-                    {document.outcome && (
-                      <Text size="xs" c="dimmed">
-                        {document.outcome}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" c="dimmed">
-                      {document.kind}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td w={140}>
-                    {/* Superseded rows stay: an agent's remark refers to the
-                        document it actually read, and hiding it would leave the
-                        remark looking wrong. */}
-                    {document.superseded ? (
-                      <Badge size="sm" variant="outline" color="gray">
-                        superseded
-                      </Badge>
-                    ) : (
-                      <Text size="xs" c="dimmed">
-                        added at rev {document.addedAtRevision}
-                      </Text>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
+        <Tabs defaultValue="current">
+          <Tabs.List>
+            <Tabs.Tab value="current">Current</Tabs.Tab>
+            <Tabs.Tab value="archive">Archive</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="current" pt="sm">
+            <DocumentList
+              documents={subject.documents.filter((document) => !document.superseded)}
+              empty="Nothing on file yet."
+              onOpen={onOpen}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="archive" pt="sm">
+            <DocumentList
+              documents={subject.documents
+                .filter((document) => document.superseded)
+                .sort((left, right) => left.kind.localeCompare(right.kind) || left.version - right.version)}
+              empty="No previous versions."
+              onOpen={onOpen}
+            />
+          </Tabs.Panel>
+        </Tabs>
       </Stack>
     </Card>
+  );
+}
+
+function DocumentList({ documents, empty, onOpen }: {
+  documents: CaseDocument[];
+  empty: string;
+  onOpen: (documentId: string) => void;
+}) {
+  if (documents.length === 0) return <Text size="sm" c="dimmed">{empty}</Text>;
+
+  return (
+    <Table verticalSpacing="xs">
+      <Table.Tbody>
+        {documents.map((document) => (
+          <Table.Tr key={document.id}>
+            <Table.Td>
+              <Anchor component="button" type="button" size="sm" onClick={() => onOpen(document.id)}>
+                {document.name} · v{document.version}
+              </Anchor>
+              {document.outcome && <Text size="xs" c="dimmed">{document.outcome}</Text>}
+            </Table.Td>
+            <Table.Td><Text size="xs" c="dimmed">{document.kind}</Text></Table.Td>
+            <Table.Td><Text size="xs" c="dimmed">{document.receivedAt}</Text></Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
   );
 }

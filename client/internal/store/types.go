@@ -44,7 +44,7 @@ type Submission struct {
 	// prefixed with the session so two visitors working the same seeded claim have
 	// two separate runs.
 	SubjectReference *string
-	// Revision is bumped whenever a document is added or a detail edited, and is
+	// Revision is bumped whenever a document is added or removed or a detail edited, and is
 	// what CaseWork passes FlowCore as the subject version token. The library
 	// records it and never compares it — noticing that a subject moved on is this
 	// layer's job.
@@ -75,8 +75,8 @@ type ApplicationDetail struct {
 // Document is a record carrying text, not a file. The documents that matter are
 // prose, and the text is what the agents read.
 //
-// Rows are never updated or deleted. A newer document of the same kind supersedes
-// an older one; both survive, and which is in force is derived — see Current.
+// Rows are never overwritten. Unused documents can be deleted while draft.
+// A newer document of the same kind supersedes an older one — see Current.
 type Document struct {
 	ID           uuid.UUID
 	SubmissionID uuid.UUID

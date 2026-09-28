@@ -95,6 +95,13 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 		return fmt.Errorf("%s has already been submitted", submission.Reference)
 	}
 
+	tx, revision, err := a.Store.LockDraft(ctx, submission.ID)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	workflow, err := a.Store.ActiveWorkflow(ctx, sessionID, submission.Type)
 	if err != nil {
 		return fmt.Errorf("no active workflow for %s submissions", submission.Type)
@@ -105,7 +112,7 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 	// The run records the revision it began on, which is what makes "the claim
 	// has changed since it was submitted" a question anyone can answer later.
 	// FlowCore stores the string and never reads it.
-	startingRevision := strconv.Itoa(submission.Revision)
+	startingRevision := strconv.Itoa(revision)
 
 	state, err := a.Engine.Start(ctx, flowcore.StartParams{
 		WorkflowDefinitionID: workflow.FlowcoreDefinitionID,
@@ -118,8 +125,12 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 
 	// Stamped now and never rewritten: the run keeps the workflow it started
 	// under, whatever is activated later.
-	if err := a.Store.MarkSubmitted(ctx, submission.ID,
+	if err := a.Store.MarkSubmitted(ctx, tx, submission.ID,
 		workflow.FlowcoreDefinitionID, subjectReference); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 
@@ -255,9 +266,7 @@ func (a *App) SubjectHistory(
 	for _, workflow := range registered {
 		history, err := a.Engine.GetHistory(ctx, subjectReference, workflow.FlowcoreDefinitionID)
 		if err != nil {
-			// No run of this case under that workflow, which is the common case:
-			// a session has several registered and a case has run under one.
-			continue
+			return nil, err
 		}
 
 		visits = append(visits, history...)
