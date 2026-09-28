@@ -172,6 +172,29 @@ The task file holds the detail; `status.md` holds the state — don't duplicate 
 If the work suggests deviating, a different sequence, a skipped phase, or a new step, stop and raise it.
 Silent re-sequencing is the failure these plans exist to prevent.
 
+### Session handover
+
+When the owner says **handover** in a prompt, save the context the next Claude Code or Codex session needs to continue to `docs/pending-tasks/agent-handover.md`. Don't append to the existing content of the file, every handover should wipe previous content.
+This supports starting a fresh context window or switching agents or models.
+Write the file as part of that request; do not merely provide a summary in chat.
+
+Keep one current handover, replacing stale content while preserving anything unresolved that still matters.
+Include:
+
+- The handover date, current task, and intended outcome.
+- Decisions and constraints agreed with the owner, including relevant exact wording and any interview questions still awaiting answers.
+- Work completed, work remaining, and the next concrete step, following any agreed plan's order.
+- The current branch and pending changes, distinguishing implemented, verified, and still unreviewed work.
+- Checks run and their results, known failures, blockers, and any relevant running processes or environment setup.
+- Links to the authoritative docs, task plans, and files needed to resume without reconstructing the session.
+
+Keep it concise and actionable; link to durable records rather than copying them, and never include secrets.
+Ensure the handover file is linked from `docs/pending-tasks/index.md` when populated.
+Writing a handover does not change project statuses or authorize a commit.
+
+At the start of a new session, read this file if present alongside `docs/status.md`.
+Treat it as continuation context, verify its account against the working tree, and follow the authoritative design docs and agreed plans if it is stale or conflicts with them.
+
 ## Markdown conventions
 
 All docs (`CLAUDE.md`, `docs/*.md`) follow these, for clean git diffs and portable rendering.
