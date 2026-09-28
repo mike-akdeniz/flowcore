@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  Card,
   Group,
   SegmentedControl,
   Select,
@@ -153,95 +152,97 @@ export function AddDocument({
     }
   }
 
+  // No card of its own. This lives inside the Documents card now, and a border
+  // inside a border is just a line.
   return (
-    <Card withBorder padding="md">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text fw={500}>Add a document</Text>
-          <SegmentedControl
-            size="xs"
-            value={mode}
-            onChange={(value) => setMode(value as "sample" | "upload")}
-            data={[
-              { label: "Sample", value: "sample" },
-              { label: "Upload", value: "upload" },
-            ]}
-          />
-        </Group>
+    <Stack gap="sm" pb="xs">
+      <Group justify="space-between">
+      <Text size="sm" fw={500}>
+        Add a document
+      </Text>
+        <SegmentedControl
+          size="xs"
+          value={mode}
+          onChange={(value) => setMode(value as "sample" | "upload")}
+          data={[
+            { label: "Sample", value: "sample" },
+            { label: "Upload", value: "upload" },
+          ]}
+        />
+      </Group>
 
-        {mode === "sample" ? (
+      {mode === "sample" ? (
+        <Select
+          data={offered.map((candidate) => ({
+            value: candidate.fileName,
+            label: candidate.outcome
+              ? `${kindLabel(candidate.kind)} — ${candidate.outcome}`
+              : kindLabel(candidate.kind),
+          }))}
+          value={chosen}
+          onChange={setChosen}
+          placeholder="Select a document"
+          allowDeselect={false}
+        />
+      ) : (
+        <Group grow align="flex-end">
+          {/* A plain file input: documents are text records, so the file is
+              read in the browser and its text posted. Nothing binary is
+              stored, and nothing needs an upload endpoint. */}
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".txt,text/plain"
+            onChange={async (event) => {
+              const file = event.currentTarget.files?.[0];
+              if (!file) return;
+
+              setUpload({ fileName: file.name, body: await file.text() });
+            }}
+          />
           <Select
-            data={offered.map((candidate) => ({
-              value: candidate.fileName,
-              label: candidate.outcome
-                ? `${kindLabel(candidate.kind)} — ${candidate.outcome}`
-                : kindLabel(candidate.kind),
+            label="Kind"
+            // Every type, never narrowed: you file whatever arrived.
+            data={subject.documentTypes.map((documentType) => ({
+              value: documentType.name,
+              label: documentType.title,
             }))}
-            value={chosen}
-            onChange={setChosen}
-            placeholder="Select a document"
+            value={uploadKind}
+            onChange={(value) => setUploadKind(value ?? uploadKind)}
             allowDeselect={false}
           />
-        ) : (
-          <Group grow align="flex-end">
-            {/* A plain file input: documents are text records, so the file is
-                read in the browser and its text posted. Nothing binary is
-                stored, and nothing needs an upload endpoint. */}
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".txt,text/plain"
-              onChange={async (event) => {
-                const file = event.currentTarget.files?.[0];
-                if (!file) return;
-
-                setUpload({ fileName: file.name, body: await file.text() });
-              }}
-            />
-            <Select
-              label="Kind"
-              // Every type, never narrowed: you file whatever arrived.
-              data={subject.documentTypes.map((documentType) => ({
-                value: documentType.name,
-                label: documentType.title,
-              }))}
-              value={uploadKind}
-              onChange={(value) => setUploadKind(value ?? uploadKind)}
-              allowDeselect={false}
-            />
-          </Group>
-        )}
-
-        {ready && kind && (
-          <Text size="sm" c="dimmed">
-            {kindLabel(kind)}
-            {superseded
-              ? ` · supersedes the ${kindLabel(kind).toLowerCase()} already on file`
-              : " · nothing of this kind is on the case yet"}
-          </Text>
-        )}
-
-        {/* Both of these describe the selected document, so neither appears
-            before there is one. The header badge already says which mode the
-            agent steps are in, so nothing is lost by waiting. */}
-        {ready && (
-          <Alert color={note.colour} variant="light" p="xs">
-            <Text size="sm">{note.text}</Text>
-          </Alert>
-        )}
-
-        {failure && (
-          <Text size="sm" c="red">
-            {failure}
-          </Text>
-        )}
-
-        <Group justify="flex-end">
-          <Button size="sm" onClick={add} disabled={!ready} loading={busy}>
-            Add
-          </Button>
         </Group>
-      </Stack>
-    </Card>
+      )}
+
+      {ready && kind && (
+        <Text size="sm" c="dimmed">
+          {kindLabel(kind)}
+          {superseded
+            ? ` · supersedes the ${kindLabel(kind).toLowerCase()} already on file`
+            : " · nothing of this kind is on the case yet"}
+        </Text>
+      )}
+
+      {/* Both of these describe the selected document, so neither appears
+          before there is one. The header badge already says which mode the
+          agent steps are in, so nothing is lost by waiting. */}
+      {ready && (
+        <Alert color={note.colour} variant="light" p="xs">
+          <Text size="sm">{note.text}</Text>
+        </Alert>
+      )}
+
+      {failure && (
+        <Text size="sm" c="red">
+          {failure}
+        </Text>
+      )}
+
+      <Group justify="flex-end">
+        <Button size="sm" onClick={add} disabled={!ready} loading={busy}>
+          Add
+        </Button>
+      </Group>
+    </Stack>
   );
 }

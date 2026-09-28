@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -187,4 +188,87 @@ func (a *App) OfferedDocumentTypes(
 	}
 
 	return names, nil
+}
+
+// Reopen puts a finished case back to draft so it can be run again.
+//
+// For the case that was decided wrongly: a claim declined by mistake, or a
+// proposal referred on a document that turned out to be the wrong one. The
+// decisions already made are not erased — they cannot be, the visits are
+// append-only — and they stay on the case's history beside the new run's.
+//
+// Only a finished case. A run still in flight has a step somebody is holding,
+// and FlowCore permits a second run on the same subject and definition only
+// once the first has completed: ux_workflow_active is partial. Reopening an
+// open case would either be refused at Start or need the old run abandoned, and
+// abandoning is not a thing the library does — a run ends by an action being
+// taken, which is the whole model.
+//
+// Nothing about the previous run is recorded here. Submitting again starts a new
+// one on the same subject reference, and GetHistory returns every run on it.
+func (a *App) Reopen(ctx context.Context, sessionID string, submission store.Submission) error {
+	if submission.IsDraft() {
+		return fmt.Errorf("%s has not been submitted", submission.Reference)
+	}
+
+	state, err := a.Engine.GetState(ctx, *submission.SubjectReference, *submission.FlowcoreDefinitionID)
+	if err != nil {
+		return err
+	}
+
+	if state.CurrentStep != nil {
+		return fmt.Errorf(
+			"%s is still with %s — a case can only be reopened once its workflow has finished",
+			submission.Reference, state.CurrentStep.AssigneeID)
+	}
+
+	return a.Store.Reopen(ctx, submission.ID)
+}
+
+// SubjectHistory is every decision ever made on a case, across every run.
+//
+// A case can be run more than once, and the runs may not share a definition:
+// reopening picks up whatever workflow is active now, which may have been
+// changed since. So this asks the library once per definition this session has
+// registered — the registry keeps retired ones exactly because runs that started
+// under them are still answerable.
+//
+// Nothing is stored to make this work. The subject reference is derived from the
+// session, the type and the case's own reference, and the definitions come from
+// a table that exists for another reason. That matters more than the query count:
+// a client that had to remember run ids would be the only index into the
+// library's history, and losing that table would strand data that still exists.
+func (a *App) SubjectHistory(
+	ctx context.Context,
+	sessionID string,
+	submission store.Submission,
+) ([]flowcore.StepVisit, error) {
+	registered, err := a.Store.RegisteredWorkflows(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	subjectReference := SubjectReference(sessionID, submission)
+
+	var visits []flowcore.StepVisit
+
+	for _, workflow := range registered {
+		history, err := a.Engine.GetHistory(ctx, subjectReference, workflow.FlowcoreDefinitionID)
+		if err != nil {
+			// No run of this case under that workflow, which is the common case:
+			// a session has several registered and a case has run under one.
+			continue
+		}
+
+		visits = append(visits, history...)
+	}
+
+	// Oldest first across definitions as well as within one. Runs of a case never
+	// overlap — the next begins only after the last has finished — so entering
+	// order is a total order here.
+	sort.Slice(visits, func(i, j int) bool {
+		return visits[i].EnteredAt.Before(visits[j].EnteredAt)
+	})
+
+	return visits, nil
 }

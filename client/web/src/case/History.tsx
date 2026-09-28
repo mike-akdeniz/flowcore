@@ -26,10 +26,29 @@ export function History({ subject }: { subject: Case }) {
           styles={{ itemBody: { paddingBottom: 4 } }}
         >
           {subject.history.map((visit, index) => (
-            <Timeline.Item key={index} title={<Heading visit={visit} />}>
+            <Timeline.Item
+              key={index}
+              title={
+                <Stack gap={2}>
+                  {/* A run boundary. The library hands every visit its run's id,
+                      so this needs nothing remembered on this side — the marker
+                      appears wherever the id changes. */}
+                  {index > 0 && visit.runId !== subject.history[index - 1].runId && (
+                    <Badge size="xs" variant="outline" color="gray">
+                      reopened — new run
+                    </Badge>
+                  )}
+                  <Heading visit={visit} />
+                </Stack>
+              }
+            >
               <Stack gap={2}>
+                {/* pre-line, because a remark is written with line breaks in
+                    it: a finding, then the lines that say it was canned and how
+                    to change it. Without this they render as one paragraph and
+                    the instruction disappears into the apology. */}
                 {visit.remark && (
-                  <Text size="sm" c="dimmed">
+                  <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-line" }}>
                     {visit.remark}
                   </Text>
                 )}
@@ -37,13 +56,17 @@ export function History({ subject }: { subject: Case }) {
                 {visit.documentIds.length > 0 && (
                   <Text size="xs" c="dimmed">
                     read:{" "}
+                    {/* Named as the picker names them — "Repair estimate —
+                        fail" — not by file. A file name is a fact about the
+                        repository, and the person reading a case history has no
+                        reason to know the repository exists. */}
                     {visit.documentIds
                       .map((id) => {
                         const document = named.get(id);
                         if (!document) return null;
 
-                        return document.sourceFile
-                          ? `${document.name} (${document.sourceFile})`
+                        return document.outcome
+                          ? `${document.name} — ${document.outcome}`
                           : document.name;
                       })
                       .filter(Boolean)

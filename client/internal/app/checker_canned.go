@@ -68,19 +68,19 @@ func (c SimulatedChecker) Check(ctx context.Context, request CheckRequest) (Verd
 	case <-time.After(simulatedDelay):
 	}
 
-	document, expected, outcome, ok := c.reading(request)
+	expected, outcome, ok := c.reading(request)
 	if !ok {
 		return c.guess(request), nil
 	}
 
-	actionID, actionName, ok := branch(request.Actions, outcome)
+	actionID, ok := branch(request.Actions, outcome)
 	if !ok {
 		return c.guess(request), nil
 	}
 
 	return Verdict{
 		ActionID: actionID,
-		Remark:   finding(expected, outcome) + "\n\n" + disclosure(document, actionName),
+		Remark:   finding(expected, outcome) + "\n" + disclosure(expected, outcome),
 	}, nil
 }
 
@@ -96,9 +96,8 @@ func (c SimulatedChecker) Check(ctx context.Context, request CheckRequest) (Verd
 // is about, the simulation does not know either.
 func (SimulatedChecker) reading(
 	request CheckRequest,
-) (CaseDocument, ExpectedDocument, samples.Outcome, bool) {
+) (ExpectedDocument, samples.Outcome, bool) {
 	var (
-		chosen   CaseDocument
 		expected ExpectedDocument
 		outcome  = samples.OutcomeNone
 	)
@@ -110,24 +109,30 @@ func (SimulatedChecker) reading(
 			}
 
 			if found := outcomeOf(document.FileName); found != samples.OutcomeNone {
-				chosen, expected, outcome = document, candidate, found
+				expected, outcome = candidate, found
 			}
 		}
 	}
 
-	return chosen, expected, outcome, outcome != samples.OutcomeNone
+	return expected, outcome, outcome != samples.OutcomeNone
 }
 
 // guess decides at random and says so without dressing it up.
+//
+// The same two-line shape as a real canned finding, because the difference
+// between "this was decided from a document" and "this was a coin toss" should
+// be legible at a glance rather than found in a paragraph.
 func (SimulatedChecker) guess(request CheckRequest) Verdict {
 	chosen := request.Actions[rand.Intn(len(request.Actions))]
 
 	return Verdict{
 		ActionID: chosen.ID,
 		Remark: fmt.Sprintf(
-			"Simulated at random: chose %q from %d possible actions. Nothing here was "+
-				"assessed — this step expects no kind of document that is on file, so "+
-				"there was nothing for the simulation to read. %s",
+			"Nothing here was assessed: %q was chosen at random from %d possible "+
+				"actions.\n"+
+				"* Canned response, %s\n"+
+				"* This step expects no kind of document that is on the case, so "+
+				"there was nothing for the simulation to read.",
 			chosen.Name, len(request.Actions), noKeyAdvice),
 	}
 }
@@ -151,15 +156,42 @@ func finding(expected ExpectedDocument, outcome samples.Outcome) string {
 		strings.ReplaceAll(expected.Name, "-", " "), outcome)
 }
 
-// disclosure is the line that keeps the simulation honest.
+// disclosure is what keeps the simulation honest, and tells you how to change
+// its mind.
+//
+// Two lines under the finding, each starting with a bullet, because they are two
+// different things: one is a disclaimer, the other is an instruction. Run
+// together they read as a paragraph of apology and the instruction is lost in
+// it.
 //
 // It matters more than it did. The finding above reads like an assessment, and
 // without this a visitor could reasonably believe one happened.
-func disclosure(document CaseDocument, actionName string) string {
+//
+// Documents are named the way the picker names them — "Repair estimate — pass" —
+// rather than by file. A disclaimer that says `7-estimate-fail.txt` names
+// something no screen shows, so a reader has to go and find the folder to act
+// on it.
+func disclosure(expected ExpectedDocument, outcome samples.Outcome) string {
+	opposite := samples.OutcomePass
+	if outcome == samples.OutcomePass {
+		opposite = samples.OutcomeFail
+	}
+
 	return fmt.Sprintf(
-		"Simulated: this finding is canned, and %q was chosen from the file name %q. "+
-			"No model was consulted and nothing inside the document was read. %s",
-		actionName, document.FileName, noKeyAdvice)
+		"* Canned response, %s\n"+
+			"* To see the other canned outcome, put the document %q on the case "+
+			"before this step runs.",
+		noKeyAdvice, label(expected, opposite))
+}
+
+// label is a document as the picker shows it.
+func label(expected ExpectedDocument, outcome samples.Outcome) string {
+	title := expected.Title
+	if title == "" {
+		title = expected.Name
+	}
+
+	return fmt.Sprintf("%s — %s", title, outcome)
 }
 
 // outcomeOf reads the convention out of a file name, and returns OutcomeNone for
@@ -177,7 +209,7 @@ func outcomeOf(fileName string) samples.Outcome {
 }
 
 // branch finds the action a pass or a fail argues for.
-func branch(actions []flowcore.Action, outcome samples.Outcome) (uuid.UUID, string, bool) {
+func branch(actions []flowcore.Action, outcome samples.Outcome) (uuid.UUID, bool) {
 	wanted := passActions
 	if outcome == samples.OutcomeFail {
 		wanted = failActions
@@ -186,10 +218,10 @@ func branch(actions []flowcore.Action, outcome samples.Outcome) (uuid.UUID, stri
 	for _, action := range actions {
 		for _, name := range wanted {
 			if strings.EqualFold(action.Name, name) {
-				return action.ID, action.Name, true
+				return action.ID, true
 			}
 		}
 	}
 
-	return uuid.Nil, "", false
+	return uuid.Nil, false
 }

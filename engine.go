@@ -154,22 +154,27 @@ func (e *Engine) GetState(ctx context.Context, subjectReference string, workflow
 	return state, nil
 }
 
-// GetHistory returns every visit the run has made, oldest first, including the
-// open one. A step reached twice by a loop appears twice.
+// GetHistory returns every visit on this subject under this definition, oldest
+// first — across every run of it, not only the latest.
 //
-// No transaction, unlike GetState. The two statements are a lookup and then a
-// read keyed on the id it returned, so a concurrent write cannot tear the result:
-// once resolved, that run's history is read whole by one query. A run completing
-// and another starting in between yields the earlier run's history — complete and
-// self-consistent, merely a moment stale, which is indistinguishable from having
-// been called a moment sooner.
+// A subject can be run through one definition more than once: ux_workflow_active
+// is partial, so finishing a run permits starting another. Returning only the
+// newest would leave the earlier decisions unreachable through this API while
+// their rows sat in the database, and the only remedy available to a caller
+// would be to record run ids as they went — which makes the caller's own storage
+// the sole index into this one. Lose it and the history is gone while the data
+// remains.
+//
+// So "which revision did they approve, and who were they" stays answerable for
+// every decision on the subject, which is the guarantee worth making. StepVisit
+// carries WorkflowID, so a caller that wants to show where one run ended and the
+// next began can, without being obliged to track anything.
+//
+// One statement, so no transaction: the result cannot tear. A run completing
+// while it executes yields a history that is a moment stale, which is
+// indistinguishable from having been called a moment sooner.
 func (e *Engine) GetHistory(ctx context.Context, subjectReference string, workflowDefinitionID uuid.UUID) ([]StepVisit, error) {
-	workflowID, err := getWorkflowIDBySubject(ctx, e.pool, subjectReference, workflowDefinitionID)
-	if err != nil {
-		return nil, err
-	}
-
-	return listStepVisits(ctx, e.pool, workflowID)
+	return listStepVisitsBySubject(ctx, e.pool, subjectReference, workflowDefinitionID)
 }
 
 // ListAssignedSteps returns the open steps waiting on any of the given assignee

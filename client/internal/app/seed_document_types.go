@@ -44,34 +44,23 @@ type attachment struct {
 var claimDocumentTypes = []documentType{
 	{
 		name: "intake-note", title: "Intake note",
-		pass: "Single vehicle, no third party to trace, responsibility accepted and a quote " +
-			"already obtained. The value is inside the fast-track limit and nothing is outstanding.",
-		fail: "The claimant was not present, so the account is inference rather than observation, " +
-			"there is no third party to recover from, and the value is above the fast-track limit.",
+		pass: "Single vehicle, nobody to trace, and inside the fast-track limit.",
+		fail: "No third party, an account the claimant did not witness, and above the fast-track limit.",
 	},
 	{
 		name: "estimate", title: "Repair estimate",
-		pass: "The estimate is itemised: parts and labour are separated, the labour rate and " +
-			"hours are given, and VAT is stated. It can be checked against the damage described.",
-		fail: "The estimate is a single approximate figure with no breakdown between parts and " +
-			"labour, no hours or rate, and no VAT position. There is nothing here an assessor can check.",
+		pass: "Itemised: parts, labour, hours, rate and VAT all stated.",
+		fail: "One approximate figure. No rate, no hours, no VAT — nothing an assessor can check.",
 	},
 	{
 		name: "police-report", title: "Police report",
-		pass: "The attending officer places the vehicle at the address given, with debris in the " +
-			"road consistent with an impact where it stood. Nothing in the report is inconsistent " +
-			"with the claimant's account.",
-		fail: "The report places the vehicle two miles from the address given, already damaged, " +
-			"some hours before the claimant says the damage occurred. The account of an overnight " +
-			"impact outside the home cannot both be true.",
+		pass: "Places the vehicle at the address given, with debris consistent with the account.",
+		fail: "Places the vehicle two miles away, already damaged, hours before the claimant says it happened.",
 	},
 	{
 		name: "witness-statement", title: "Witness statement",
-		pass: "The witness saw the vehicle undamaged late in the evening and damaged the " +
-			"following morning, and heard an impact overnight. This supports the claimant's " +
-			"account without adding to it.",
-		fail: "The witness describes the damage happening in daylight, with the claimant driving, " +
-			"which contradicts the account of an overnight impact to a parked vehicle.",
+		pass: "Undamaged late that evening, damaged by morning, an impact heard overnight.",
+		fail: "Describes the damage happening in daylight with the claimant driving.",
 	},
 	{
 		// A photograph is a row with a name and no body, so no agent step reads
@@ -84,32 +73,26 @@ var claimDocumentTypes = []documentType{
 	},
 	{
 		name: "correspondence", title: "Correspondence",
-		pass: "The correspondence supports the account given.",
-		fail: "The correspondence is at odds with the account given.",
+		pass: "Supports the account given.",
+		fail: "At odds with the account given.",
 	},
 }
 
 var applicationDocumentTypes = []documentType{
 	{
 		name: "prior-insurer", title: "Previous insurer's letter",
-		pass: "Four years of comprehensive cover with no claims and no convictions, lapsed at " +
-			"the proposer's own request, and the previous insurer would have renewed.",
-		fail: "The previous insurer declined to renew. Two speeding convictions during the term, " +
-			"a settled damage claim, and the vehicle found kept on the highway after being " +
-			"declared as garaged.",
+		pass: "Four years, no claims, no convictions, lapsed at the proposer's own request.",
+		fail: "Declined renewal after two convictions and a claim, and the vehicle was not garaged as declared.",
 	},
 	{
 		name: "inspection", title: "Vehicle inspection",
-		pass: "The vehicle is as declared: mileage consistent, no undisclosed modification or " +
-			"unrepaired damage, security to specification, and kept where the proposal says.",
-		fail: "The vehicle differs materially from the one proposed — mileage well above the " +
-			"declaration, undeclared engine and suspension modifications, an undisclosed previous " +
-			"repair, and kept on the highway rather than garaged.",
+		pass: "As declared: mileage, condition, security and where it is kept all match.",
+		fail: "Mileage well over, undeclared modifications, and kept on the highway rather than garaged.",
 	},
 	{
 		name: "correspondence", title: "Correspondence",
-		pass: "The correspondence supports the proposal as made.",
-		fail: "The correspondence is at odds with the proposal as made.",
+		pass: "Supports the proposal as made.",
+		fail: "At odds with the proposal as made.",
 	},
 }
 

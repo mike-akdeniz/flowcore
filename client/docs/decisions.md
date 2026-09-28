@@ -1420,3 +1420,158 @@ decides it, as before.
 Two documents claimed the claim was the front door — `seed.go` and the samples README's "Start here".
 Both now point at the policy application. A screen and a document disagreeing about where to begin is
 worse than either answer.
+
+## 31. A canned finding is one sentence, and the disclaimer says how to change it
+
+**Context.**
+The remark an agent step left was four sentences of finding followed by four of disclaimer, and named
+the document by its file on disk. The owner, reading one on screen: *"canned ai remark is
+confusing"*.
+
+**Decision.**
+The finding is one sentence. A blank line. Then a disclaimer that says it is canned, how to get a
+real assessment, and **which document to put on the case to get the other outcome**.
+
+Documents are named on screen the way the picker names them — "Repair estimate — fail" — never by
+file name.
+
+**Why.**
+
+*The finding was written as prose and read as padding.* It described an estimate in four clauses when
+one does the work: "One approximate figure. No rate, no hours, no VAT — nothing an assessor can
+check." Every finding in the seed shrank the same way. They are meant to look like a model's output,
+and a model asked for a finding does not write four sentences about a missing VAT line.
+
+*The disclaimer gained the sentence that makes it useful, on a line of its own.* It used to say only
+what had not happened. A remark now reads:
+
+```
+Declined renewal after two convictions and a claim, and the vehicle was not garaged as declared.
+* Canned response, Set ANTHROPIC_API_KEY and restart for a real assessment.
+* To see the other canned outcome, put the document "Previous insurer's letter — pass" on the case before this step runs.
+```
+
+Two bullets rather than a paragraph, because they are two different things: one is a disclaimer, the
+other is an instruction, and run together the instruction is lost inside the apology. That turns the
+honesty requirement from decision 21 — no hidden heuristics, make the mode visible — into something
+that also drives the demonstration.
+
+**The first attempt at this shipped broken and looked fine in a test.** The remark carried `\n\n`
+and the history rendered it in a Mantine `Text`, which collapses whitespace like any HTML — so on
+screen it was one run-on paragraph, exactly what the change was meant to fix. Verifying the string
+the server stored proved nothing about the thing a person reads. The fix is `white-space: pre-line`
+on that one element.
+
+*File names are a fact about the repository.* `7-estimate-fail.txt` appeared in the remark and in the
+history's `read:` line, and the person reading a case has no reason to know a repository exists. The
+document picker had always shown titles and outcomes; the remark and the history now agree with it.
+
+Resolving the outcome for display is the server's job, because the naming convention belongs to the
+samples package. `documentJSON` carries it, and it is empty for anything uploaded — which is correct
+rather than a gap: an uploaded file argues for nothing.
+
+**Consequence.**
+`reading` and `branch` both lost a return value. The checker no longer needs the matched document or
+the chosen action's name, because the disclaimer is built from the document *type* and the outcome —
+the type is what the picker shows, so the label is right by construction rather than by string
+formatting a file name into something presentable.
+
+## 32. The case screen puts what you do above what you read
+
+**Context.**
+The owner, on the case screen: *"Every action is on different places of the page ... the box with the
+submission details should go to the bottom. On the demo, that's the least important thing."*
+
+**Decision.**
+One card for everything actionable, then documents, then history, then the case's own details last.
+Three lines of explanation removed.
+
+**Why.**
+
+*"What can I do here" was answered in three places.* Submit was a button in the page header, deciding
+and reassigning were in a panel below it, and adding a document was past the history — so which place
+you looked depended on what state the case happened to be in. They are one card now: a draft shows
+Submit, a running case shows the step and its decision, a finished one says so.
+
+*Details last, because this is a demonstration.* For a real console the claim is what you are
+deciding about and belongs at the top. Here it is static text read once, while the documents carry
+the evidence the agent steps actually weigh, so it goes below them. That is a choice about what this
+application is *for*, and it would be the wrong one in a real console.
+
+*Adding a document joined the documents card.* Two boxes about one subject, with the control in the
+place you look last. One box, control at the top.
+
+**The three removals, and the one that was argued down.**
+
+- *"Waiting on group:… since …"* — the header already says `Now at: adjuster review` with the
+  assignee beside it, and a timestamp is noise here.
+- *The remark's description*, which explained that the remark is written with the decision in one
+  call so a failure cannot separate them. A good fact in the wrong place: it belongs in this log,
+  where it is, not above a text box.
+- *"This step is waiting on X, so it is not yours to decide"* — the owner asked for this to go
+  entirely, and it went from an alert box to six words on the reassign field's label. Deleting it
+  outright would leave someone who is not the assignee looking at a card with no Decision control and
+  no reason given, which trades one confusion for another.
+
+**Kept, deliberately.**
+On an agent step: *"Nothing is holding this open — the run is sitting in the database waiting for a
+worker to pick it up."* Trimmed rather than cut. It is the sentence the whole dispatch design exists
+to demonstrate, and it is on screen for two seconds.
+
+## 33. Reopening a finished case, and why it needed no new state
+
+**Context.**
+The owner first asked for "Restart workflow" on any case: leave the current run as it is, start a new
+one alongside. Working through it, three problems surfaced — FlowCore refuses a second open run on
+the same subject and definition, an abandoned run's step keeps matching worklist queries forever, and
+the old run's history becomes unreadable. The owner withdrew it: *"your explanations made me believe
+that restart as I stated is not a good function"* — and replaced it with something narrower.
+
+**Decision.**
+A finished case can be **reopened**: its status goes back to draft, and submitting again starts a
+second run. Only when the workflow has finished. Nothing about the previous run is recorded by
+CaseWork.
+
+**Why the narrower version is better, and cheaper.**
+
+Every problem with the first version came from the old run still being open. Restricting it to
+finished cases removes all three at once: `ux_workflow_active` is partial, so a completed run permits
+another on the same subject and definition; there is no open visit to haunt a queue; and FlowCore
+already supported the whole thing. The only change needed was on the reading side, and it became
+FlowCore decision 46 — `GetHistory` spanning every run rather than the latest.
+
+*Reopening is a client word, not a library one.* FlowCore has no notion of reopening, restarting or
+abandoning. A run ends when an action ends it, and a subject may be run again afterwards. Everything
+this feature does is CaseWork putting its own row back to draft.
+
+**No new tables, and the reason matters more than the saving.**
+
+The draft was going to record each run — its id, or a generation suffix on the subject reference —
+so the history could span them. The owner asked what happens if the client loses those ids, and the
+answer was that the library's own history would become unreachable while its rows sat there. That
+question produced decision 46, and 46 removed the need for the table.
+
+What is left is derivation, not storage. The subject reference comes from the session, the type and
+the case's reference. The definitions the case may have run under are in `workflow_registry`, which
+already keeps retired workflows because runs that started under them are still answerable. So
+`SubjectHistory` asks the library once per registered definition and sorts the result — a few more
+queries in exchange for CaseWork holding no pointer into FlowCore's tables at all.
+
+**The run boundary is drawn from data, not remembered.**
+
+`StepVisit.WorkflowID` arrived with decision 46, so the timeline marks a new run wherever the id
+changes between consecutive visits. CaseWork stores nothing to make that work and cannot get it
+wrong.
+
+**What it looks like.**
+
+```
+risk screen            refer        rev2
+senior underwriter     decline      rev3
+─── reopened — new run ───
+risk screen            standard     rev4
+underwriter review     open
+```
+
+The declined decision is still there, still attributed, still stamped with the revision it was made
+against — which is the point of reopening rather than deleting and re-filing.

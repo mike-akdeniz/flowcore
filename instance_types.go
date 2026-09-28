@@ -143,6 +143,14 @@ type AssignedStep struct {
 // in the run, rather than only the most recent one.
 type StepVisit struct {
 	ID uuid.UUID
+	// WorkflowID is the run this visit belongs to.
+	//
+	// A subject can be run through the same definition more than once — the
+	// active-run index is partial, so finishing one permits starting another —
+	// and GetHistory returns every run's visits together. This is what lets a
+	// caller see where one run ended and the next began, without having to
+	// remember run ids itself.
+	WorkflowID uuid.UUID
 	// StepID is the snapshot step; StepName is its name, frozen at start.
 	StepID     uuid.UUID
 	StepName   string

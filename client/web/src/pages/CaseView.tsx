@@ -35,6 +35,7 @@ export function CaseView({
   const [subject, setSubject] = useState<Case | null>(null);
   const [failure, setFailure] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   const load = useCallback(async () => {
     if (!reference) return;
@@ -84,37 +85,62 @@ export function CaseView({
     }
   }
 
+  const canAddDocuments = subject.status === "draft" || subject.currentStep !== null;
+
+  async function reopen() {
+    setReopening(true);
+
+    try {
+      setSubject(await api.reopenCase(subject!.reference));
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : "could not reopen it");
+    } finally {
+      setReopening(false);
+    }
+  }
+
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Anchor component={Link} to="/" size="sm">
-            ← My work
-          </Anchor>
-          <Group gap="sm">
-            <Title order={3}>{subject.reference}</Title>
-            <Badge variant="light" color={subject.type === "claim" ? "teal" : "grape"}>
-              {submissionName(subject.type)}
-            </Badge>
-          </Group>
-          <Text size="sm" c="dimmed">
-            {subject.status === "draft"
-              ? "Draft — not yet submitted for assessment"
-              : `${subject.workflowName} · ${subject.runStatus}`}
-          </Text>
-        </Stack>
+      <Stack gap={2}>
+        <Anchor component={Link} to="/" size="sm">
+          ← My work
+        </Anchor>
+        <Group gap="sm">
+          <Title order={3}>{subject.reference}</Title>
+          <Badge variant="light" color={subject.type === "claim" ? "teal" : "grape"}>
+            {submissionName(subject.type)}
+          </Badge>
+        </Group>
+        <Text size="sm" c="dimmed">
+          {subject.status === "draft"
+            ? "Draft — not yet submitted for assessment"
+            : `${subject.workflowName} · ${subject.runStatus}`}
+        </Text>
+      </Stack>
 
-        {subject.status === "draft" && (
-          // Always enabled. Whether the file is adequate is the first agent
-          // step's judgment, not a form's — letting the process do the checking
-          // rather than the input is the point of having a process.
-          <Button onClick={submit} loading={submitting}>
-            Submit for assessment
-          </Button>
-        )}
-      </Group>
+      {/* Everything you can do, in one place. It used to be three: a Submit
+          button in the page header, a decide panel below it, and the
+          add-document card past the history. Ordered so that what you act on
+          comes before what you read — on a demonstration the case's own details
+          are the least urgent thing on the page, so they are last. */}
+      <ActionPanel
+        subject={subject}
+        identity={identity}
+        submitting={submitting}
+        reopening={reopening}
+        onSubmit={submit}
+        onReopen={reopen}
+        onChanged={setSubject}
+      />
 
-      <RunPanel subject={subject} identity={identity} onChanged={setSubject} />
+      <Documents
+        subject={subject}
+        canAdd={canAddDocuments}
+        hasKey={!noKey(agentMode)}
+        onAdded={setSubject}
+      />
+
+      <History subject={subject} />
 
       {subject.claim && (
         <Card withBorder padding="md">
@@ -146,33 +172,10 @@ export function CaseView({
           </Stack>
         </Card>
       )}
-
-      <Documents subject={subject} />
-
-      <History subject={subject} />
-
-      {/* Offered for as long as the case can still use one — a draft being
-          assembled, and a run in flight. Restricting this to drafts was a bug:
-          `awaiting documents` exists so that the missing document can arrive
-          mid-run, and supersession, revisions and the "read:" line in the
-          history were all built for exactly that loop. Hidden once the run has
-          finished, where a new document would move the revision and no step
-          would ever read it. */}
-      {(subject.status === "draft" || subject.currentStep) && (
-        <AddDocument
-          subject={subject}
-          hasKey={!noKey(agentMode)}
-          onAdded={setSubject}
-        />
-      )}
     </Stack>
   );
 }
 
-// The checker names itself — "simulated (no API key)" or the model it calls —
-// and this is the one place that reads meaning into the string. Interpreting it
-// further would mean the server and the browser both deciding what the modes
-// are; the server decides, and this asks one question of the answer.
 // The same rule the server enforces in the decide handler: an identity acts as
 // itself or as a group it belongs to. Duplicated here only to decide what to
 // render — the server refuses regardless, because a rule that lives in the
@@ -199,25 +202,66 @@ function Field({ label, value }: { label: string; value: string }) {
 // Where the run stands. Slice 4 adds the history beneath this and the ability to
 // act on the step; the layout leaves room so that is an addition rather than a
 // rearrangement.
-function RunPanel({
+// Everything actionable, in one card: where the case is, and what you can do
+// about it.
+//
+// Three regions became one. Submit lived in the page header, deciding lived
+// here, and adding a document lived below the history — so "what can I do" was
+// answered in three places depending on what state the case happened to be in.
+function ActionPanel({
   subject,
   identity,
+  submitting,
+  reopening,
+  onSubmit,
+  onReopen,
   onChanged,
 }: {
   subject: Case;
   identity: Staff;
+  submitting: boolean;
+  reopening: boolean;
+  onSubmit: () => void;
+  onReopen: () => void;
   onChanged: (updated: Case) => void;
 }) {
-  if (subject.status === "draft") return null;
+  if (subject.status === "draft") {
+    return (
+      <Card withBorder padding="md">
+        <Group justify="space-between">
+          <Text size="sm" c="dimmed">
+            Not submitted. Add what you have, then send it for assessment.
+          </Text>
+          {/* Always enabled. Whether the file is adequate is the first agent
+              step's judgment, not a form's — letting the process do the checking
+              rather than the input is the point of having a process. */}
+          <Button onClick={onSubmit} loading={submitting}>
+            Submit for assessment
+          </Button>
+        </Group>
+      </Card>
+    );
+  }
 
   if (!subject.currentStep) {
     return (
       <Card withBorder padding="md">
-        <Group gap="xs">
-          <Text fw={500}>Finished</Text>
-          <Badge variant="light" color="gray">
-            {subject.runStatus}
-          </Badge>
+        <Group justify="space-between">
+          <Group gap="xs">
+            <Text fw={500}>Finished</Text>
+            <Badge variant="light" color="gray">
+              {subject.runStatus}
+            </Badge>
+          </Group>
+          {/* Only on a finished case. FlowCore permits a second run on the same
+              subject and definition once the first has completed, and not
+              before — so this is the library's rule showing through, not a
+              policy invented here. What the old run decided is not erased: the
+              visits are append-only and stay in the history beside the new
+              run's. */}
+          <Button variant="light" onClick={onReopen} loading={reopening}>
+            Reopen
+          </Button>
         </Group>
       </Card>
     );
@@ -227,7 +271,7 @@ function RunPanel({
 
   return (
     <Card withBorder padding="md">
-      <Stack gap="xs">
+      <Stack gap="sm">
         <Group gap="xs">
           <Text fw={500}>Now at: {step.name}</Text>
           <Badge size="sm" variant="light" color={step.isAgent ? "violet" : "gray"}>
@@ -237,38 +281,42 @@ function RunPanel({
         </Group>
 
         {step.isAgent ? (
-          // The pause is the demonstration, not a delay to apologise for: the
-          // run is open in the database with nothing attending it, which is what
-          // a workflow engine exists to survive.
-          <>
-            <Text size="sm" c="dimmed">
-              {step.assignee} has this. Nothing is holding it open — the run is
-              sitting in the database waiting for a worker to pick it up.
-            </Text>
-            {/* Reassignment is offered even here, and it is the only way a step
-                an agent keeps failing ever reaches a person: nobody can decide
-                an agent's step, because deciding belongs to the assignee. */}
-            <Decide subject={subject} canDecide={false} onChanged={onChanged} />
-          </>
-        ) : (
-          <>
-            <Text size="sm" c="dimmed">
-              Waiting on {step.assignee} since{" "}
-              {new Date(step.waitingSince).toLocaleString()}.
-            </Text>
-            <Decide
-              subject={subject}
-              canDecide={canActAs(identity, step.assignee)}
-              onChanged={onChanged}
-            />
-          </>
-        )}
+          // Kept despite being wordy, and trimmed rather than cut. The pause is
+          // the demonstration, not a delay to apologise for: the run is open in
+          // the database with nothing attending it, which is what a workflow
+          // engine exists to survive. It is on screen for two seconds.
+          <Text size="sm" c="dimmed">
+            Nothing is holding this open — the run is sitting in the database
+            waiting for a worker to pick it up.
+          </Text>
+        ) : null}
+
+        <Decide
+          subject={subject}
+          canDecide={canActAs(identity, step.assignee)}
+          onChanged={onChanged}
+        />
       </Stack>
     </Card>
   );
 }
 
-function Documents({ subject }: { subject: Case }) {
+// The file, with the way to add to it at the top.
+//
+// One card rather than two. Adding a document and reading what is on the case
+// are the same subject, and the add control used to sit below the history —
+// past everything, in the place you look last.
+function Documents({
+  subject,
+  canAdd,
+  hasKey,
+  onAdded,
+}: {
+  subject: Case;
+  canAdd: boolean;
+  hasKey: boolean;
+  onAdded: (updated: Case) => void;
+}) {
   return (
     <Card withBorder padding="md">
       <Stack gap="xs">
@@ -278,6 +326,11 @@ function Documents({ subject }: { subject: Case }) {
             revision {subject.revision}
           </Text>
         </Group>
+
+        {/* Offered while the case can still use one — a draft being assembled,
+            and a run in flight. Hidden once the run has finished, where a new
+            document would move the revision and no step would ever read it. */}
+        {canAdd && <AddDocument subject={subject} hasKey={hasKey} onAdded={onAdded} />}
 
         {subject.documents.length === 0 ? (
           <Text size="sm" c="dimmed">
@@ -292,9 +345,9 @@ function Documents({ subject }: { subject: Case }) {
                     <Text size="sm" c={document.superseded ? "dimmed" : undefined}>
                       {document.name}
                     </Text>
-                    {document.sourceFile && (
+                    {document.outcome && (
                       <Text size="xs" c="dimmed">
-                        {document.sourceFile}
+                        {document.outcome}
                       </Text>
                     )}
                   </Table.Td>

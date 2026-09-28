@@ -168,7 +168,12 @@ history, err := engine.GetHistory(ctx, "expense-123", definition.ID)
 ```
 
 `GetHistory` returns one entry per _visit_, oldest first, each recording who acted, what they chose, and which revision of the subject they acted on.
-A step reached twice by a loop appears twice, and a completed visit is never rewritten — so "which revision did they approve, and who were they" stays answerable for every decision in the run.
+A step reached twice by a loop appears twice, and a completed visit is never rewritten.
+
+It spans every run on that subject, not only the current one.
+A subject can be started again once its run has finished — a rejected claim reopened, say — and the earlier decisions stay readable rather than becoming unreachable the moment a new run begins.
+Each visit carries the `WorkflowID` of the run it belongs to, so a caller that wants to show where one ended and the next began can, without having to record run ids itself.
+So "which revision did they approve, and who were they" stays answerable for every decision on the subject.
 
 ## Two rules worth knowing before building on it
 

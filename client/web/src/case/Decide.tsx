@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Alert,
   Button,
-  Divider,
   Group,
   Select,
   Stack,
@@ -91,10 +89,13 @@ export function Decide({
             onChange={setAction}
           />
 
+          {/* No description. It used to explain that the remark is written with
+              the decision in one call so a failure cannot separate them — a good
+              fact, in the wrong place. It belongs in the decision log, where it
+              is, not above a text box. */}
           <Textarea
             label="Remark"
-            description="Optional, and written with the decision in one call — a failure cannot separate them."
-            placeholder="Why this, in your own words."
+            placeholder="Why this, in your own words. Optional."
             autosize
             minRows={2}
             value={remark}
@@ -120,22 +121,18 @@ export function Decide({
             </Button>
           </Group>
         </>
-      ) : (
-        <Alert color="gray" variant="light" p="xs">
-          <Text size="sm">
-            This step is waiting on <b>{step.assignee}</b>, so it is not yours to
-            decide. Hand it to yourself below if you need to take it on.
-          </Text>
-        </Alert>
-      )}
+      ) : null}
 
-      <Divider label="or hand it to someone else" labelPosition="center" />
-
-      <Group align="flex-end">
+      {/* One line instead of an alert box. Deleting the explanation outright
+          would leave someone who is not the assignee looking at a card with no
+          Decision control and no reason given; saying it in six words costs a
+          line rather than a panel. */}
+      <Group align="flex-end" gap="xs" wrap="nowrap">
         <Select
           flex={1}
-          label="Reassign to"
-          placeholder="Choose a person or a team"
+          size="sm"
+          label={canDecide ? "Reassign to" : "Not yours to decide — reassign to take it on"}
+          placeholder="a person or a team"
           // Grouped by kind, and labelled with names rather than references.
           // The value stays the raw reference — that is what FlowCore stores,
           // and the label is only ever something to read.

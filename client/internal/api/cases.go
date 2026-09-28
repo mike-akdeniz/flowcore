@@ -23,6 +23,12 @@ type documentJSON struct {
 	ReceivedAt string  `json:"receivedAt"`
 	Body       *string `json:"body"`
 	SourceFile *string `json:"sourceFile"`
+	// Outcome is what a sample's name says it argues for, resolved here because
+	// the naming convention belongs to the samples package. Empty for anything a
+	// visitor uploaded. It exists so the interface can name a document the way
+	// the picker does — "Repair estimate — pass" — rather than showing a file
+	// name no screen otherwise mentions.
+	Outcome string `json:"outcome"`
 	// AddedAtRevision is when this document arrived, and Superseded says a newer
 	// one of its kind has taken over. Superseded documents are sent rather than
 	// filtered out: an agent's remark refers to the document it actually read,
@@ -40,6 +46,11 @@ type documentJSON struct {
 // revision each one stamped. Derived here rather than in the browser, because
 // `store.Current` is the rule and there should be one of it.
 type visitJSON struct {
+	// RunID is the run this visit belongs to. A case reopened after finishing has
+	// more than one, and this is what marks where the old run ended and the new
+	// one began — without CaseWork recording anything, since the library carries
+	// it on every visit.
+	RunID       string  `json:"runId"`
 	StepName    string  `json:"stepName"`
 	Assignee    string  `json:"assignee"`
 	IsAgent     bool    `json:"isAgent"`
@@ -220,12 +231,26 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			ReceivedAt:      document.ReceivedAt.Format("2006-01-02"),
 			Body:            document.Body,
 			SourceFile:      document.SourceFile,
+			Outcome:         s.sampleOutcome(document.SourceFile),
 			AddedAtRevision: document.AddedAtRevision,
 			Superseded:      !inForce[document.ID],
 		})
 	}
 
-	// A draft has no run. Everything below only exists once it has been submitted.
+	// Every decision ever made on this case, across every run of it. Read before
+	// the draft check below rather than after: a reopened case is a draft with a
+	// history, which is the whole point of reopening one.
+	history, err := s.app.SubjectHistory(r.Context(), sessionID, submission)
+	if err != nil {
+		return caseJSON{}, err
+	}
+
+	for _, visit := range history {
+		payload.History = append(payload.History, toVisitJSON(visit, documents))
+	}
+
+	// A draft has no *current* run. Everything below only exists once it has
+	// been submitted.
 	if submission.IsDraft() || submission.SubjectReference == nil {
 		return payload, nil
 	}
@@ -246,16 +271,6 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 		if workflow.FlowcoreDefinitionID == *submission.FlowcoreDefinitionID {
 			payload.WorkflowName = workflow.Name
 		}
-	}
-
-	history, err := s.app.Engine.GetHistory(r.Context(),
-		*submission.SubjectReference, *submission.FlowcoreDefinitionID)
-	if err != nil {
-		return caseJSON{}, err
-	}
-
-	for _, visit := range history {
-		payload.History = append(payload.History, toVisitJSON(visit, documents))
 	}
 
 	if state.CurrentStep != nil {
@@ -305,6 +320,7 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 
 func toVisitJSON(visit flowcore.StepVisit, documents []store.Document) visitJSON {
 	entry := visitJSON{
+		RunID:       visit.WorkflowID.String(),
 		StepName:    visit.StepName,
 		Assignee:    visit.AssigneeID,
 		IsAgent:     app.IsAgent(visit.AssigneeID),
@@ -829,4 +845,41 @@ func (s *Server) listAllCases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.write(w, payload)
+}
+
+// sampleOutcome is what a document's source file argues for, or empty for one a
+// visitor uploaded.
+func (s *Server) sampleOutcome(sourceFile *string) string {
+	if sourceFile == nil {
+		return ""
+	}
+
+	sample, ok := s.app.Samples.ByName(*sourceFile)
+	if !ok {
+		return ""
+	}
+
+	return string(sample.Outcome)
+}
+
+// reopenCase puts a finished case back to draft so it can run again.
+func (s *Server) reopenCase(w http.ResponseWriter, r *http.Request) {
+	sessionID := sessionFrom(r)
+
+	submission, err := s.app.Store.SubmissionByReference(r.Context(), sessionID, r.PathValue("reference"))
+	if err != nil {
+		http.Error(w, "no such case", http.StatusNotFound)
+
+		return
+	}
+
+	// Conflict rather than bad request: the case is real and the verb is right,
+	// it is the state that refuses — a run still in flight cannot be reopened.
+	if err := s.app.Reopen(r.Context(), sessionID, submission); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+
+		return
+	}
+
+	s.writeCase(w, r, sessionID, submission.Reference)
 }

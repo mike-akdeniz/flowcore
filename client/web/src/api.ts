@@ -84,6 +84,8 @@ export const api = {
     }),
   submitCase: (reference: string) =>
     request<Case>(`/api/cases/${reference}/submit`, { method: "POST" }),
+  reopenCase: (reference: string) =>
+    request<Case>(`/api/cases/${reference}/reopen`, { method: "POST" }),
   samples: () => request<Sample[]>("/api/samples"),
 
   decide: (reference: string, body: Decision) =>
@@ -155,6 +157,9 @@ export type Decision = {
 };
 
 export type Visit = {
+  // The run this visit belongs to. A case reopened after finishing has more than
+  // one, and the timeline marks where each begins.
+  runId: string;
   stepName: string;
   assignee: string;
   isAgent: boolean;
@@ -177,6 +182,9 @@ export type CaseDocument = {
   receivedAt: string;
   body: string | null;
   sourceFile: string | null;
+  // What a sample's name argues for; empty for an uploaded file. Lets the
+  // interface name a document the way the picker does.
+  outcome: string;
   addedAtRevision: number;
   // Superseded means a newer document of the same kind has taken over. The row
   // stays on the case: an agent's remark refers to the document it actually

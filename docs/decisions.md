@@ -1863,3 +1863,48 @@ They are one line each when a caller appears.
 `store_workflow.go` already joined `flowcore.step` and selected `s.id, s.name`, so this is one column in that select, one scan variable, and one struct field.
 No migration: the column exists, is `not null`, and has been populated since 00003.
 No caller breaks — adding a field to a returned struct is additive.
+
+## 46. `GetHistory` spans every run on a subject
+
+**Context.**
+The reference client wanted to reopen a finished case: a claim rejected by mistake, run through the workflow again, with both attempts visible.
+Nothing in the library stood in the way of the run itself — `ux_workflow_active` is partial, so finishing a run permits starting another on the same subject and definition, and `errors.go` says so outright.
+Reading the earlier one back was the problem.
+
+**The gap.**
+`GetHistory` resolved the subject through `getWorkflowIDBySubject`, which is `order by started_at desc limit 1`.
+So the moment a second run began, the first run's decisions became unreachable through the API while their rows sat in the database.
+
+**What was nearly built instead, and why the owner's question killed it.**
+Two client-side schemes were on the table: a generation suffix on the subject reference (`C-1042#2`), or recording each run's `WorkflowState.ID` in a CaseWork table and adding a per-run history accessor.
+The draft recommended the second, on the grounds that a run id is a value the library hands out while a suffix is a meaning smuggled into a string.
+
+The owner asked two questions: *"Is this new structure better for the client-library boundary? What happens if the client loses the ids?"*
+
+Neither answer survived.
+It is not better for the boundary — today the client remembers only what it invented, the subject reference, and the run is *derived*; holding run ids would make it keep a handle into the library's own tables.
+And losing them is unrecoverable: there is no way to enumerate runs for a subject, so a lost row means library data that still exists, still holds real decisions, and can never be read again.
+The client's table would have been the sole index into this one.
+
+**Decision.**
+`GetHistory` returns every visit on the subject under that definition, across every run, oldest first.
+`StepVisit` carries `WorkflowID` so a caller can see where one run ended and the next began.
+
+**Why this is the right shape.**
+The client stores nothing new, so there is nothing to lose, and the boundary stays exactly as thin as it was.
+"Which revision did they approve, and who were they" now holds for every decision on the subject rather than for every decision in the latest run — a stronger guarantee, and the one a reader assumes they are getting.
+
+`GetState` deliberately does not change: "where is it now" has one answer, "what has happened to it" has all of them.
+
+**The cost, stated plainly.**
+This changes an existing method's meaning rather than adding one.
+A caller relying on `GetHistory` to return only the current run gets more rows than before.
+The only caller is the reference client, and the change is strictly more data in a stable order, so a timeline renders more history and nothing else moves.
+
+`TestGetStateReturnsTheLiveRunNotAnOldOne` asserted the old scoping and was the one failure.
+It already built this exact scenario — finish a run, start another — which is evidence the library was designed for sequential runs all along and only the history read was scoped narrowly.
+It now asserts `GetState` alone, and `TestGetHistorySpansEveryRunOnTheSubject` asserts the new guarantee: both runs present, ordered by run, the finished one's decision still readable.
+
+**Ordering.**
+`order by w.started_at, w.id, v.entered_at, v.id` rather than by `entered_at` alone.
+Two runs of one subject cannot overlap, so it is the same order in practice — but it does not rest on comparing timestamps written days apart.

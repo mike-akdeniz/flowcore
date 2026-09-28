@@ -645,13 +645,57 @@ func TestGetStateReturnsTheLiveRunNotAnOldOne(t *testing.T) {
 		t.Error("the live run is open and must have a current step")
 	}
 
-	history, err := engine.GetHistory(ctx, "doc-1", definition.ID)
+}
+
+// GetHistory spans runs, where GetState deliberately does not: "where is it now"
+// has one answer, and "what has happened to it" has all of them.
+//
+// Reading only the latest run would leave the earlier decisions unreachable
+// through this API while their rows sat in the database — and the only remedy
+// open to a caller would be to record run ids as it went, making the caller's
+// own storage the sole index into this one.
+func TestGetHistorySpansEveryRunOnTheSubject(t *testing.T) {
+	engine, catalog := newEngine(t)
+	ctx := context.Background()
+	definition, _ := twoStepDefinition("expense approval")
+
+	first := startRun(t, engine, catalog, definition, "doc-2")
+	if _, err := engine.CompleteStep(ctx, CompleteParams{
+		VisitID: first.CurrentStep.VisitID, ActionID: actionNamed(t, first, "reject"),
+		CompletedBy: "user:mike",
+	}); err != nil {
+		t.Fatalf("finishing the first run: %v", err)
+	}
+
+	second, err := engine.Start(ctx, StartParams{
+		WorkflowDefinitionID: definition.ID, SubjectReference: "doc-2",
+	})
+	if err != nil {
+		t.Fatalf("starting the second run: %v", err)
+	}
+
+	history, err := engine.GetHistory(ctx, "doc-2", definition.ID)
 	if err != nil {
 		t.Fatalf("GetHistory: %v", err)
 	}
 
-	if len(history) != 1 {
-		t.Errorf("history has %d visits, want only the live run's 1", len(history))
+	if len(history) != 2 {
+		t.Fatalf("history has %d visits, want both runs' 2", len(history))
+	}
+
+	// Oldest first, and by run: the finished one before the live one.
+	if history[0].WorkflowID != first.ID || history[1].WorkflowID != second.ID {
+		t.Errorf("history runs = %s then %s, want %s then %s",
+			history[0].WorkflowID, history[1].WorkflowID, first.ID, second.ID)
+	}
+
+	// The earlier run's decision is still readable, which is the whole point.
+	if history[0].Completion == nil || history[0].Completion.ActionName != "reject" {
+		t.Errorf("the first run's decision is not in the history: %+v", history[0].Completion)
+	}
+
+	if history[1].Completion != nil {
+		t.Error("the live run's visit is open and must have no completion")
 	}
 }
 

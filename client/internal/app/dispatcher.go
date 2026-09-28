@@ -243,6 +243,7 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	for _, documentType := range expected {
 		expects = append(expects, ExpectedDocument{
 			Name:        documentType.Name,
+			Title:       documentType.Title,
 			PassFinding: documentType.PassFinding,
 			FailFinding: documentType.FailFinding,
 		})

@@ -649,3 +649,33 @@ func (s *Store) SetStepDocumentTypes(
 
 	return tx.Commit(ctx)
 }
+
+// Reopen puts a finished submission back to draft so it can run again.
+//
+// The three columns that mark a submission as started are cleared together,
+// which is what `ck_submission_started` requires: a draft has no submitted_at,
+// no definition and no subject reference.
+//
+// Nothing is written to record that there was a previous run, and nothing needs
+// to be. The runs are FlowCore's, reachable from the subject reference — which
+// CaseWork derives from the session, type and reference rather than stores — and
+// the definitions they ran under are in this session's workflow registry, which
+// keeps retired ones precisely because runs that started under them are still
+// answerable.
+func (s *Store) Reopen(ctx context.Context, id uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx,
+		`update casework.submission
+		 set status = 'draft', submitted_at = null,
+		     flowcore_definition_id = null, subject_reference = null
+		 where id = $1 and status = 'submitted'`,
+		id)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}

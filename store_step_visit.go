@@ -149,17 +149,36 @@ func getStepVisit(ctx context.Context, q querier, id uuid.UUID) (stepVisitRow, e
 //
 // Ordering by entered_at is what makes a loop legible: a step reached twice
 // appears twice, in the order it was reached.
-func listStepVisits(ctx context.Context, q querier, workflowID uuid.UUID) ([]StepVisit, error) {
+// listStepVisitsBySubject is every visit on a subject under a definition, across
+// every run of it, oldest first.
+//
+// Across runs rather than within one, because a subject can be run more than
+// once: ux_workflow_active is partial, so finishing a run permits starting
+// another on the same pair. Reading only the latest would make the earlier
+// decisions unreachable through the API while the rows sat there — and the only
+// way a caller could get at them would be to record run ids itself, which makes
+// the caller's own table the sole index into this one.
+//
+// Ordered by the run's start before the visit's, not by entered_at alone: two
+// runs of the same subject cannot overlap, so this is the same order in practice
+// and does not depend on clock comparisons between rows written days apart.
+func listStepVisitsBySubject(
+	ctx context.Context,
+	q querier,
+	subjectReference string,
+	workflowDefinitionID uuid.UUID,
+) ([]StepVisit, error) {
 	rows, err := q.Query(ctx,
-		`select v.id, v.step_id, s.name, v.assignee_id, v.entered_at,
+		`select v.id, v.workflow_id, v.step_id, s.name, v.assignee_id, v.entered_at,
 		        v.completed_at, v.completed_by, v.selected_action_id, a.name,
 		        v.subject_version_token, v.remark
 		 from flowcore.step_visit v
+		 join flowcore.workflow w on w.id = v.workflow_id
 		 join flowcore.step s on s.id = v.step_id
 		 left join flowcore.action a on a.id = v.selected_action_id
-		 where v.workflow_id = $1
-		 order by v.entered_at, v.id`,
-		workflowID)
+		 where w.subject_reference = $1 and w.workflow_definition_id = $2
+		 order by w.started_at, w.id, v.entered_at, v.id`,
+		subjectReference, workflowDefinitionID)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +211,7 @@ func rowToStepVisit(row pgx.CollectableRow) (StepVisit, error) {
 
 	err := row.Scan(
 		&visit.ID,
+		&visit.WorkflowID,
 		&visit.StepID,
 		&visit.StepName,
 		&visit.AssigneeID,

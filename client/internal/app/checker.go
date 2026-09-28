@@ -54,7 +54,12 @@ type CaseDocument struct {
 // a document type created in the interface arrives complete. A real checker
 // ignores them and writes its own.
 type ExpectedDocument struct {
-	Name        string
+	Name string
+	// Title is what the document is called on screen. The checker needs it
+	// because its remark has to name documents the way the interface does — a
+	// disclaimer telling you to add "7-estimate-fail.txt" names something no
+	// screen shows.
+	Title       string
 	PassFinding string
 	FailFinding string
 }
