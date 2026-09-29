@@ -1,5 +1,5 @@
 import dagre from "@dagrejs/dagre";
-import type { Edge, Node } from "@xyflow/react";
+import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { Workflow } from "../api";
 
 export const NODE_WIDTH = 210;
@@ -53,6 +53,13 @@ export function toGraph(workflow: Workflow): { nodes: Node[]; edges: Edge[] } {
         labelBgPadding: [6, 2],
         labelBgBorderRadius: 4,
         labelBgStyle: { fill: "var(--mantine-color-body)", fillOpacity: 0.9 },
+        labelStyle: { fill: "var(--mantine-color-text)" },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "var(--mantine-primary-color-filled)",
+          width: 16,
+          height: 16,
+        },
         style: { strokeWidth: 1.5 },
       });
     }
