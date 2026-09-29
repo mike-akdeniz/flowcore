@@ -19,7 +19,8 @@ Claude can propose a change and say why; it never makes one unilaterally.
   Detail in [pending-tasks/iteration-2-ai-review-steps.md](pending-tasks/iteration-2-ai-review-steps.md).
 - **CaseWork, the reference client** — *In progress*.
   An insurer's case console built on the library: run it, read it, or fork it as a starting point.
-  Slices 1 to 5 are complete: a case can be filed, submitted, worked and decided, of either kind, with
-  the agent steps deciding themselves and a history that says what each decision read.
-  Remaining: document types, configuring workflows, and close out.
+  Slices 1 to 6 are complete: a case can be filed, submitted, worked and decided, of either kind,
+  with agent decisions, document types, and a history that says what each decision read.
+  The workflow editor is functional except for defining agent steps.
+  Remaining: define agent steps in the editor, then close out.
   Detail in [pending-tasks/client-ui-rebuild.md](pending-tasks/client-ui-rebuild.md).

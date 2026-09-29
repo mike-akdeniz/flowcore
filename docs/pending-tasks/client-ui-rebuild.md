@@ -126,6 +126,8 @@ Done when one queue carries both kinds and the two detail screens share nothing 
 
 ### 6 — Document types
 
+**Complete.**
+
 *Added 2026-09-27, replacing a canned mechanism with a feature.*
 
 A document type is a thing CaseWork configures: a name, a title, the submission type it belongs to,
@@ -164,23 +166,26 @@ migration.
 
 ### 7 — Configuring workflows
 
-- The editor on the same canvas: click a node to edit it, drag an edge to create an action, add and
-  delete steps and statuses, set the entry step.
+- The editor on the same canvas: click a node to edit its step, and configure its actions in the
+  Step panel; add and delete steps and statuses, and set the entry step.
 - Activate a workflow for a submission type.
+
+**Current state.**
+The workflow editor is functional except for defining agent steps.
+Its assignee list offers people and teams, but does not yet let an editor define an agent step.
+The runtime dispatcher already derives agent references from registered workflow definitions in the
+database, as required below.
 
 **Required, and easy to miss:** derive agent references and assignment targets from the
 **registered definitions in the database**, not from the Go templates in `internal/app/workflows.go`.
 
-Those templates exist to create rows during seeding and nothing more, but `App.AgentReferences` still
-reads them at runtime — the dispatcher's sweep uses it to find stranded agent work. Today the
-template and the database agree by construction, because nothing can edit a workflow. The moment this
-slice ships they diverge: a step assigned to `agent:something-new` would never be swept after a
-restart.
+Those templates exist to create rows during seeding and nothing more.
+The dispatcher now reads registered definitions from the database, so a step assigned to an
+agent reference introduced by an edited workflow will still be swept after a restart.
 
 `AssignableReferences` was the other half of this note and is **done** — it reads `casework.staff` and
 the session's registered definitions, after shipping a reassignment dropdown full of a cast that no
-longer existed. Client decision 23 records what that cost. The remaining half is the same bug waiting
-for this slice to trigger it.
+longer existed. Client decision 23 records what that cost.
 
 **Document types become editable here**, on the same step editor as everything else — slice 6 builds
 the rows and seeds them, this makes them configurable. Descriptive, never a gate: gating would kill
@@ -191,8 +196,9 @@ step's whole job (client decision 20).
 orphans those rows silently, because nothing joins and nothing can fail. Whatever slice 6 settles, the
 rename path has to carry it.
 
-Done when a workflow can be built and a type switched onto it — and cases already running keep the
-one they started under.
+The remaining work in this slice is defining agent steps in the editor.
+Done when agent steps can also be defined, a workflow can be built and a type switched onto it, and
+cases already running keep the one they started under.
 
 ### 8 — Close out
 
