@@ -1637,3 +1637,67 @@ Clicking it closes the Step panel and exposes the Workflow panel, while the exis
 
 **Why.**
 The explicit back link makes the route back to workflow settings discoverable without layering one form over another or leaving the editor.
+## 36. Allowed document types and required decision documents are different lists
+
+**The problem.**
+Slice 6 derived the Add document picker from the current step's associations and treated those associations as descriptive.
+The picker changed as the run moved in a way that was hard to understand, and optional documents such as photographs did not fit a list derived from required types.
+The owner proposed that each case type define which document types can be added, and each step separately declare the document types its decision depends on.
+The owner later made the allowed-list choice explicit: *"separate list by case type."*
+
+**Meaning of required.**
+An earlier recommendation treated a step's listed types as guidance because the old documentation-check agent decided an incomplete branch when a document was missing.
+The owner rejected that reading: *"required is plain old required"* and *"required means which documents should be present when I decide on that step."*
+The assignee of a human step can file the document or arrange for another person to provide it; the decision waits until the type is present.
+The owner called the documentation-check agent a *"bad agent example"* and asked to replace it with useful assessment, such as checking submission text.
+CaseWork checks the requirement before all decisions, and FlowCore only stores frozen type references.
+
+**Agent entry and immediate handoff.**
+An agent cannot file a missing document.
+The owner's first proposal was to check an immediate agent destination when a person chooses an action, and to check an agent entry step at start.
+The next question exposed agent-to-agent branches; a proposed recursive preflight would need to explore a branching tree and could reject a route for a later branch never chosen.
+The owner rejected that expansion and the idea that an agent could repair a missing document: *"Ask the agent to add the missing documents!?"*
+The settled rule is one-step lookahead for the action actually chosen, whether the current assignee is a person or an agent.
+As the owner put it, *"Next agent step doc check from current goes only 1 level forward, it doesn't check next.next"*.
+An editor stacking agents must require the later documents on an earlier human step or insert a human verification step between the agents.
+A human destination gets no lookahead because that human can add documents before deciding.
+At start, only an agent entry step needs the preflight; a human entry step can start missing required documents.
+Errors name the blocked agent step and missing types.
+
+**CaseWork ownership.**
+CaseWork keeps the document type catalog, its stable IDs, sample kind, title, simulated findings, filed documents, per-case-type allowed sets, `agent:` convention, permissions, and checks.
+The Add document selector always offers the case type's allowed set, in draft and at every step, and the API checks that same set.
+Any visitor in the case's session may add while draft; after submission only the current step assignee may add, with identity and group membership resolved in CaseWork.
+The owner explicitly wanted a user to remain free to add an optional document at any time when authorized.
+The step association moves out of CaseWork into FlowCore's definition and snapshot; documents change from string kind to stable type ID.
+The owner considered putting a `recordType(id, name)` catalog in FlowCore to avoid CaseWork rename machinery, then accepted the stable-ID design, which needs no rename snapshot machinery.
+
+## 37. Preserve type identity and decision-document history without freezing the picker forever
+
+**The delete and rename interview.**
+The owner asked what happens after D1 was required by S1 of W1, used in a completed C1 run, and then D1 is deleted, removed from S1, or renamed.
+Deleting a referenced type must fail; removing D1 from S1 changes future runs only, and C1's snapshot still points to D1; renaming D1's title succeeds without changing its ID or association.
+The owner asked what history would display if the type no longer appeared on the definition.
+History resolves the stable type ID through the CaseWork catalog, retaining the completed visit's frozen required types and stamped case revision.
+The label may use the current type title; the filed document's own name is preserved.
+Hard deletion is refused while documents, registered definitions, or instances refer to the type.
+
+**Allowed-list removal.**
+The owner first said *"editor should not be able to remove D1 if D1 is used on any workflow instance"*.
+Because FlowCore eagerly snapshots every step, that would let completed runs and unvisited steps lock a future picker indefinitely.
+After that consequence was explained, the owner accepted the recommendation to block removal when any **open** instance for the affected case type requires D1, or any registered definition for that case type requires D1.
+The editor must first edit definitions that require the type; completed instances remain readable and do not block future case-type selection changes.
+The reverse guard also applies: a step cannot require a type absent from the workflow's case-type allowed list.
+
+**What history says.**
+The old history reconstruction showed every kind of document on file at the visit revision and called them "read".
+That overclaimed what the assignee actually saw and ignored the step's required list.
+The owner accepted **decision documents**: the latest document of each frozen required type at the visit's stamped revision.
+This preserves repeat visits and past definition edits without CaseWork copying a workflow snapshot.
+Decision 34's draft-only deletion and revision-stamping rules remain, but its "every kind current" projection is superseded by this decision.
+
+**Recovery and demo correction.**
+The dispatcher currently derives possible agent references from registered definitions, so a server process restart can miss an open visit after a definition's assignee is edited.
+It must discover open instance visits instead and filter to the current CaseWork session and `agent:` references.
+The same instance-side principle applies to selected action targets and assignment choices for an open run.
+The seeded documentation-check agent's incomplete path and the live checker's old agent-reference map must be changed with this design.

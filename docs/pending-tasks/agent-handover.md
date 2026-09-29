@@ -1,58 +1,33 @@
 # Agent handover
 
-## Session and immediate next step
+## Current task
 
-Handover written on 2026-09-28, on branch `main` at `824af8c` (`Adjut workflow editor`).
-The current task was to update project records after the owner clarified that the workflow editor is functional except for defining agent steps.
-No implementation request for agent-step configuration has been assigned yet.
-Next session: read [project instructions](../../CLAUDE.md), [project status](../status.md), and this handover, inspect the working tree, then take the owner's direction.
+Updated 2026-09-29 on branch `main` at `e531ce0`.
+The owner completed an extended design interview about agent steps, required documents, and the FlowCore/CaseWork boundary, then asked for durable documentation that permits a fresh implementation or a complete retry.
+This session writes design and implementation notes only; no code or schema has been changed.
+The next concrete step, when the owner requests implementation, is to follow [agent-step configuration](agent-step-configuration.md) within slice 7 of the [agreed UI plan](client-ui-rebuild.md).
 
-## Working tree
+## Decisions and constraints
 
-Two documentation files have uncommitted changes for owner review:
+The authoritative contracts are [FlowCore system design](../system-design.md) and [CaseWork system design](../../client/docs/system-design.md); the interview and rejected paths are in [FlowCore decision 47](../decisions.md) and [CaseWork decisions 36–37](../../client/docs/decisions.md).
+FlowCore owns step instructions and opaque required input type IDs on definitions and eager instance snapshots.
+CaseWork owns case types, document type catalog and stable IDs, per-case-type allowed lists, documents, permissions, and hard required-document checks.
+One immediate agent destination is checked before a chosen action, not a recursive agent chain; an agent entry step is checked before `Start`.
+All run-side reads, agent discovery, action targets, and history must use snapshots rather than current definitions.
+The owner said no legacy data migration is needed because FlowCore has no external users and CaseWork is a demo; fresh schema and seed changes are still needed.
+The owner explicitly held implementation until further instructions, and this request authorizes documentation only.
 
-- [Project status](../status.md) records slices 1 to 6 complete and the remaining workflow-editor gap and closeout.
-- [Agreed client plan](client-ui-rebuild.md) marks slice 6 complete, describes the actual Step-panel action editing, and records the remaining agent-step configuration work.
+## Working tree and checks
 
-The latest workflow-canvas styling changes are committed in `824af8c`.
-Do not commit pending changes or change project status without the owner's decision.
+Seven existing documentation files have uncommitted changes for owner review: both system designs, both decision logs, the UI plan, this handover, and the pending-task index.
+The new `agent-step-configuration.md` is untracked until the owner reviews it.
+No implementation is present or verified.
+`make check-docs` and `git diff --check` passed for the documentation edits; no implementation tests were run.
+No relevant process is running, and there is no known environment blocker.
 
-## Current project state
+## Resume
 
-CaseWork remains *In progress*.
-The workflow editor works for human and team steps, statuses, actions, workflow activation, and document types.
-The Step panel assignee list offers people and teams but does not let an editor define an agent step.
-Runtime dispatch already derives agent references from registered workflow definitions in the database, rather than Go templates.
-The owner said the workflow editor is fully functional except for defining agent steps; reflect that as the slice 7 gap without calling slice 7 complete.
-
-The Cases list remains intentionally declined and its navigation entry is disabled.
-The empty read-only canvas issue was resolved by the owner; do not reopen it without a new report.
-
-## Recent UI work
-
-The Step panel now has a `← Workflow` link above its title; it closes the Step panel and exposes Workflow settings, while the close button remains.
-Client decision 35 records the interview and the owner's revised direction.
-Workflow edge labels use Mantine's theme text color, and directed edges now have 16-by-16 closed arrowheads in the theme's primary accent color.
-
-## Verification
-
-The latest web build passed after the arrowhead color and size change.
-It continues to report the existing large-bundle warning.
-`make check-docs` and `git diff --check` passed after the pending status and plan edits.
-No browser interaction was manually checked in this session.
-
-## Read before continuing
-
-- [Project instructions](../../CLAUDE.md): interview procedure, status ownership, and Markdown conventions.
-- [Project status](../status.md): permanent state; current uncommitted update awaits owner review.
-- [Agreed client plan](client-ui-rebuild.md): binding slice order and the remaining agent-step definition gap.
-- [CaseWork system design](../../client/docs/system-design.md) and [client decisions](../../client/docs/decisions.md): authoritative client design and reasoning.
-- [Step editor](../../client/web/src/workflow/StepPanel.tsx): current human/team assignee control.
-- [Agent references](../../client/internal/app/app.go) and [assignable references](../../client/internal/app/runtime.go): runtime dispatch and current assignee-selection boundaries.
-
-## Owner preferences
-
-Substantive design choices proceed as an interview, one question at a time, with facts checked first and a recommendation with its costs.
-Do not write design or implementation changes while the interview remains unsettled.
-Commit messages are one subject line with no body or attribution, and agents do not commit in this repository.
-When the owner says `handover`, replace this file with one current continuation note and keep it linked from the pending-task index.
+Read [project status](../status.md) without editing it unilaterally, then the two system designs and the new task checklist.
+Inspect the working tree because these documentation changes are uncommitted and may still be reviewed or revised by the owner.
+The older slice 6 plan and prior decision-log entries describe how the current client was built; the new design supersedes their step-narrowed picker and descriptive step association.
+Do not change the binding slice order or commit in this repository.

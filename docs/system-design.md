@@ -146,6 +146,8 @@ _Step Definition_
 - actions
 - workflow status definition id
 - assignee_id // opaque reference to the person or group expected to act on this step. Required — a step with no decided owner carries a value saying so, chosen by the client. A default, copied to the Step at workflow start.
+- instructions // optional text describing the work, for a person or an agent. The library records and snapshots it but never executes or interprets it.
+- required_input_type_ids // `text[]` of opaque client-defined IDs for the kinds of material a decision on this step requires. Empty is allowed. The library records and snapshots them but does not resolve them or enforce presence.
 
 _Action Definition_
 
@@ -177,6 +179,8 @@ _Step_ (snapshot)
 - name // frozen
 - workflow status definition id + workflow status name // frozen; the status the run shows while sitting on this step
 - assignee_id // the frozen _default_, copied from StepDefinition at start, immutable thereafter. Required, since its source is.
+- instructions // frozen from the definition at start
+- required_input_type_ids // frozen from the definition at start, including on steps the run never visits
 - actions
 
 _Action_ (snapshot)
@@ -198,6 +202,11 @@ _Step Visit_
 - entered_at
 - completed_at, completed_by, selectedAction // all three set together or none of them; a half-stamped visit is unrepresentable
 - subjectVersionToken // stamped at completion, from the value the caller supplies
+
+The snapshot step, not the definition step, answers what instruction and input types applied to a run.
+`CurrentStep` exposes both, and historical visit reads expose the frozen required input type IDs needed to explain a completed decision.
+An action's selected immediate destination can be read from the instance snapshot before completion, including that destination's assignee and required input type IDs.
+The library does not decide which references name agents or which inputs exist: the client makes those decisions.
 
 There is no instance-side workflow status _entity_.
 A status has no attribute but a name, and per-run status ids would be useless to any caller — two runs started a minute apart would hold different ids for the same logical status, so no cross-run query could key on them.
@@ -231,6 +240,8 @@ _Engine_
 - Provides aggregated information for a run.
 - Validates and processes a step complete request.
 - Provides current step for a given workflow.
+- Exposes open visits without requiring an assignee list, so a client can recover work using the instance-side truth even after a definition changes.
+- Exposes an action's immediate destination from the snapshot for client-side preflight checks; it does not validate the client's material or permissions.
 
 _WorkflowStatusDefinition, WorkflowDefinition, StepDefinition, ActionDefinition_
 
@@ -323,6 +334,7 @@ _Workflow_
 - At most one open step visit per workflow: exactly one while the run is in progress, zero once it is complete.
 - Open versus complete is answered by `completed_at`, never inferred from a status name.
   The library does not interpret status names, so it cannot use one to decide whether a run is finished.
+- Instructions and required input type IDs on a running step come from the step snapshot, even when the definition is edited or deleted.
 
 #Failure handling
 
@@ -528,6 +540,23 @@ Human override is the human completing the agent's visit, which the completer-ne
 The two capabilities that make an agent usable as an actor are the worklist, so work addressed to it can be found, and the remark, so the reason for a decision is stamped in the same transaction as the decision.
 Reassignment joins them because the worklist is what gives it a caller: a queue you can read and not manage is half a feature.
 
-Out of scope: parallel steps and joins, N-of-M voting, the library calling a model or holding a prompt, agent retry and failure policy, `step_visit.step_definition_id` and the two indexes keyed on it, Scale.
+Out of scope: parallel steps and joins, N-of-M voting, the library calling a model or constructing model-specific prompts, agent retry and failure policy, `step_visit.step_definition_id` and the two indexes keyed on it, Scale.
+
+# CaseWork-driven extension after iteration 2
+
+The reference client exposed two pieces of workflow configuration that need the same snapshot guarantee as names, assignees, and actions: step instructions and required input type IDs.
+The instruction is neutral text for any actor, not a model prompt owned or executed by the library.
+The references are opaque identifiers supplied by a client; CaseWork supplies its document type IDs, while FlowCore neither knows what a document is nor checks whether one exists.
+FlowCore does not acquire a record-type catalog or a workflow subject-type column.
+Both values are copied eagerly into every instance step at `Start` and read from the instance for running and historical work.
+The client's case type, document type catalog, and document records remain outside FlowCore.
+
+Recovery discovery also follows instances rather than definitions.
+A generic open-step read gives clients the live assignees from open visits; CaseWork decides which of those references it dispatches as agents and which sessions it owns.
+The existing assignee-keyed worklist keeps its meaning, including returning nothing for an empty reference set.
+
+For a client that must validate the first step before a run exists, `Start` must offer a way to validate the exact definition read in its transaction before writing the snapshot.
+The caller supplies the policy and material; FlowCore only runs the check against its consistent definition read and aborts the start when it fails.
+The same consistency need does not apply to later transitions: their targets and required input types are already frozen, and the client can inspect the selected immediate destination before calling `CompleteStep`.
 
 The resolutions behind these — why the library never calls a model, why sequential-only, and the shape of the remark — land as decisions 39 onward and are written into the sections above.

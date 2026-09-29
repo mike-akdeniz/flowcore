@@ -1908,3 +1908,38 @@ It now asserts `GetState` alone, and `TestGetHistorySpansEveryRunOnTheSubject` a
 **Ordering.**
 `order by w.started_at, w.id, v.entered_at, v.id` rather than by `entered_at` alone.
 Two runs of one subject cannot overlap, so it is the same order in practice — but it does not rest on comparing timestamps written days apart.
+## 47. Step instructions and required input types belong to the snapshot
+
+**The boundary question.**
+The reference client added `casework.step_document_type` and kept agent guidance in a Go map while FlowCore snapshots other step configuration.
+The owner identified the drift: *"Snapshots and workflow configurations should be the responsibilities of flowcore"* and *"what we are seeing now is caseWork trying to patch those missing capabilities by duplicatiing the workflow config and snapshot mechanism."*
+The initial proposal placed workflow subject type, step document types, and instructions in FlowCore.
+The owner then corrected `child_subject_ids`: *"I was thinking about document types so more something like 'child_subject_types'."*
+
+**What was settled.**
+FlowCore owns optional neutral step instructions and opaque required input type IDs on each definition step and on every instance step copied at start.
+The agreed SQL column name on both step tables is `required_input_type_ids` (`text[]`), and the Go field is `RequiredInputTypeIDs []string`.
+The instruction is neutral for a human or agent: the owner said *"flowcore doesn't have to make a distinction between an agent instruction or human instruction so this column is neutral."*
+The library records the references, does not resolve them, does not hold documents, and does not enforce their presence.
+CaseWork uses its stable document type IDs as those references and enforces document policy outside the library.
+FlowCore does not gain a first-class record-type catalog: the owner's concern that a CaseWork rename could become a hidden instance mechanism is answered by a stable ID and a cosmetic title edit on CaseWork's catalog, while the frozen reference remains the ID.
+Nor does it gain `workflow_definition.subject_type_id`: the owner observed that historical cases already establish their type and said *"it can stay in casework."*
+
+**The snapshot correction.**
+An initial recovery example said that CaseWork was restarted while an agent step was still open; the owner read "restart" as reopening the case and correctly pointed out that reopening requires a terminated run.
+The example meant restarting the server process, leaving the workflow instance open.
+That clarification exposed the larger rule in the owner's words: *"selection of open steps, next steps, anything related to a run should work from the snapshot and not from the definition. Otherwise many things will go wrong and the same scenario can happen for no-agent steps or even without a restart."*
+Current runtime routing and worklist already use snapshots, but the client's agent discovery reads current definitions, and the library does not yet expose the snapshot data required for all client preflights and history.
+Add a generic open-step read rather than making `ListAssignedSteps(nil)` mean all; its empty-input result is already part of the worklist contract.
+Expose each selected action's immediate target and completed visit's frozen required input type IDs from the instance, never by joining the edited definition.
+
+**Start-time consistency.**
+CaseWork will refuse to start an agent entry step with missing required inputs.
+Checking a definition and later letting `Start` re-read a changed definition would violate that promise.
+The start path therefore needs a client validation opportunity against the exact definition the library snapshots, aborting before a run is written when validation fails.
+This is a consistency requirement, not permission for FlowCore to interpret CaseWork's types or `agent:` convention; the public API mechanism is left to implementation review.
+
+**Cost and limits.**
+This adds step definition and snapshot columns, public read/write fields, and SQL projection changes; it is an additive public API change but changes the stored schema.
+The owner said *"we don't need any data migrations, nobody uses flowcore and casework is just a demo app"*; fresh-schema migration and seed changes remain necessary, while backfill and compatibility code do not.
+FlowCore still does not call a model, construct model-specific prompts, or own subject types.

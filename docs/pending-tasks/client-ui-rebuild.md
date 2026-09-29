@@ -128,6 +128,8 @@ Done when one queue carries both kinds and the two detail screens share nothing 
 
 **Complete.**
 
+*Historical implementation record: slice 7's [agent-step configuration](agent-step-configuration.md) supersedes the step-narrowed picker and descriptive step association below.*
+
 *Added 2026-09-27, replacing a canned mechanism with a feature.*
 
 A document type is a thing CaseWork configures: a name, a title, the submission type it belongs to,
@@ -173,28 +175,12 @@ migration.
 **Current state.**
 The workflow editor is functional except for defining agent steps.
 Its assignee list offers people and teams, but does not yet let an editor define an agent step.
-The runtime dispatcher already derives agent references from registered workflow definitions in the
-database, as required below.
-
-**Required, and easy to miss:** derive agent references and assignment targets from the
-**registered definitions in the database**, not from the Go templates in `internal/app/workflows.go`.
-
-Those templates exist to create rows during seeding and nothing more.
-The dispatcher now reads registered definitions from the database, so a step assigned to an
-agent reference introduced by an edited workflow will still be swept after a restart.
-
-`AssignableReferences` was the other half of this note and is **done** — it reads `casework.staff` and
-the session's registered definitions, after shipping a reassignment dropdown full of a cast that no
-longer existed. Client decision 23 records what that cost.
-
-**Document types become editable here**, on the same step editor as everything else — slice 6 builds
-the rows and seeds them, this makes them configurable. Descriptive, never a gate: gating would kill
-the `incomplete → awaiting documents` branch, since deciding whether the file is complete is that
-step's whole job (client decision 20).
-
-**A rename is the hazard.** If slice 6 keyed document types to steps by name, adding a rename here
-orphans those rows silently, because nothing joins and nothing can fail. Whatever slice 6 settles, the
-rename path has to carry it.
+The current dispatcher and assignment list read registered definitions, which does not honor the snapshot after a definition changes.
+The editor currently stores step document associations in CaseWork and narrows the document picker by current step; those behaviors are superseded by the agreed agent-step design.
+The detailed implementation contract and checklist are in [agent-step-configuration.md](agent-step-configuration.md).
+Implement that work within slice 7 before calling this slice done; it extends this slice by owner decision without changing the agreed slice order.
+Step instructions and required input type IDs move into FlowCore definitions and snapshots; CaseWork retains document types, per-case-type allowed lists, document records, permissions, and required-document checks.
+The old documentation-check agent and its `incomplete → awaiting documents` premise must be replaced because a required document is a gate to deciding, not a condition an agent classifies after deciding.
 
 The remaining work in this slice is defining agent steps in the editor.
 Done when agent steps can also be defined, a workflow can be built and a type switched onto it, and
@@ -216,5 +202,5 @@ Recorded so none of it is relitigated mid-build.
 - **Real authentication and user management.** Sign-in is a choice from a seeded list.
 - **File upload.** Documents are text records (decision 19).
 - **Hand-positioned graph nodes.** Automatic layout, no stored coordinates (decision 14).
-- **Any library change.** If building reveals one, it goes to the owner and into
-  `docs/system-design.md` and `docs/decisions.md` first — not into this plan.
+- **Unreviewed library changes.** The neutral step configuration and snapshot reads agreed for slice 7 are documented in `docs/system-design.md` and `docs/decisions.md`.
+  Any further library model change goes to the owner and those documents first.

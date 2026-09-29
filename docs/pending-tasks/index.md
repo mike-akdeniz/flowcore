@@ -5,6 +5,7 @@ Details for work that is not started or not completed yet are stored in md files
 Permanent project state lives in [status.md](../status.md), not here.
 
 - [Agent handover](agent-handover.md) — current continuation context for the next Claude Code or Codex session.
+- [Agent-step configuration](agent-step-configuration.md) — settled cross-module design and implementation checklist for slice 7.
 - [Reference client — UI rebuild](client-ui-rebuild.md) — the agreed slices for rebuilding the interface on React.
 - [Reference client — HTMX era](client-htmx.md) — the original plan; phases 1-6 complete. Its UI half is superseded by the rebuild above; its Go-side reasoning still holds.
 - [Candidates](candidates.md) — open items and ideas, gathered from the docs and conversation. Not a plan, and nothing here is committed to.
