@@ -1621,3 +1621,19 @@ Deleting and incrementing the revision commit together.
 Removing an unused document cannot change any past decision's document set: at each completed decision's revision it either had not arrived or was already superseded.
 Removing a current document makes the newest surviving document of that kind current again.
 Version labels are the agreed computed ordinals among surviving documents; deleting an earlier unused document can renumber later labels, while ids and case revision stamps remain unchanged.
+
+## 35. Keep workflow settings in reach while editing a step
+
+**Context.**
+When a step is selected, its panel replaces the Workflow panel, so adding another step requires leaving the edit page and returning.
+The owner's objection was: *"If you want to add another step to the workflow again, there is no straightforward way to reach the 'Workflow' edit. You have to click 'back link' on the top to reach the workflow page and edit again."*
+Codex first recommended a persistent Workflow button above the canvas.
+The owner proposed keeping the Workflow panel visible above the overlapping Step panel, with the visible part clickable to switch back, and Codex agreed that it keeps more context in reach.
+After seeing that layout, the owner said: *"This is ok but still not ideal. Make this instead: When Step panel is open, a back link on top left of the panel title 'Step' appears '← Workflow'. Clicking the link closes the step panel and workflow panel is exposed. So we don't need the step panel appearing below anymore. X button still remains."*
+
+**Decision.**
+Show *← Workflow* above the Step title while the Step panel is open.
+Clicking it closes the Step panel and exposes the Workflow panel, while the existing close button remains available.
+
+**Why.**
+The explicit back link makes the route back to workflow settings discoverable without layering one form over another or leaving the editor.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActionIcon,
+  Anchor,
   Button,
   Card,
   Divider,
@@ -79,7 +80,18 @@ export function StepPanel({
     <Card withBorder padding="md">
       <Stack gap="sm">
         <Group justify="space-between">
-          <Text fw={500}>Step</Text>
+          <Stack gap={2}>
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              onClick={onClosed}
+              style={{ alignSelf: "flex-start" }}
+            >
+              ← Workflow
+            </Anchor>
+            <Text fw={500}>Step</Text>
+          </Stack>
           <ActionIcon variant="subtle" color="gray" onClick={onClosed} aria-label="Close">
             ✕
           </ActionIcon>
