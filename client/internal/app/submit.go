@@ -114,10 +114,15 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 	// FlowCore stores the string and never reads it.
 	startingRevision := strconv.Itoa(revision)
 
+	// An agent entry step's documents are checked against the definition Start
+	// is about to freeze, inside its transaction, so an edit cannot land between
+	// the check and the snapshot. A failure leaves no run, and the case stays a
+	// draft because the lock above is rolled back.
 	state, err := a.Engine.Start(ctx, flowcore.StartParams{
 		WorkflowDefinitionID: workflow.FlowcoreDefinitionID,
 		SubjectReference:     subjectReference,
 		SubjectVersionToken:  &startingRevision,
+		Validate:             a.entryCheck(sessionID, submission),
 	})
 	if err != nil {
 		return err

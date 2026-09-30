@@ -19,49 +19,16 @@ import (
 type CheckRequest struct {
 	Agent    string
 	StepName string
+	// Instructions are the step's, frozen into the run when it started, so an
+	// agent does the job it was given then even if the workflow has been edited
+	// since. Required on an agent step, which the editor enforces.
+	Instructions *string
 	// Reference identifies the subject to CaseWork — "claim:C-1042".
 	Reference string
 	// SubjectText is the prose an agent step reads, assembled by CaseWork from
 	// its own tables. FlowCore holds none of it.
 	SubjectText string
-	// Documents are the current documents on the case, in arrival order. The real
-	// checker ignores them and reads SubjectText; the simulated one needs the kind
-	// to know which document answers the step it is standing on.
-	Documents []CaseDocument
-	// Expects is what this step has been configured to read, and is what tells a
-	// checker which of the documents on file answers the question in front of it.
-	// Empty when the step declares nothing, which is not an error — it means the
-	// simulation has nothing to go on and says so.
-	Expects []ExpectedDocument
-	Actions []flowcore.Action
-}
-
-// CaseDocument is the little a checker needs to know about a document on file.
-//
-// Not the body: the real checker gets that as prose in SubjectText, assembled the
-// way a model should read it, and the simulated one never reads content at all.
-type CaseDocument struct {
-	Kind string
-	// FileName is the sample's name, or the name of an uploaded file. It is the
-	// only thing the simulated checker has to go on.
-	FileName string
-}
-
-// ExpectedDocument is a document type a step reads, with what the simulation
-// should say about one.
-//
-// The findings come from the database rather than from a map in this package, so
-// a document type created in the interface arrives complete. A real checker
-// ignores them and writes its own.
-type ExpectedDocument struct {
-	Name string
-	// Title is what the document is called on screen. The checker needs it
-	// because its remark has to name documents the way the interface does — a
-	// disclaimer telling you to add "7-estimate-fail.txt" names something no
-	// screen shows.
-	Title       string
-	PassFinding string
-	FailFinding string
+	Actions     []flowcore.Action
 }
 
 // Verdict is an agent's answer: which action to take, and why.

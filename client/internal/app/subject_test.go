@@ -49,3 +49,23 @@ func TestDocumentReadersRefusesUnknownRevisions(t *testing.T) {
 		}
 	}
 }
+
+func TestSimulatedBranch(t *testing.T) {
+	action := func(name string) flowcore.Action { return flowcore.Action{ID: uuid.New(), Name: name} }
+
+	chosen, _ := simulatedBranch([]flowcore.Action{action("adequate"), action("needs detail")})
+	if chosen.Name != "adequate" {
+		t.Errorf("chose %q, want the demo branch that leaves the loop", chosen.Name)
+	}
+
+	chosen, _ = simulatedBranch([]flowcore.Action{action("fast track"), action("full assessment")})
+	if chosen.Name != "full assessment" {
+		t.Errorf("chose %q, want the demo branch", chosen.Name)
+	}
+
+	// A workflow edited in the interface names none of them.
+	chosen, rule := simulatedBranch([]flowcore.Action{action("approve"), action("reject")})
+	if chosen.Name != "approve" || rule != "the first of its actions" {
+		t.Errorf("chose %q by %q, want the first action", chosen.Name, rule)
+	}
+}

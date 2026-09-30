@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// Outcome is what a sample document does to the check it is put in front of.
+// Outcome is what a sample document argues for at the step that judges it.
 //
 // Two words, and deliberately only two. There were eight — complete/incomplete,
 // consistent/contradicts, simple/complex, clean/adverse — one private pair per
@@ -29,16 +29,15 @@ import (
 // needs full assessment. Triage is a screen, so the words fit it as well as they
 // fit the risk screen.
 //
-// The *reason* is no longer in the file name. It is in the finding the simulated
-// checker stamps on the visit, where it can be a sentence about the claim rather
-// than a word squeezed into a file name.
+// It labels the sample in the picker — "Repair estimate — pass" — so a visitor
+// with an API key can choose which way to push a real model. Without a key
+// nothing reads it: the simulated checker follows fixed branches (client
+// decision 39).
 type Outcome string
 
 const (
 	// OutcomeNone is a document whose name carries no outcome — anything a
-	// visitor uploaded themselves. Without a model there is nothing to read it
-	// with, so a step judging it is simulated at random, and the application
-	// says so.
+	// visitor uploaded themselves.
 	OutcomeNone Outcome = ""
 	OutcomePass Outcome = "pass"
 	OutcomeFail Outcome = "fail"
@@ -48,12 +47,11 @@ const (
 var Outcomes = []Outcome{OutcomePass, OutcomeFail}
 
 // Document is one sample: its file name, the document type it is an example of,
-// what it does to the check that reads it, and its text.
+// what it argues for, and its text.
 //
 // No title and no submission type. Both used to be decided here by a switch on
-// the file name's prefix, and both now live on the document type in the database
-// — the title on the type row, and whether a type belongs to claims or to
-// applications derived from the steps it is attached to. What is left is
+// the file name's prefix, and both now live in the database — the title on the
+// type row, and which kinds of case may hold it on the allowed lists. What is left is
 // structural: this package knows the *shape* of a sample's name and nothing about
 // any particular kind of document.
 type Document struct {

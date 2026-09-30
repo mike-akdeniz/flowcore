@@ -169,7 +169,7 @@ func TestStepEditRules(t *testing.T) {
 		}
 
 		witness := stepCalled(t, updated, "witness check")
-		documentation := stepCalled(t, updated, "documentation check")
+		documentation := stepCalled(t, updated, "estimate check")
 
 		refused := jsonRequest(t, server, sessionID, http.MethodPost,
 			base+"/steps/"+documentation.ID+"/actions",
@@ -223,7 +223,7 @@ func TestAllowedListRemoval(t *testing.T) {
 
 	workflow := seededWorkflow(t, server, sessionID, store.TypeClaim)
 	base := "/api/workflows/" + workflow.DefinitionID
-	for _, name := range []string{"narrative consistency", "documentation check", "triage"} {
+	for _, name := range []string{"narrative consistency", "estimate check", "triage"} {
 		step := stepCalled(t, workflow, name)
 		edit := editStep(step)
 		edit.Expects = slices.DeleteFunc(slices.Clone(step.Expects),

@@ -400,13 +400,12 @@ func (s *Store) ActiveWorkflow(ctx context.Context, sessionID string, submission
 
 // --- document types --------------------------------------------------------
 
-const documentTypeColumns = `id, session_id, name, title, pass_finding, fail_finding, created_at`
+const documentTypeColumns = `id, session_id, name, title, created_at`
 
 func scanDocumentType(row pgx.CollectableRow) (DocumentType, error) {
 	var documentType DocumentType
 	err := row.Scan(&documentType.ID, &documentType.SessionID, &documentType.Name,
-		&documentType.Title, &documentType.PassFinding, &documentType.FailFinding,
-		&documentType.CreatedAt)
+		&documentType.Title, &documentType.CreatedAt)
 
 	return documentType, err
 }
@@ -424,11 +423,11 @@ func (s *Store) EnsureDocumentType(ctx context.Context, documentType DocumentTyp
 
 	err := s.pool.QueryRow(ctx,
 		`insert into casework.document_type (`+documentTypeColumns+`)
-		 values ($1, $2, $3, $4, $5, $6, $7)
+		 values ($1, $2, $3, $4, $5)
 		 on conflict (session_id, name) do update set name = excluded.name
 		 returning id`,
 		documentType.ID, documentType.SessionID, documentType.Name, documentType.Title,
-		documentType.PassFinding, documentType.FailFinding, documentType.CreatedAt).Scan(&id)
+		documentType.CreatedAt).Scan(&id)
 
 	return id, err
 }
@@ -454,7 +453,7 @@ func (s *Store) AllowedDocumentTypes(
 	submissionType SubmissionType,
 ) ([]DocumentType, error) {
 	rows, err := s.pool.Query(ctx,
-		`select t.id, t.session_id, t.name, t.title, t.pass_finding, t.fail_finding, t.created_at
+		`select t.id, t.session_id, t.name, t.title, t.created_at
 		 from casework.document_type t
 		 join casework.allowed_document_type a on a.document_type_id = t.id
 		 where t.session_id = $1 and a.submission_type = $2

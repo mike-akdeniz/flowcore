@@ -18,7 +18,7 @@ make fresh
 ```
 
 Then <http://localhost:8080>. Nothing else to configure — the client applies the library's schema
-itself, seeds your session on first request, and runs its agent steps from pre-written findings when
+itself, seeds your session on first request, and simulates its agent steps with fixed branches when
 no API key is set.
 
 To have a model make those judgments instead:

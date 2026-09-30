@@ -11,7 +11,7 @@ Implementation has not begun under this task; the owner asked for documentation 
 | --- | --- | --- |
 | Workflow graph, assignee references, step instructions, required input type IDs | Definition and eager per-run step snapshot | Editor calls FlowCore; no parallel step configuration table |
 | Case type and active workflow for that type | No case type column or interpretation | `workflow_registry` and `submission.type` |
-| Document type identity and display | Opaque ID in required input type set only | Stable `document_type.id`, sample `name`/kind, editable `title`, simulated findings |
+| Document type identity and display | Opaque ID in required input type set only | Stable `document_type.id`, sample `name`/kind, editable `title` |
 | Which document types may be added to a case type | No knowledge | Explicit allowed set per session and case type |
 | Filed document and its revision | No document row; opaque subject version token on visit | Document row with stable type ID and revision |
 | Whether input is present, who may add or decide, which assignee is an agent | No policy | App and API enforcement |
@@ -59,9 +59,9 @@ Hard deletion of a type used by a document, any instance snapshot, or a register
    Refuse, server-side, an action from an agent step to an agent step unless the destination's required types are a subset of the source's; check it on action target, assignee, and required-type edits, and name the destination and missing types in the error.
    Editing an existing definition must not change any run's step instructions, required types, assignees, or action targets.
 5. Update the seeded workflow and checker so the documentation-check agent no longer decides whether a required document is missing.
-   Use a useful assessment such as checking basic submission text, with matching instructions and branch names.
-   Replace stale `checker_claude.go` agent-reference mappings with the seeded refs, and have live agent calls use the current visit's frozen instruction and required documents.
-   The simulated checker remains CaseWork-owned and uses the same stable document type IDs and sample findings.
+   Settled in CaseWork decision 39: the step becomes `estimate check` (`adequate` / `needs detail`), judging the estimate's adequacy, with its loop through `estimate follow-up`.
+   Replace stale `checker_claude.go` agent-reference mappings, and have live agent calls use the current visit's frozen instruction.
+   The simulated checker takes a fixed demo branch, or the step's first action, with one disclosed remark; it reads no documents, and document types carry no findings.
 
 ## CaseWork runtime and history work
 

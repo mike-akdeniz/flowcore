@@ -18,11 +18,8 @@ import (
 // the state of the file it was made against are recorded together — which is the
 // only thing that tells a second visit to a step apart from the first.
 type SubjectView struct {
-	Text string
-	// Documents are the current documents, in arrival order. Superseded ones are
-	// not here: an agent reads what the file says now, exactly as a model would.
-	Documents []CaseDocument
-	Revision  int
+	Text     string
+	Revision int
 }
 
 // SubjectText renders a submission as the prose an agent step reads.
@@ -112,16 +109,6 @@ func withDocuments(text *strings.Builder, documents []store.Document, revision i
 	// it to weigh a document the case has already moved past.
 	current := store.Current(documents, revision)
 
-	onFile := make([]CaseDocument, 0, len(current))
-	for _, document := range current {
-		if document.SourceFile != nil {
-			onFile = append(onFile, CaseDocument{
-				Kind:     document.Kind,
-				FileName: *document.SourceFile,
-			})
-		}
-	}
-
 	text.WriteString("Documents on file:\n")
 	for _, document := range current {
 		fmt.Fprintf(text, "- %s (%s, received %s)\n",
@@ -146,9 +133,8 @@ func withDocuments(text *strings.Builder, documents []store.Document, revision i
 	}
 
 	return SubjectView{
-		Text:      text.String(),
-		Documents: onFile,
-		Revision:  revision,
+		Text:     text.String(),
+		Revision: revision,
 	}
 }
 

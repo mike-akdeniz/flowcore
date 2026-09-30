@@ -68,48 +68,6 @@ func chooseChecker(logger *slog.Logger) Checker {
 	return checker
 }
 
-// AgentReferences are the assignees this application dispatches automatically.
-//
-// From the registered definitions in the database, across every session, because
-// the sweep this feeds looks for stranded agent work wherever it is. It used to
-// read the Go templates in `workflows.go`, which agreed with the database only
-// because nothing could edit a workflow — and this slice is what changed that. A
-// step assigned to an agent a visitor invented would never have been swept after
-// a restart.
-//
-// Its twin, `AssignableReferences`, had the same flaw and was fixed earlier when
-// it started offering a cast that no longer existed. This is the other half of
-// that note, arriving when the thing it warned about became possible.
-func (a *App) AgentReferences(ctx context.Context) ([]string, error) {
-	definitionIDs, err := a.Store.AllRegisteredDefinitionIDs(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	seen := make(map[string]bool)
-
-	var references []string
-
-	for _, definitionID := range definitionIDs {
-		definition, err := a.Catalog.Get(ctx, definitionID)
-		if err != nil {
-			// A definition a session's janitor has already deleted. The registry
-			// row outlives it briefly, and a sweep is not the place to fail over
-			// work that no longer exists.
-			continue
-		}
-
-		for _, step := range definition.Steps {
-			if IsAgent(step.AssigneeID) && !seen[step.AssigneeID] {
-				seen[step.AssigneeID] = true
-				references = append(references, step.AssigneeID)
-			}
-		}
-	}
-
-	return references, nil
-}
-
 // StartJanitor expires idle sessions and deletes the definitions they created.
 // It does nothing when the TTL is zero, which is the default, so running locally
 // never loses work you built.

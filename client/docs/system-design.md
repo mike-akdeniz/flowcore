@@ -137,7 +137,8 @@ It does not walk beyond that destination or require documents for branches the r
 The editor refuses an action from one agent step to another unless every type the destination requires is also required by the source.
 The source cannot be decided until its own required types are present, and no one can file a document while an agent holds the step, so the subset rule guarantees the destination is never stuck.
 An editor stacking agent steps satisfies it by requiring the later documents on the earlier agent step too, or by inserting a human step between the agents to collect or verify more documents.
-The seeded documentation-check agent, which currently chooses an incomplete branch because a document is missing, is replaced by an agent task consistent with required meaning required.
+The seeded claim's second agent step is `estimate check`, which judges whether an estimate on the case is itemised enough to assess and sends it to `estimate follow-up` when it needs detail; presence is the gate, adequacy is the agent's judgment.
+Without an API key an agent step is simulated: it takes a fixed demo branch, or its first action, and its remark says so.
 
 While a case is draft, any visitor in its session may add an allowed document.
 After submission, only the current step's assignee may add one; a person may gather a document from someone else and file it themselves.
@@ -191,7 +192,6 @@ _Document type_ — CaseWork's catalog of kinds of case material
 - id, session id
 - kind // stable identifier used to match sample files
 - title // human-facing label; cosmetic edits do not change the type id
-- pass finding, fail finding // text used only by the simulated checker
 
 _Allowed document type_ — which kinds may be added to one submission type
 

@@ -29,7 +29,7 @@ func (a *App) SeedSession(ctx context.Context, sessionID string) error {
 	// The policy application leads deliberately. Its workflow is three steps
 	// against the claim's seven, so the whole shape of a run — submit, an agent
 	// decides, a person decides, it ends — can be seen in a minute, before
-	// meeting the `awaiting documents` loop and three agent steps at once.
+	// meeting the `estimate follow-up` loop and three agent steps at once.
 	//
 	// Ordering the lists by kind would have done the same thing and been a lie,
 	// since nothing about an application makes it sort before a claim. Seeding in
@@ -91,19 +91,16 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 	}
 
 	// The seeded file is built from the same sample documents a visitor can add,
-	// so there is one place to edit the text and the simulated agent steps behave
-	// deterministically along the path everyone walks.
+	// so there is one place to edit the text. They are the three documents
+	// `triage` requires, so the claim can be submitted as it stands.
 	//
-	// The three of them drive the three agent steps in order. The intake note
-	// puts `triage` on the full-assessment branch rather than the fast track. The
-	// estimate is a scribbled figure, so `documentation check` sends the claim to
-	// `awaiting documents` and gives the visitor something to do. And the police
-	// report contradicts the claimant's account on both the circumstances and the
-	// timing, which is what `narrative consistency` is for once the file is
-	// complete.
-	//
-	// Without the intake note the demonstration's opening move would be a coin
-	// flip, because triage would have nothing carrying an outcome to read.
+	// With a model they argue for the long route. The intake note puts `triage`
+	// on full assessment, the estimate is a scribbled figure `estimate check`
+	// should send back for detail, and the police report contradicts the
+	// claimant's account on both the circumstances and the timing, which is what
+	// `narrative consistency` is for. Without a key the simulated checker takes
+	// the same long route by fixed branches, except that it passes the estimate,
+	// since a simulation that always took the loop back would never leave it.
 	seeded := []struct {
 		fileName   string
 		receivedAt time.Time
@@ -205,10 +202,8 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	// proposal that resolved as a clean risk would be the demonstration lying
 	// about itself.
 	//
-	// It is also what makes `risk screen` decidable at all without an API key.
-	// The simulated checker reads file names, so an application with no documents
-	// leaves it choosing at random — the same hole the intake note closed on the
-	// claim side.
+	// It is also the document `risk screen` requires, so the application can be
+	// submitted as it stands.
 	sample := a.Samples.MustHave("4-prior-insurer-fail.txt")
 	body, fileName := sample.Body, sample.FileName
 

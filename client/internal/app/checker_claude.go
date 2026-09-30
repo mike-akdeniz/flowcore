@@ -30,27 +30,15 @@ func NewClaudeChecker() *ClaudeChecker {
 
 func (c *ClaudeChecker) Mode() string { return "claude (" + c.model + ")" }
 
-// instructions are per-agent. The agent reference is an opaque string to
-// FlowCore; here it is the key that selects a job.
-var instructions = map[string]string{
-	"agent:diff-risk@v1": `You assess the deployment risk of a software release from its metadata.
-
-High risk means the change touches authentication, session handling, data migration,
-or is otherwise not safely reversible. Everything else is low risk. Size alone is not
-risk: a large additive change is low risk, and a small change to an auth path is not.`,
-
-	"agent:changelog@v1": `You check whether a release's changelog honestly describes what the release does.
-
-It is accurate when a user reading only the changelog would not be surprised by the
-deploy. It is a mismatch when the changelog omits or understates something users will
-notice — especially anything described as internal that has user-visible effects.`,
-}
-
 func (c *ClaudeChecker) Check(ctx context.Context, request CheckRequest) (Verdict, error) {
-	instruction, ok := instructions[request.Agent]
-	if !ok {
-		return Verdict{}, fmt.Errorf("no instructions for %s", request.Agent)
+	// From the step, frozen at start. The agent reference only says which agent
+	// holds the step; what it is asked to do is configuration, and it lives in
+	// the workflow where an editor can see and change it.
+	if request.Instructions == nil {
+		return Verdict{}, fmt.Errorf("%q has no instructions for %s", request.StepName, request.Agent)
 	}
+
+	instruction := *request.Instructions
 
 	names := make([]string, 0, len(request.Actions))
 	for _, action := range request.Actions {

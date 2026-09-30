@@ -55,7 +55,12 @@ type CompleteRequest struct {
 	SubjectVersionToken string
 }
 
-// CompleteStep records a decision by this identity.
+// CompleteStep records a decision by this identity on the step a case is
+// waiting on, once its required documents are there (see checkDecision).
+//
+// step is the open step as the caller read it. If the request names a different
+// visit the caller's view is stale, and it is refused the way FlowCore would
+// refuse it, rather than checked against a step it is not deciding.
 //
 // CompletedBy is the identity's opaque reference. Note what is not checked: the
 // library never asks whether this person was the assignee. That is what makes a
@@ -63,9 +68,20 @@ type CompleteRequest struct {
 // completer simply need not be the assignee.
 func (a *App) CompleteStep(
 	ctx context.Context,
+	sessionID string,
+	submission store.Submission,
+	step flowcore.CurrentStep,
 	identity Identity,
 	request CompleteRequest,
 ) (flowcore.WorkflowState, error) {
+	if request.VisitID != step.VisitID {
+		return flowcore.WorkflowState{}, &flowcore.VisitNotOpenError{VisitID: request.VisitID}
+	}
+
+	if err := a.checkDecision(ctx, sessionID, submission, step, request.ActionID); err != nil {
+		return flowcore.WorkflowState{}, err
+	}
+
 	params := flowcore.CompleteParams{
 		VisitID:     request.VisitID,
 		ActionID:    request.ActionID,
@@ -182,7 +198,10 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 		return nil, err
 	}
 
+	definitionIDs := make([]uuid.UUID, 0, len(registered))
 	for _, workflow := range registered {
+		definitionIDs = append(definitionIDs, workflow.FlowcoreDefinitionID)
+
 		definition, err := a.Catalog.Get(ctx, workflow.FlowcoreDefinitionID)
 		if err != nil {
 			return nil, err
@@ -191,6 +210,18 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 		for _, step := range definition.Steps {
 			add(step.AssigneeID)
 		}
+	}
+
+	// And every assignee a running case can still meet, from the runs themselves:
+	// a team a definition has since stopped using is still who a run started
+	// before the edit will ask for, and has to stay reassignable to.
+	steps, err := a.Engine.ListOpenRunSteps(ctx, definitionIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, step := range steps {
+		add(step.AssigneeID)
 	}
 
 	return assignees, nil

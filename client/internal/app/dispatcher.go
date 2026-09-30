@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -138,10 +137,10 @@ func (d *Dispatcher) consume(ctx context.Context) {
 // sweep finds agent work nobody enqueued.
 //
 // The queue lives in memory, so a restart loses whatever was in it and those runs
-// would sit open forever. This is the recovery path decision 43 described: the
-// worklist as a sweeper rather than the dispatch mechanism, asking the same
-// question a person's queue asks, with an agent's references instead of a
-// person's.
+// would sit open forever. This is the recovery path decision 43 described, asking
+// the runs themselves what is open rather than the definitions who might be
+// assigned: a definition edited since a run began can name different agents, or
+// none, while the run still waits on the one it froze (FlowCore decision 47).
 func (d *Dispatcher) sweep(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
@@ -157,31 +156,35 @@ func (d *Dispatcher) sweep(ctx context.Context) {
 }
 
 func (d *Dispatcher) sweepOnce(ctx context.Context) {
-	references, err := d.app.AgentReferences(ctx)
-	if err != nil {
-		d.logger.Warn("sweep: reading agent references", "err", err)
-
-		return
-	}
-
-	if len(references) == 0 {
-		return
-	}
-
-	assigned, err := d.app.Engine.ListAssignedSteps(ctx, references)
+	open, err := d.app.Engine.ListOpenSteps(ctx)
 	if err != nil {
 		d.logger.Warn("sweep", "err", err)
 
 		return
 	}
 
-	for _, step := range assigned {
-		// Ownership is not re-checked here: the worklist was queried with this
-		// CaseWork's own agent references, so anything it returns is ours by
-		// construction. The session comes from the subject reference CaseWork
-		// wrote.
+	for _, step := range open {
+		if !IsAgent(step.AssigneeID) {
+			continue
+		}
+
+		// FlowCore has no tenant, so open work is everyone's. What is this
+		// CaseWork's is what a session of it registered.
+		sessionID := sessionOf(step.SubjectReference)
+
+		owned, err := d.app.owns(ctx, sessionID, step.WorkflowDefinitionID)
+		if err != nil {
+			d.logger.Warn("sweep: checking ownership", "visit", step.VisitID, "err", err)
+
+			continue
+		}
+
+		if !owned {
+			continue
+		}
+
 		d.enqueue(workItem{
-			SessionID:        sessionOf(step.SubjectReference),
+			SessionID:        sessionID,
 			SubjectReference: step.SubjectReference,
 			DefinitionID:     step.WorkflowDefinitionID,
 			VisitID:          step.VisitID,
@@ -228,38 +231,38 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
-	// What this step requires, from the run's snapshot rather than the
-	// definition: a run keeps the requirements it started under. FlowCore holds
-	// them as opaque ids; what they name is CaseWork's catalog.
-	types, err := d.app.Store.DocumentTypes(ctx, item.SessionID)
+	submission, err := d.app.Store.SubmissionByReference(ctx, item.SessionID, referenceOf(reference))
 	if err != nil {
-		d.logger.Warn("agent step: reading document types", "visit", item.VisitID, "err", err)
+		d.logger.Warn("agent step: no submission", "subject", item.SubjectReference, "err", err)
 
 		return
 	}
 
-	expects := make([]ExpectedDocument, 0, len(state.CurrentStep.RequiredInputTypeIDs))
-	for _, documentType := range types {
-		if !slices.Contains(state.CurrentStep.RequiredInputTypeIDs, documentType.ID.String()) {
-			continue
-		}
+	// An agent cannot file a missing document, so there is no point asking it to
+	// decide without one. The editor's rules keep an agent from being handed a
+	// case that lacks its documents; reassignment can still do it, and then the
+	// visit waits here, open, for a person to take it back.
+	missing, err := d.app.missingDocuments(ctx, item.SessionID, submission.ID,
+		state.CurrentStep.RequiredInputTypeIDs)
+	if err != nil {
+		d.logger.Warn("agent step: checking documents", "visit", item.VisitID, "err", err)
 
-		expects = append(expects, ExpectedDocument{
-			Name:        documentType.Name,
-			Title:       documentType.Title,
-			PassFinding: documentType.PassFinding,
-			FailFinding: documentType.FailFinding,
-		})
+		return
+	}
+
+	if len(missing) > 0 {
+		d.logger.Info("agent step: waiting for documents", "visit", item.VisitID, "missing", missing)
+
+		return
 	}
 
 	verdict, err := d.checker.Check(ctx, CheckRequest{
-		Agent:       state.CurrentStep.AssigneeID,
-		StepName:    state.CurrentStep.Name,
-		Reference:   reference,
-		SubjectText: view.Text,
-		Documents:   view.Documents,
-		Expects:     expects,
-		Actions:     state.CurrentStep.Actions,
+		Agent:        state.CurrentStep.AssigneeID,
+		StepName:     state.CurrentStep.Name,
+		Instructions: state.CurrentStep.Instructions,
+		Reference:    reference,
+		SubjectText:  view.Text,
+		Actions:      state.CurrentStep.Actions,
 	})
 	if err != nil {
 		// The visit stays open, so the sweep will try again. If it keeps failing, a
@@ -275,9 +278,10 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	// The revision stamped here is the one the checker actually read, not whatever
 	// the claim is at by the time this write lands. A document added in between
 	// belongs to the next visit, and saying so is the entire point of recording
-	// it: a step reached twice by the `awaiting documents` loop leaves two visits,
+	// it: a step reached twice by the `estimate follow-up` loop leaves two visits,
 	// and the revision is what tells them apart.
-	next, err := d.app.CompleteStep(ctx, Identity{Reference: state.CurrentStep.AssigneeID},
+	next, err := d.app.CompleteStep(ctx, item.SessionID, submission, *state.CurrentStep,
+		Identity{Reference: state.CurrentStep.AssigneeID},
 		CompleteRequest{
 			VisitID:             item.VisitID,
 			ActionID:            verdict.ActionID,

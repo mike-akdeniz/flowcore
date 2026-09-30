@@ -125,7 +125,7 @@ create table casework.application_detail (
     disclosures   text not null
 );
 
--- A kind of document, and what an agent step should make of one.
+-- A kind of document.
 --
 -- Configuration, not a constant. This began as four Go literals that had to agree
 -- — a prefix switch in the sample parser, a map of which step reads which kind, a
@@ -146,12 +146,6 @@ create table casework.document_type (
     -- It is also the handle the browser uses. Not editable; the title is.
     name         text not null,
     title        text not null,
-    -- What a simulated agent step says when a document of this kind passes or
-    -- fails its check. Simulation only — a real model writes its own findings and
-    -- never reads these. They live here so a type created in the interface is
-    -- complete rather than falling through to generic wording.
-    pass_finding text not null,
-    fail_finding text not null,
     created_at   timestamptz not null
 );
 

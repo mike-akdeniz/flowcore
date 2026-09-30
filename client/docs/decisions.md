@@ -1723,3 +1723,39 @@ The check is server-side and runs on every edit that can create the shape: an ac
 The error names the destination step and the missing types.
 It does not cover reassigning an open visit to an agent at run time; reassignment stays the recovery path for that.
 FlowCore still knows nothing about agents: the rule is CaseWork policy over FlowCore's definition fields.
+
+## 39. The estimate check, and a simulation that reads nothing
+
+**The step.**
+The agent-step checklist asked for the documentation-check agent to be replaced, since deciding whether a required document is missing is the gate's job, not an agent's.
+Pass 2 had already rewritten its instructions to judge whether the estimate is itemised enough to assess, but its name and its `complete` / `incomplete` branches still read as a presence check.
+Two ways out were put to the owner.
+The recommendation kept the step and its loop and renamed them to the judgment: `estimate check`, with `adequate` and `needs detail`, and `estimate follow-up` for the loop step.
+The loop is the one place the demonstration shows an agent step re-run against a different file, which is why the step exists (decision 17).
+The alternative was the owner's own earlier suggestion, an agent checking the claimant's account; a claim's details cannot be edited, so a loop back to it would re-read the same text, and the simulation could only choose at random.
+The owner took the recommendation: *"your recommendation"*.
+The agent reference became `agent:estimates`.
+
+**The simulation.**
+Finishing the rename exposed a fault pass 2 had introduced.
+The simulated checker decided from the newest document of any type the step required, reading pass or fail from its file name.
+That had worked while a step's association meant what it reads; once it meant what a decision needs, `triage` required the estimate and police report as well (decision 38's subset rule makes it carry what its agent successors need), so offline it decided from the police report and stamped that report's finding as triage's remark.
+The recommendation was to have the simulation read the required type whose title the step's instructions mention.
+The owner rejected the whole mechanism: *"this is so messy, all we are trying to do is to show seomthing when API key is not set. I'm thinking about removeing all that machinery, and the canned response always goes to one branch, the one branch that is more useful for the demo with the same response."*
+Agreed: the file-name convention, the pass and fail findings on every document type, and the rules for which document a step answers to had each been added to keep the previous one honest, and none earned its place in a fallback.
+
+**Which branch.**
+Anything per step would bring configuration back, so the choice had to be a rule.
+The recommendation was a short list of demo branch names — `full assessment`, `adequate`, `inconsistent`, `refer` — taking the first of a step's actions on the list, and otherwise its first action.
+On the seeded workflows that walks the long claim path through both later agents to a fraud referral, and refers the application to the senior underwriter.
+`adequate` rather than `needs detail`, because a simulation that always takes a loop's way back never leaves it.
+The owner asked *"what if we do second action only?"*: actions come back ordered by name, so the second is `needs detail` at `estimate check` and the claim would cycle until a person took the step over, or the action would need renaming to sort differently — a demo depending on alphabetical order.
+The owner then asked *"what happens if user modifies the demo workflow?"*: a renamed action no longer matches and that step falls back to its first action, which is what every configuration-free rule does to an edited workflow; any rule can also cycle on a loop a user builds, and reassignment is the way out for each.
+The owner accepted: *"ok I accept your recommendation"*.
+
+**What remains.**
+The simulated checker waits two seconds, takes the branch, and stamps one remark saying no model was consulted, which rule chose the branch, and how to get a real assessment.
+It reads no documents.
+Document types lose their findings columns.
+The samples keep their `-pass` / `-fail` names as a label of what their text argues, shown in the picker, for a visitor with a key choosing how to push the model.
+With a key, the agent steps read the whole case and the step's frozen instructions, as before.

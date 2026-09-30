@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -57,10 +59,11 @@ type documentJSON struct {
 // looked like when it was.
 //
 // DocumentIDs is the point of carrying the revision at all. A step reached twice
-// by the `awaiting documents` loop leaves two visits with the same name and
-// different answers, and this is what shows why: the documents in force at the
-// revision each one stamped. Derived here rather than in the browser, because
-// `store.Current` is the rule and there should be one of it.
+// by the `estimate follow-up` loop leaves two visits with the same name and
+// different answers, and this is what shows why: the documents each decision
+// depended on, as they stood at the revision it stamped. Derived here rather
+// than in the browser, because `store.Current` is the rule and there should be
+// one of it.
 type visitJSON struct {
 	// RunID is the run this visit belongs to. A case reopened after finishing has
 	// more than one, and this is what marks where the old run ended and the new
@@ -78,17 +81,34 @@ type visitJSON struct {
 	// Revision is the subject version token, which CaseWork writes as its own
 	// revision number. FlowCore stores the string and never reads it, so parsing
 	// it back is this layer's business and nobody else's.
-	Revision    *int     `json:"revision"`
+	Revision *int `json:"revision"`
+	// DocumentIDs are this visit's decision documents: the newest document of
+	// each type the step required, as of the revision the decision stamped
+	// (client decision 37). The requirement comes from the visit's own frozen
+	// step, so a definition edited since, or a later visit requiring something
+	// else, leaves the answer unchanged. It says what the decision depended on,
+	// not what anyone opened.
 	DocumentIDs []string `json:"documentIds"`
 }
 
+// requiredDocumentJSON is one type the current step requires, and whether the
+// case holds one. Named by the type's handle so the browser can offer it.
+type requiredDocumentJSON struct {
+	Name    string `json:"name"`
+	Title   string `json:"title"`
+	Present bool   `json:"present"`
+}
+
 type currentStepJSON struct {
-	Name         string       `json:"name"`
-	Assignee     string       `json:"assignee"`
-	IsAgent      bool         `json:"isAgent"`
-	WaitingSince string       `json:"waitingSince"`
-	VisitID      string       `json:"visitId"`
-	Actions      []actionJSON `json:"actions"`
+	Name string `json:"name"`
+	// Required is what a decision here waits on, from the run's snapshot. A
+	// decision is refused while any of it is not present.
+	Required     []requiredDocumentJSON `json:"required"`
+	Assignee     string                 `json:"assignee"`
+	IsAgent      bool                   `json:"isAgent"`
+	WaitingSince string                 `json:"waitingSince"`
+	VisitID      string                 `json:"visitId"`
+	Actions      []actionJSON           `json:"actions"`
 }
 
 type caseJSON struct {
@@ -323,6 +343,21 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			payload.CurrentStep.Actions = append(payload.CurrentStep.Actions,
 				actionJSON{ID: action.ID.String(), Name: action.Name})
 		}
+
+		payload.CurrentStep.Required = make([]requiredDocumentJSON, 0, len(state.CurrentStep.RequiredInputTypeIDs))
+		for _, documentType := range documentTypes {
+			if !slices.Contains(state.CurrentStep.RequiredInputTypeIDs, documentType.ID.String()) {
+				continue
+			}
+
+			payload.CurrentStep.Required = append(payload.CurrentStep.Required, requiredDocumentJSON{
+				Name:  documentType.Name,
+				Title: documentType.Title,
+				Present: slices.ContainsFunc(documents, func(document store.Document) bool {
+					return document.DocumentTypeID == documentType.ID
+				}),
+			})
+		}
 	}
 
 	return payload, nil
@@ -362,7 +397,9 @@ func toVisitJSON(visit flowcore.StepVisit, documents []store.Document) visitJSON
 
 	entry.Revision = &revision
 	for _, document := range store.Current(documents, revision) {
-		entry.DocumentIDs = append(entry.DocumentIDs, document.ID.String())
+		if slices.Contains(visit.RequiredInputTypeIDs, document.DocumentTypeID.String()) {
+			entry.DocumentIDs = append(entry.DocumentIDs, document.ID.String())
+		}
 	}
 
 	return entry
@@ -478,6 +515,20 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 	var body newDocumentJSON
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
+
+		return
+	}
+
+	// Who may file is CaseWork's rule, enforced here rather than only by hiding
+	// the button: anyone while it is a draft, and afterwards only whoever the
+	// case is waiting on.
+	var identity *app.Identity
+	if member, ok := s.signedIn(r); ok {
+		identity = &app.Identity{Reference: member.Reference, Name: member.Name, Groups: member.Groups}
+	}
+
+	if err := s.app.CanAddDocument(r.Context(), submission, identity); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
 
 		return
 	}
@@ -658,7 +709,7 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	next, err := s.app.CompleteStep(r.Context(), identity, app.CompleteRequest{
+	next, err := s.app.CompleteStep(r.Context(), sessionID, submission, *state.CurrentStep, identity, app.CompleteRequest{
 		VisitID:  visitID,
 		ActionID: actionID,
 		Remark:   body.Remark,
@@ -667,6 +718,15 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 		// was looking at.
 		SubjectVersionToken: strconv.Itoa(submission.Revision),
 	})
+	var missing *app.MissingDocumentsError
+	if errors.As(err, &missing) {
+		// Conflict: the decision is legitimate and the case refuses it as it
+		// stands. Filing the documents named is what unblocks it.
+		http.Error(w, app.ErrorMessage(err), http.StatusConflict)
+
+		return
+	}
+
 	if err != nil {
 		s.fail(w, "could not record the decision", err)
 

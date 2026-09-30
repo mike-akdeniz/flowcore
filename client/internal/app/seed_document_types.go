@@ -13,12 +13,8 @@ import (
 // The example document types, which kinds of case may hold them, and which steps
 // require them.
 //
-// This file is the one place a kind of document is described. It used to be four:
-// a prefix switch in the sample parser, a map of which step read which kind, a
-// map of canned findings, and a SQL CHECK constraint listing them — keyed by
-// three different things, with nothing failing when they drifted apart. The rows
-// below replace all four, and after seeding the database and the workflow
-// definitions are the source rather than this file.
+// This file is the one place a kind of document is described. After seeding, the
+// database and the workflow definitions are the source rather than this file.
 //
 // `name` is the document type's name in the sample's file name and here. A sample
 // called `1-estimate-pass.txt` is an example of the type named `estimate`, and
@@ -27,8 +23,6 @@ import (
 type documentType struct {
 	name  string
 	title string
-	pass  string
-	fail  string
 }
 
 // requirement names the document types a decision on a step requires, by step
@@ -44,58 +38,20 @@ type requirement struct {
 }
 
 var claimDocumentTypes = []documentType{
-	{
-		name: "intake-note", title: "Intake note",
-		pass: "Single vehicle, nobody to trace, and inside the fast-track limit.",
-		fail: "No third party, an account the claimant did not witness, and above the fast-track limit.",
-	},
-	{
-		name: "estimate", title: "Repair estimate",
-		pass: "Itemised: parts, labour, hours, rate and VAT all stated.",
-		fail: "One approximate figure. No rate, no hours, no VAT — nothing an assessor can check.",
-	},
-	{
-		name: "police-report", title: "Police report",
-		pass: "Places the vehicle at the address given, with debris consistent with the account.",
-		fail: "Places the vehicle two miles away, already damaged, hours before the claimant says it happened.",
-	},
-	{
-		name: "witness-statement", title: "Witness statement",
-		pass: "Undamaged late that evening, damaged by morning, an impact heard overnight.",
-		fail: "Describes the damage happening in daylight with the claimant driving.",
-	},
-	{
-		// A photograph is a row with a name and no body, so no agent step reads
-		// one and these findings are never used. The type exists so a photograph
-		// can be filed at all, which is the honest reason — not every document on
-		// a claim is evidence an agent can weigh.
-		name: "photograph", title: "Photographs",
-		pass: "Photographs are on file.",
-		fail: "No photographs are on file.",
-	},
-	{
-		name: "correspondence", title: "Correspondence",
-		pass: "Supports the account given.",
-		fail: "At odds with the account given.",
-	},
+	{name: "intake-note", title: "Intake note"},
+	{name: "estimate", title: "Repair estimate"},
+	{name: "police-report", title: "Police report"},
+	{name: "witness-statement", title: "Witness statement"},
+	// A photograph is a row with a name and no body. The type exists so a
+	// photograph can be filed at all — not every document on a claim is text.
+	{name: "photograph", title: "Photographs"},
+	{name: "correspondence", title: "Correspondence"},
 }
 
 var applicationDocumentTypes = []documentType{
-	{
-		name: "prior-insurer", title: "Previous insurer's letter",
-		pass: "Four years, no claims, no convictions, lapsed at the proposer's own request.",
-		fail: "Declined renewal after two convictions and a claim, and the vehicle was not garaged as declared.",
-	},
-	{
-		name: "inspection", title: "Vehicle inspection",
-		pass: "As declared: mileage, condition, security and where it is kept all match.",
-		fail: "Mileage well over, undeclared modifications, and kept on the highway rather than garaged.",
-	},
-	{
-		name: "correspondence", title: "Correspondence",
-		pass: "Supports the proposal as made.",
-		fail: "At odds with the proposal as made.",
-	},
+	{name: "prior-insurer", title: "Previous insurer's letter"},
+	{name: "inspection", title: "Vehicle inspection"},
+	{name: "correspondence", title: "Correspondence"},
 }
 
 // Required means required: a step cannot be decided without them (client
@@ -106,11 +62,11 @@ var applicationDocumentTypes = []documentType{
 // `triage` requires everything its agent successors do.
 //
 // The human steps require nothing. A person can file what is missing before
-// deciding, and the claim's `awaiting documents` loop still turns on whether the
+// deciding, and the claim's `estimate follow-up` loop turns on whether the
 // estimate is adequate, which is a judgment rather than a presence check.
 var claimRequirements = []requirement{
 	{step: "triage", types: []string{"intake-note", "estimate", "police-report"}},
-	{step: "documentation check", types: []string{"estimate", "police-report"}},
+	{step: "estimate check", types: []string{"estimate", "police-report"}},
 	{step: "narrative consistency", types: []string{"police-report"}},
 }
 
@@ -135,13 +91,11 @@ func (a *App) seedDocumentTypes(
 
 	for _, declared := range types {
 		id, err := a.Store.EnsureDocumentType(ctx, store.DocumentType{
-			ID:          uuid.Must(uuid.NewV7()),
-			SessionID:   sessionID,
-			Name:        declared.name,
-			Title:       declared.title,
-			PassFinding: declared.pass,
-			FailFinding: declared.fail,
-			CreatedAt:   time.Now(),
+			ID:        uuid.Must(uuid.NewV7()),
+			SessionID: sessionID,
+			Name:      declared.name,
+			Title:     declared.title,
+			CreatedAt: time.Now(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("seed document type %q: %w", declared.name, err)

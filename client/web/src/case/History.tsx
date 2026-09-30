@@ -3,8 +3,8 @@ import type { Case, Visit } from "../api";
 
 // What happened, and what it was decided against.
 //
-// The second half is the point. A run that loops through `awaiting documents`
-// visits `documentation check` twice, with the same name and different answers,
+// The second half is the point. A run that loops through `estimate follow-up`
+// visits `estimate check` twice, with the same name and different answers,
 // and the only thing that explains the change is which documents were on file
 // each time. The server derives that from the revision each visit stamped, so
 // the rule lives in one place — `store.Current` — rather than being reimplemented

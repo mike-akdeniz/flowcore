@@ -67,23 +67,25 @@ assessment. Read the intake note against the claimant's account.`),
 				},
 			},
 			{
-				// An AI step whose failure loops back for more input.
+				// An AI step whose judgment loops back for a better document. It
+				// judges whether the estimate is adequate, never whether one exists:
+				// its required types are on the case before it can be reached.
 				ID: documentation, WorkflowStatusDefinitionID: inAssessment,
-				Name: "documentation check", AssigneeID: "agent:intake",
+				Name: "estimate check", AssigneeID: "agent:estimates",
 				Instructions: stepInstructions(`Decide whether the repair estimate can be assessed as it stands.
 
-It is complete when an assessor could check it line by line: parts, labour, hours, rate
-and VAT all stated. It is incomplete when it is a single approximate figure or leaves
-any of those out.`),
+It is adequate when an assessor could check it line by line: parts, labour, hours, rate
+and VAT all stated. It needs detail when it is a single approximate figure or leaves any
+of those out.`),
 				Actions: []flowcore.ActionDefinition{
-					{Name: "complete", NextStepDefinitionID: &consistency},
-					{Name: "incomplete", NextStepDefinitionID: &awaiting},
+					{Name: "adequate", NextStepDefinitionID: &consistency},
+					{Name: "needs detail", NextStepDefinitionID: &awaiting},
 				},
 			},
 			{
 				// The loop target: an AI step re-run against a genuinely different file.
 				ID: awaiting, WorkflowStatusDefinitionID: inAssessment,
-				Name: "awaiting documents", AssigneeID: "group:intake-handlers",
+				Name: "estimate follow-up", AssigneeID: "group:intake-handlers",
 				Actions: []flowcore.ActionDefinition{
 					{Name: "resubmit", NextStepDefinitionID: &documentation},
 				},

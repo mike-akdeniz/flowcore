@@ -25,6 +25,12 @@ func ErrorMessage(err error) string {
 		return ""
 	}
 
+	// CaseWork's own first: a missing document says what to file, and where.
+	var missing *MissingDocumentsError
+	if errors.As(err, &missing) {
+		return missing.Error() + "."
+	}
+
 	// The typed errors first, because they carry detail worth showing.
 	var duplicate *flowcore.DuplicateNameError
 	if errors.As(err, &duplicate) {

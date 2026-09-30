@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 	"testing"
@@ -255,6 +256,16 @@ func TestConcurrentSubmissionAndRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The photograph, because nothing requires it: removing a required document
+	// would make the submission refuse for that reason instead, and this test is
+	// about the lock between the two, not the requirement.
+	photograph := slices.IndexFunc(documents, func(document store.Document) bool {
+		return document.Kind == "photograph"
+	})
+	if photograph < 0 {
+		t.Fatal("the seeded claim has no photograph")
+	}
+
 	var workers sync.WaitGroup
 	var submitError, removeError error
 	start := make(chan struct{})
@@ -267,7 +278,7 @@ func TestConcurrentSubmissionAndRemoval(t *testing.T) {
 	go func() {
 		defer workers.Done()
 		<-start
-		removeError = server.app.RemoveDocument(ctx, sessionID, submission, documents[0].ID)
+		removeError = server.app.RemoveDocument(ctx, sessionID, submission, documents[photograph].ID)
 	}()
 	close(start)
 	workers.Wait()

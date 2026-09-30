@@ -436,11 +436,6 @@ func (s *Server) listDocumentTypes(w http.ResponseWriter, r *http.Request) {
 }
 
 // createDocumentType makes a kind of document, from the step that needs one.
-//
-// No findings. They are what a simulated agent step says about a document of
-// this kind, and `finding()` already falls back to generic wording when they are
-// blank — so a type made in thirty seconds behaves sensibly, and writing proper
-// wording is an improvement rather than a prerequisite.
 func (s *Server) createDocumentType(w http.ResponseWriter, r *http.Request) {
 	var body documentTypeEditJSON
 	if !decode(w, r, &body) {

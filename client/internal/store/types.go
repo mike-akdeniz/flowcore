@@ -100,7 +100,7 @@ type Document struct {
 // one of that kind to have arrived at or before it.
 //
 // Currency is per type, not per case. That is the whole rule, and it is why a
-// step reading several kinds at once — `documentation check` wants an estimate
+// step reading several kinds at once — `triage` wants an intake note, an estimate
 // and a police report — needs no tie-break: two documents only compete when they
 // are the same kind.
 //
@@ -142,8 +142,7 @@ type RegisteredWorkflow struct {
 	CreatedAt            time.Time
 }
 
-// DocumentType is a kind of document CaseWork knows about, and what a simulated
-// agent step says when one passes or fails the check that reads it.
+// DocumentType is a kind of document CaseWork knows about.
 //
 // Configuration rather than a constant: a visitor can add one. Which kinds of
 // case may hold it is the allowed list; which steps require it is on the
@@ -153,11 +152,7 @@ type DocumentType struct {
 	SessionID string
 	// Name is the middle segment of a sample's file name, and the handle the
 	// browser uses. Not editable; Title is.
-	Name  string
-	Title string
-	// PassFinding and FailFinding are what the simulation reports. A real model
-	// writes its own and never reads these.
-	PassFinding string
-	FailFinding string
-	CreatedAt   time.Time
+	Name      string
+	Title     string
+	CreatedAt time.Time
 }

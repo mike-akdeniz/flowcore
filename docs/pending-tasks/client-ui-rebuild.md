@@ -180,7 +180,7 @@ The editor currently stores step document associations in CaseWork and narrows t
 The detailed implementation contract and checklist are in [agent-step-configuration.md](agent-step-configuration.md).
 Implement that work within slice 7 before calling this slice done; it extends this slice by owner decision without changing the agreed slice order.
 Step instructions and required input type IDs move into FlowCore definitions and snapshots; CaseWork retains document types, per-case-type allowed lists, document records, permissions, and required-document checks.
-The old documentation-check agent and its `incomplete → awaiting documents` premise must be replaced because a required document is a gate to deciding, not a condition an agent classifies after deciding.
+The old documentation-check agent and its `incomplete → awaiting documents` premise are replaced because a required document is a gate to deciding, not a condition an agent classifies after deciding: the step is now `estimate check`, judging adequacy (client decision 39).
 
 The remaining work in this slice is defining agent steps in the editor.
 Done when agent steps can also be defined, a workflow can be built and a type switched onto it, and
