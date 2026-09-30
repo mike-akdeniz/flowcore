@@ -186,7 +186,32 @@ The remaining work in this slice is defining agent steps in the editor.
 Done when agent steps can also be defined, a workflow can be built and a type switched onto it, and
 cases already running keep the one they started under.
 
-### 8 — Close out
+### 8 — Real agent steps
+
+*Added 2026-09-29 by owner decision, before the close-out.*
+Agent steps have only been exercised in simulated mode.
+How CaseWork runs a real agent step when an API key is configured was never designed, and the path that exists was written for an earlier scenario and has not been revisited since the agent-step design (FlowCore decision 47, client decisions 36–39).
+
+**What exists today.**
+With `ANTHROPIC_API_KEY` set in the environment, `chooseChecker` swaps in `ClaudeChecker`.
+It sends the step's frozen instructions as the system prompt, followed by a fixed reply format (`ACTION:` / `FINDING:`), and the whole case as one user message: the details and every current document's text, not only the step's required documents.
+It matches the reply's action name against the step's actions, and the finding becomes the visit's remark.
+The model is hard-coded as `claude-opus-5` with 1024 output tokens; whether that model id is current has not been checked.
+A failed call leaves the visit open, and the dispatcher's sweep retries it every 15 seconds with no backoff or limit.
+None of it is covered by tests or has been run end to end with a key.
+
+**Decisions to make, by interview, before building:**
+
+- How the API configuration is stored and supplied: environment only, or something a visitor can set; which model; limits on cost and retries.
+- How a step's instructions relate to its required documents: whether the agent is given only the required documents, and how the instructions refer to them.
+- How the model's response becomes a step decision: the reply format or structured output, validation against the step's actions, and what happens when a reply cannot be used.
+- How the finding is recorded on the visit, and what a visitor sees while a real agent is working and when it fails.
+- How the path is verified, given it calls an external service.
+
+The list is where the interview starts, not its boundary.
+Done when: set during the interview.
+
+### 9 — Close out
 
 - `client/README.md` and the library `README.md`.
 - A polish pass.
