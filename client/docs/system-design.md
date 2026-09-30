@@ -131,14 +131,17 @@ Each submission type has an explicit set of document types that may be filed for
 The Add document selector shows that set throughout a case, whether the case is draft or on any workflow step; it does not narrow to the current step.
 Each step separately declares the document types required for a decision on that step, and the case screen shows them with their present or missing state beside the current step and assignee.
 CaseWork refuses a human decision while a required type is missing.
-An agent step's instruction must be nonempty, and its required documents are the documents the agent receives for assessment.
+An agent step's instruction must be nonempty.
+The agent reads the case details and the whole current file, each document labelled by its type title, and the instructions say in prose what to look at; required documents are the presence gate, not the agent's reading list.
 Before a selected action hands control to an agent step, CaseWork checks that one immediate destination's required documents are present, using the running workflow snapshot.
 It does not walk beyond that destination or require documents for branches the run has not chosen.
 The editor refuses an action from one agent step to another unless every type the destination requires is also required by the source.
 The source cannot be decided until its own required types are present, and no one can file a document while an agent holds the step, so the subset rule guarantees the destination is never stuck.
 An editor stacking agent steps satisfies it by requiring the later documents on the earlier agent step too, or by inserting a human step between the agents to collect or verify more documents.
 The seeded claim's second agent step is `estimate check`, which judges whether an estimate on the case is itemised enough to assess and sends it to `estimate follow-up` when it needs detail; presence is the gate, adequacy is the agent's judgment.
-Without an API key an agent step is simulated: it takes a fixed demo branch, or its first action, and its remark says so.
+Agent steps are decided by the model the session has chosen in the top bar, from a list of a local server's models and, when a key is set, Anthropic's.
+The reply is constrained to a schema naming the step's actions, and the finding ends with a line naming the model.
+Until a model is chosen and available the step waits open, and the case screen says which of queued, running, waiting for a model, retrying, or parked it is.
 
 While a case is draft, any visitor in its session may add an allowed document.
 After submission, only the current step's assignee may add one; a person may gather a document from someone else and file it themselves.
@@ -251,6 +254,8 @@ On first arrival CaseWork copies a template dataset into rows tagged with that v
 The cast is shared and read-only.
 What belongs to a visitor is the work, not the people.
 
+The session row also holds the visitor's chosen agent model, backend and model id together, empty until one is chosen.
+
 This is the same principle the previous version used — the client owns tenancy because FlowCore has none — expressed in rows rather than in memory.
 
 # Screens
@@ -312,6 +317,8 @@ It interprets nothing it is given.
       |
       +--> FlowCore           Catalog (configure) · Engine (start, complete,
                               worklist, reassign)
+      |
+      +--> local model server only from the agent worker, OpenAI-compatible API
       |
       +--> Anthropic API      only from the agent worker, only when a key is set
 ```

@@ -200,16 +200,32 @@ The model is hard-coded as `claude-opus-5` with 1024 output tokens; whether that
 A failed call leaves the visit open, and the dispatcher's sweep retries it every 15 seconds with no backoff or limit.
 None of it is covered by tests or has been run end to end with a key.
 
-**Decisions to make, by interview, before building:**
+**Settled by interview, 2026-09-30** — [client decision 40](../../client/docs/decisions.md) holds the reasoning and the exchange.
 
-- How the API configuration is stored and supplied: environment only, or something a visitor can set; which model; limits on cost and retries.
-- How a step's instructions relate to its required documents: whether the agent is given only the required documents, and how the instructions refer to them.
-- How the model's response becomes a step decision: the reply format or structured output, validation against the step's actions, and what happens when a reply cannot be used.
-- How the finding is recorded on the visit, and what a visitor sees while a real agent is working and when it fails.
-- How the path is verified, given it calls an external service.
+- A local model of at most about 300 MB is the default; Anthropic is used when a key is set; canned mode leaves the shipped code.
+- The local backend is one OpenAI-compatible client configured by a base URL, led by `llama-server` and documented for Ollama.
+- With no backend reachable, CaseWork starts, warns, and agent visits wait open.
+- The agent reads the case details and the whole current file, documents labelled by type title; required stays the presence gate.
+- Both backends share one reply contract: a per-step schema with an `action` enum and a `finding` string.
+- The model is chosen per session from a top-bar dropdown listing both backends' live models; no model id in code or configuration.
+- Transient failures retry on the sweep; permanent ones park the visit for that model.
+- The finding ends with a line naming the model.
+- The case screen shows which of five states an agent step is in.
+- No verification step costs money.
 
-The list is where the interview starts, not its boundary.
-Done when: set during the interview.
+**Done when:**
+
+1. `SimulatedChecker`, the demo-branch list, `chooseChecker` and the no-key wording are deleted; a deterministic fake exists only in tests.
+2. One OpenAI-compatible local client is configured only by a base URL, and a `make` target starts `llama-server` with the chosen model on a port other than 8080; the model is Gemma 3 270M or SmolLM2-360M, whichever writes more sensible findings in the opt-in local test.
+3. The Anthropic client is rewritten on structured outputs with minimal request parameters and no model id in code or configuration.
+4. Both backends use one contract: a per-step schema (`action` enum, `finding` string) and the whole current file with documents labelled by type title; `parseVerdict` and the line format are deleted.
+5. A top-bar dropdown lists local and Anthropic models live, grouped, with the selection stored per session; no default when several are listed, automatic when exactly one is.
+6. Transient failures retry on the sweep; permanent ones park the visit per model, and it unparks on a model change or reassignment.
+7. The finding ends with a line naming the model and is trimmed to fit the 3000-character remark limit.
+8. The case screen shows the right line for each of the five agent states, and the document form names the model that will read it.
+9. The always-on tests and the opt-in local test pass, and the manual checklist has been run against the binary on the local model.
+10. `client/README.md` has its setup section: install llama.cpp, run the `make` target, optionally export a key.
+11. Client decision 40 records the interview.
 
 ### 9 — Close out
 

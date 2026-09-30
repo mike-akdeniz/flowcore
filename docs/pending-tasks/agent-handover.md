@@ -2,31 +2,54 @@
 
 ## Current task and next step
 
-Handover written 2026-09-29 on branch `main`, after the owner committed the agent-step design as `e542432` (`Document agent-step configuration and snapshot design`).
-The design interview is settled and documented; implementation has not started.
-The owner asked for this handover, not for implementation yet.
-When implementation is requested, read the [agent-step configuration checklist](agent-step-configuration.md) and work within slice 7 of the [agreed UI rebuild plan](client-ui-rebuild.md), in its documented order.
+Handover written 2026-09-29 on branch `main`, at commit `cb3c16f` with a clean working tree.
+The agent-step work of CaseWork slice 7 is implemented, verified, and committed in four passes.
+The owner then added a new slice before the close-out: **8 — Real agent steps**, recorded in the [agreed UI rebuild plan](client-ui-rebuild.md).
+The next step is to run that slice's **design interview**, not to build: nothing about the real agent path is settled.
+Work within the plan's order: slice 8 (real agent steps), then slice 9 (close out).
 
-## Settled design
+## The real agent steps slice
 
-The [FlowCore system design](../system-design.md) and [CaseWork system design](../../client/docs/system-design.md) are authoritative; [FlowCore decision 47](../decisions.md) and [CaseWork decisions 36–37](../../client/docs/decisions.md) record the owner's objections and the alternatives that did not survive.
-FlowCore stores neutral step instructions and opaque `required_input_type_ids` (`text[]`, Go `RequiredInputTypeIDs []string`) on step definitions and eager instance step snapshots.
-CaseWork retains case types, document type catalog and stable IDs, per-case-type allowed lists, document records, permissions, and required-document checks.
-Required means a document type must be present before that step can be decided; a selected immediate agent destination is checked one step ahead, and an agent entry step is checked before `Start`.
-All run-side reads, agent discovery, action targets, and historical decision-document projections use instance snapshots, not current definitions.
-FlowCore has no record-type catalog or workflow subject-type column, and CaseWork has no parallel step configuration or snapshot mechanism.
-No legacy data backfill is required because FlowCore has no external users and CaseWork is a demo; fresh schema and seed changes are required.
+The slice entry in [client-ui-rebuild.md](client-ui-rebuild.md) holds what exists today and the decisions to make; read it first rather than relying on this summary.
+The owner's framing: agent steps have only run in canned mode, and *"We didn't design how caseFlow will run a real agent step when API key is setup. So we have many decisions to make such as: how the api configuration is stored, how the instruction refers to the required documents, how the response from API is turned in a step decision and so on."*
+Run it as a grilling interview per `CLAUDE.md`: one question at a time, each with a recommendation, root decisions first, facts looked up rather than asked, and the exchange logged in [client decisions](../../client/docs/decisions.md) (or [FlowCore decisions](../decisions.md) if it reveals anything about the library).
+Nothing is written to design docs or code until the owner says the questions are settled.
 
-## Working tree and verification
+Facts worth having before the first question, all in `client/internal/app/`:
 
-The working tree was clean immediately after commit `e542432`; this handover replacement is the only new uncommitted change from this request.
-No code, schema, or tests were changed or run during this handover.
-The committed documentation passed `make check-docs` and `git diff --check` before the owner's commit.
-No relevant process or environment blocker is known.
-The start-time validation API mechanism remains an implementation choice, subject to owner review if it changes the library model or trade-off; the required guarantee is to validate the same definition that `Start` snapshots.
+- `app.go` `chooseChecker` picks `ClaudeChecker` when `ANTHROPIC_API_KEY` is set in the environment, otherwise `SimulatedChecker`.
+- `checker_claude.go` hard-codes the model as `claude-opus-5` with 1024 output tokens; that id has not been checked against current model ids (use the `claude-api` skill for model ids and SDK usage).
+- It sends the step's frozen instructions plus an `ACTION:` / `FINDING:` reply format as the system prompt, and `SubjectText` (the case details and every current document's text, not only the required ones) as the user message; `parseVerdict` matches the action by name.
+- `dispatcher.go` retries a failed check on every 15-second sweep with no backoff or limit, and skips an agent whose required documents are missing.
+- `checker_canned.go` is the simulation settled in client decision 39: a fixed demo-branch list (`full assessment`, `adequate`, `inconsistent`, `refer`), else the first action, with one disclosed remark.
+- None of the real path has tests or has been run with a key.
+
+## What slice 7's agent-step work settled
+
+Authoritative records: [FlowCore decision 47](../decisions.md) (including its *Review before implementation* section), [client decisions 36–39](../../client/docs/decisions.md), both system designs, and the [implementation checklist](agent-step-configuration.md).
+In short:
+
+- FlowCore stores step `Instructions` and opaque `RequiredInputTypeIDs` on definitions and snapshots them into every run; `StartParams.Validate`, `ListOpenSteps`, `GetActionTarget`, and `ListOpenRunSteps` exist for clients (migration `00006`, with index `ix_workflow_open_definition`).
+- CaseWork keeps document types (stable id, name, editable title), per-case-type allowed lists, required-document checks at decide, one-step agent lookahead and agent-entry start, assignee-only filing after submission, snapshot-based agent discovery, and decision documents in history.
+- The editor refuses agent-to-agent handoffs that would strand the destination (decision 38) and agent steps without instructions.
+- The documentation-check agent became `estimate check` (`adequate` / `needs detail`) with loop step `estimate follow-up` (decision 39).
+- Sample `-pass` / `-fail` labels show only in the sample picker, never on filed documents (owner: *"if you do 2, I'm ok with pass - fail wording as it will only appear in the picker"*).
+
+## Verification state
+
+- Library: `make test` passes against real Postgres, including `step_configuration_test.go`.
+- Client: `CASEWORK_TEST_DSN=... go test ./...` passes; tests need a migrated database with both schemas. The last runs used a `casework_test` database created in the `flowcore-client-postgres` container (port 5433), migrated with goose using `-table public.flowcore_goose_db_version` for `../migrations` and `-table public.casework_goose_db_version` for `internal/store/migrations`; recreate it after any schema edit.
+- The nine checklist scenarios were verified against the running binary on a throwaway database (31 of 31 checks, plus the restart scenario); that database was dropped.
+- Not done: a visual check of the UI in a browser.
+- CaseWork migrations are edited in place, so the owner's development database needs `make reset` (or `make fresh`) after the recent schema changes.
+
+## Open items for the owner
+
+- Proposed, not applied: `docs/status.md` still reads "Remaining: define agent steps in the editor, then close out." Suggested: "Remaining: real agent steps, then close out." The owner decides status text.
+- Slice 9 close-out will include deleting dead code such as the unused `seededDefinitions()` in `client/internal/app/workflows.go`.
 
 ## Resume safely
 
-Read [project status](../status.md) for the owner-controlled state, then the two system designs, decision logs, and task checklist.
-The older slice 6 plan and earlier client decisions describe the current implementation; the newly committed design supersedes their step-narrowed picker, descriptive association, and definition-derived agent discovery.
-Inspect the tree before work, keep implementation uncommitted for owner review, and do not change status or the binding slice order unilaterally.
+Read [project status](../status.md), then the slice 8 entry in the plan, then client decisions 36–39.
+Verify this account against `git log` and the working tree before acting.
+Keep all work uncommitted for owner review; suggest one-line commit messages with no attribution lines.

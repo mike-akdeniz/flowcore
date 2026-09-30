@@ -1759,3 +1759,113 @@ It reads no documents.
 Document types lose their findings columns.
 The samples keep their `-pass` / `-fail` names as a label of what their text argues, shown in the picker, for a visitor with a key choosing how to push the model.
 With a key, the agent steps read the whole case and the step's frozen instructions, as before.
+
+## 40. Real agent steps: a small local model, a model picker, and no canned mode
+
+*Settled by interview, 2026-09-30, as slice 8 of the UI rebuild.*
+Supersedes decision 5, the simulation in decisions 21, 25, 31 and 39, and one line of the system design (see *What the agent reads*).
+
+**The problem.**
+Agent steps had only run simulated.
+With `ANTHROPIC_API_KEY` set, `ClaudeChecker` sent the step's frozen instructions and an `ACTION:` / `FINDING:` reply format, matched the reply's action by name, and hard-coded `claude-opus-5` with 1024 output tokens.
+A failed call was retried on every 15-second sweep with no limit.
+None of it had tests or had been run with a key.
+The owner's framing: *"We didn't design how caseFlow will run a real agent step when API key is setup."*
+
+**Whose key, and the question it turned into.**
+The first question asked whose key a real step uses, given CaseWork was built to be hostable and a key on a public host would bill the owner for strangers' calls.
+The recommendation was the environment only, for someone running CaseWork themselves, with a public host left simulated.
+The owner answered with a different design: *"What if we ship the client with a local good enought free model and remove canaed mode? No api key it works with local model, api key, makes api calls. I like this idea because it's simpler structure wise then dealing with canned weird stuff and it's more impressive in the demo than the canned stuff."*
+Claude supported it and set out the costs, starting with a multi-gigabyte model pull.
+The owner removed one constraint and added another: *"Forget about the public host, that's probably not gonna happen and shouldn't constrain our decisions now. But I don't like a 1 gb download, running the demo locally shouldn't be that costly. Can't we find a good enough model with at most 200mb - 300mb; the prompts and the context will be very primitive after all and we only need a sensible response from the model, the accuracy of the model is not the point of the demo."*
+
+Facts found before the revised question: Gemma 3 270M is 292 MB and SmolLM2-360M-Instruct about 271 MB at Q4_K_M, while Qwen3-0.6B is 380–430 MB and over budget.
+The official Ollama Docker image is reported at about 4 GB, so the runtime, not the model, was what threatened the budget.
+Both llama.cpp's `llama-server` and Ollama constrain generation to a JSON schema, which is what makes a model this small usable: it cannot return a malformed reply or an action that does not exist.
+
+Settled: a local model of at most about 300 MB is the default, the reply is constrained to a per-step schema, Anthropic is used when a key is set, and canned mode leaves the shipped code; a deterministic fake survives only in tests.
+Which of the two small models ships is chosen at build time by running both against the seeded cases.
+The owner: *"yes"*.
+
+**The local runtime.**
+`llama-server` and Ollama both serve an OpenAI-compatible `/v1/chat/completions` that honours `response_format` with a JSON schema, so one plain `net/http` client serves either.
+`llama-server` defaults to port 8080, which is CaseWork's own `CLIENT_ADDR`.
+Settled: one OpenAI-compatible client configured by a base URL; the README leads with `llama-server`, started by a `make` target on a port other than 8080, and documents Ollama as the alternative.
+No Docker container for the model.
+The owner: *"A"*.
+The model-name variable proposed with it was later dropped, when the model picker below made it redundant.
+
+**When no backend is reachable.**
+A failed check already leaves the visit open for the sweep, and a person can take the step by reassigning it (decision 23).
+Settled: CaseWork starts regardless, logs a warning naming the `make` target when the local server is missing, and agent visits wait open until a backend can serve them.
+Refusing to start was rejected because the server can stop after startup anyway, and because waiting shows decision 4's point — the run is paused in a row, not in a process.
+The owner: *"B"*.
+
+**What the agent reads.**
+The seeded required lists turned out not to describe what each step reads: they follow decision 38's no-stranding rule.
+`estimate check` requires the police report only so it can hand to `narrative consistency`; `narrative consistency` requires only the police report, but its instructions ask about any witness statement, which is optional; `triage` requires all three types its agent successors need.
+Settled: the agent reads the case details and the whole current file, each document labelled by its type title, and the step's instructions say in prose what to look at.
+Required stays what decision 36 made it, the presence gate.
+A separate per-step "reads" list was rejected as a third list solving what prose already solves.
+The owner: *"B"*.
+
+This contradicted a line in the system design — *"its required documents are the documents the agent receives for assessment"* — which no decision backed and the code never implemented.
+The design doc was corrected to match.
+The owner, on how to treat such conflicts: *"correct the design doc, if any similar conflict arises, what we just agreed on the interview wins, those are the most recent decisions."*
+
+**One reply contract, and no model id in configuration.**
+The recommendation was one contract for both backends — CaseWork builds the prompt and a per-step schema, `action` as an enum of the step's action names and `finding` as a string — with `parseVerdict` and the line format deleted, and a default model of `claude-opus-5-5` overridable from the environment.
+`claude-opus-5` was found to be a real but previous-generation id.
+The owner accepted the contract and objected to the configured model: *"I could be ok with A but why do we have to use the model name in the config? These models change every months, what would happen if the model we target is not there anymore and sometimes the model is there but it costs substantially more. Would implementing a model dropdown on top bar be very expensive? That way the choice of model would land totally on the use and the model gone issue would be solved."*
+
+Facts that settled it: the Anthropic Models API lists the models available to a key, so a retired one cannot be picked, and both local servers answer `GET /v1/models` on the same compatible API.
+The Models API carries no pricing, so the picker cannot show cost; the choice, and its cost, are the user's.
+Settled: the model is chosen per session from a dropdown in the top bar, filled live from the backends' model lists, and stored in one nullable column on the session.
+The request sends the schema, the prompt and a generous output limit, and no thinking or effort settings, so any listed model accepts it.
+There is no default when several models are listed, because any default is a hard-coded id again, and newest-first would pick the most expensive; agent steps wait until one is chosen.
+When the backends list exactly one model, it is selected automatically.
+The owner: *"yes"*.
+
+**Both backends in one list.**
+With a picker, a process-wide mode switch had nothing left to decide.
+Settled: the dropdown lists local models when the local server answers and Anthropic models when a key is set, grouped; the selection records backend and model, and the dispatcher routes each call by it.
+`chooseChecker` and decision 5's detect-and-switch go.
+A selection that stops being listed makes agent steps wait.
+Switching models and re-running a case is how the two are compared.
+The owner: *"B"*.
+
+**Failures.**
+With the reply constrained, a failed call is either transient — rate limit, overload, timeout, a dropped connection — or permanent for that model: a request error, a refusal, or a reply cut off at the output limit.
+A permanent failure repeats identically, and refusals and truncated replies are billed.
+Settled: transient failures retry on the sweep as before; a permanent one parks the visit for that selection, in memory, until the session picks another model or a person reassigns the step.
+A restart clears the parking, costing at most one repeated call.
+A retry cap was rejected because it gives up on a rate limit that clears and still spends its calls on a refusal that never will.
+The owner: *"B"*.
+
+**Which model spoke.**
+Settled: the finding ends with a line naming the model and its backend, frozen with it in the remark, which is the completer's own account.
+A CaseWork table keyed by visit was rejected as structure only History would read; putting the model in `completedBy` was ruled out because every agent decision would then look like an override under decision 23.
+A finding long enough to break FlowCore's 3000-character remark limit is trimmed rather than treated as a failure.
+The owner: *"A"*.
+
+**What the case screen shows.**
+An agent step can now be queued or running, waiting for a model to be chosen, waiting for an unavailable selection, waiting to retry, or parked.
+Settled: the server reports which, with a short detail, and the step card shows the matching line; the spinner shows only while queued, running or retrying, and the line about the run sitting in the database stays with it.
+Polling slows to five seconds outside those states.
+The document form's note names the model that will read the document, or says none is chosen.
+The owner: *"A"*.
+
+**Verification.**
+The first proposal had three layers: always-on tests against fake backend servers, an opt-in test against a real local server, and a manual checklist including paid Anthropic runs.
+The owner: *"Running a test should never cost money. So adjust the options accordingly."*
+Settled: the always-on tests; the opt-in local test, skipped unless `CASEWORK_LOCAL_MODEL_URL` is set, asserting only that a step completes with a valid action and a non-empty finding, and used to choose the shipped model; and a manual checklist against the binary on the local model only.
+Nothing in verification calls Anthropic.
+Its client is built on the SDK's types and checked against a fake; if the live API rejects the request, the first user call parks and shows the error.
+The owner: *"A"*.
+
+**Done when** is recorded with slice 8 in the UI rebuild plan.
+It includes the setup section of `client/README.md`, moved forward from slice 9 because without it the local mode cannot be run; slice 9 keeps the full README pass.
+The owner accepted the list: *"I'm ok with your recommendation"*.
+
+Nothing in this interview reached the library.
+Every change is in `client/`, and FlowCore's API showed no friction.
