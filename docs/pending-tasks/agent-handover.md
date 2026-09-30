@@ -1,33 +1,32 @@
 # Agent handover
 
-## Current task
+## Current task and next step
 
-Updated 2026-09-29 on branch `main` at `e531ce0`.
-The owner completed an extended design interview about agent steps, required documents, and the FlowCore/CaseWork boundary, then asked for durable documentation that permits a fresh implementation or a complete retry.
-This session writes design and implementation notes only; no code or schema has been changed.
-The next concrete step, when the owner requests implementation, is to follow [agent-step configuration](agent-step-configuration.md) within slice 7 of the [agreed UI plan](client-ui-rebuild.md).
+Handover written 2026-09-29 on branch `main`, after the owner committed the agent-step design as `e542432` (`Document agent-step configuration and snapshot design`).
+The design interview is settled and documented; implementation has not started.
+The owner asked for this handover, not for implementation yet.
+When implementation is requested, read the [agent-step configuration checklist](agent-step-configuration.md) and work within slice 7 of the [agreed UI rebuild plan](client-ui-rebuild.md), in its documented order.
 
-## Decisions and constraints
+## Settled design
 
-The authoritative contracts are [FlowCore system design](../system-design.md) and [CaseWork system design](../../client/docs/system-design.md); the interview and rejected paths are in [FlowCore decision 47](../decisions.md) and [CaseWork decisions 36–37](../../client/docs/decisions.md).
-FlowCore owns step instructions and opaque required input type IDs on definitions and eager instance snapshots.
-CaseWork owns case types, document type catalog and stable IDs, per-case-type allowed lists, documents, permissions, and hard required-document checks.
-One immediate agent destination is checked before a chosen action, not a recursive agent chain; an agent entry step is checked before `Start`.
-All run-side reads, agent discovery, action targets, and history must use snapshots rather than current definitions.
-The owner said no legacy data migration is needed because FlowCore has no external users and CaseWork is a demo; fresh schema and seed changes are still needed.
-The owner explicitly held implementation until further instructions, and this request authorizes documentation only.
+The [FlowCore system design](../system-design.md) and [CaseWork system design](../../client/docs/system-design.md) are authoritative; [FlowCore decision 47](../decisions.md) and [CaseWork decisions 36–37](../../client/docs/decisions.md) record the owner's objections and the alternatives that did not survive.
+FlowCore stores neutral step instructions and opaque `required_input_type_ids` (`text[]`, Go `RequiredInputTypeIDs []string`) on step definitions and eager instance step snapshots.
+CaseWork retains case types, document type catalog and stable IDs, per-case-type allowed lists, document records, permissions, and required-document checks.
+Required means a document type must be present before that step can be decided; a selected immediate agent destination is checked one step ahead, and an agent entry step is checked before `Start`.
+All run-side reads, agent discovery, action targets, and historical decision-document projections use instance snapshots, not current definitions.
+FlowCore has no record-type catalog or workflow subject-type column, and CaseWork has no parallel step configuration or snapshot mechanism.
+No legacy data backfill is required because FlowCore has no external users and CaseWork is a demo; fresh schema and seed changes are required.
 
-## Working tree and checks
+## Working tree and verification
 
-Seven existing documentation files have uncommitted changes for owner review: both system designs, both decision logs, the UI plan, this handover, and the pending-task index.
-The new `agent-step-configuration.md` is untracked until the owner reviews it.
-No implementation is present or verified.
-`make check-docs` and `git diff --check` passed for the documentation edits; no implementation tests were run.
-No relevant process is running, and there is no known environment blocker.
+The working tree was clean immediately after commit `e542432`; this handover replacement is the only new uncommitted change from this request.
+No code, schema, or tests were changed or run during this handover.
+The committed documentation passed `make check-docs` and `git diff --check` before the owner's commit.
+No relevant process or environment blocker is known.
+The start-time validation API mechanism remains an implementation choice, subject to owner review if it changes the library model or trade-off; the required guarantee is to validate the same definition that `Start` snapshots.
 
-## Resume
+## Resume safely
 
-Read [project status](../status.md) without editing it unilaterally, then the two system designs and the new task checklist.
-Inspect the working tree because these documentation changes are uncommitted and may still be reviewed or revised by the owner.
-The older slice 6 plan and prior decision-log entries describe how the current client was built; the new design supersedes their step-narrowed picker and descriptive step association.
-Do not change the binding slice order or commit in this repository.
+Read [project status](../status.md) for the owner-controlled state, then the two system designs, decision logs, and task checklist.
+The older slice 6 plan and earlier client decisions describe the current implementation; the newly committed design supersedes their step-narrowed picker, descriptive association, and definition-derived agent discovery.
+Inspect the tree before work, keep implementation uncommitted for owner review, and do not change status or the binding slice order unilaterally.

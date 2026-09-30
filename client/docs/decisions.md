@@ -1701,3 +1701,25 @@ The dispatcher currently derives possible agent references from registered defin
 It must discover open instance visits instead and filter to the current CaseWork session and `agent:` references.
 The same instance-side principle applies to selected action targets and assignment choices for an open run.
 The seeded documentation-check agent's incomplete path and the live checker's old agent-reference map must be changed with this design.
+
+## 38. The editor refuses an agent-to-agent action that can strand the destination
+
+**The trap.**
+Decision 36 left agent stacking to the editor's care: the later agent's documents had to be required on an earlier human step, or a human step inserted between the agents.
+Nothing enforced it.
+If agent A chooses an action to agent B and B's required type is absent, A's decision is blocked, and after submission only the current assignee can file a document, so no one can repair the case while A holds it.
+The only way out is reassignment.
+A pre-implementation review of the agent-step design surfaced this as a question of its own.
+
+**What was settled.**
+The recommendation was to refuse, at save, an action from an agent step to an agent step unless the destination's required types are a subset of the source's.
+The source cannot be decided without its own required types, and nothing can be added while it is current, so the subset is exactly what guarantees the destination's documents are present.
+The rule reads only the two ends of the action and walks no paths, in keeping with decision 36's one-step lookahead.
+It is stricter than "an earlier human step requires it": that condition can be bypassed by a branch that skips the human step, while a linear case it would have allowed is fixed by also requiring the type on the source agent step.
+The owner took the recommendation: *"your recommendation"*.
+
+**Cost and limits.**
+The check is server-side and runs on every edit that can create the shape: an action's target, either step's assignee moving to or from an `agent:` reference, and either step's required types.
+The error names the destination step and the missing types.
+It does not cover reassigning an open visit to an agent at run time; reassignment stays the recovery path for that.
+FlowCore still knows nothing about agents: the rule is CaseWork policy over FlowCore's definition fields.

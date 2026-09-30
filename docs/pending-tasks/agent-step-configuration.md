@@ -34,10 +34,14 @@ Hard deletion of a type used by a document, any instance snapshot, or a register
    A terminal action has no target; do not infer one from the current definition.
 4. Expose open visits or current steps without an assignee filter so clients can discover running work after definitions change.
    Preserve `ListAssignedSteps(nil)` as an empty result; do not reinterpret it as a wildcard.
-5. Make entry-step validation inspect the *same definition read that `Start` snapshots* and abort `Start` before any run row is committed if CaseWork rejects it.
-   A generic client validation hook inside `Start`'s transaction is one possible mechanism, but its exact public API is an implementation design choice requiring owner review if it changes the library model or trade-off.
-   The hook, if used, must not make FlowCore interpret agent references, document types, or document presence.
-6. Update FlowCore SQL migrations and repository reads/writes for the new fields and reads; schema changes may assume a fresh demo database and need no backfill or compatibility path.
+5. Add a read that takes a set of definition IDs and returns every snapshot step, reached or not, of their open runs: workflow ID, subject reference, step ID, assignee, instructions, and required input type IDs.
+   One query for the set, not one per run; keep it separate from the open-step read in item 4 and leave `GetState` unchanged.
+   CaseWork's allowed-list removal guard uses it and does the type comparison itself.
+6. Make entry-step validation inspect the *same definition read that `Start` snapshots* and abort `Start` before any run row is committed if CaseWork rejects it.
+   Add optional `StartParams.Validate func(ctx context.Context, definition WorkflowDefinition) error`, called between `readDefinition` and `buildSnapshot` inside `Start`'s transaction.
+   Nil means no validation; a non-nil error rolls back and is returned unwrapped.
+   The callback must not make FlowCore interpret agent references, document types, or document presence.
+7. Update FlowCore SQL migrations and repository reads/writes for the new fields and reads; schema changes may assume a fresh demo database and need no backfill or compatibility path.
 
 ## CaseWork data and editor work
 
@@ -47,11 +51,12 @@ Hard deletion of a type used by a document, any instance snapshot, or a register
    Seed each case type separately, including valid optional types that no step requires.
    The Add document selector shows exactly the full allowed list for that case type at every step and in draft; sample parsing, upload, and API validation use the same allowed set.
 3. Editing a step's required types permits only types on the allowed list of the workflow's registered case type.
-   Removing a type from that list is refused while any registered definition of that case type requires it or any **open** instance for that case type has it in its snapshot.
+   Removing a type from that list is refused while any registered definition of that case type requires it or any **open** instance for that case type has it in its snapshot, read through FlowCore item 5.
    A completed instance does not block allowed-list removal, but retains its frozen reference and must still render its history.
    These guards must be enforced server-side and account for all workflows registered for that case type in the session.
 4. Add an editor control for neutral step instructions, required types, and agent assignees; require nonempty instructions for `agent:` assignees in CaseWork.
    Human instructions may be empty if the editor permits it.
+   Refuse, server-side, an action from an agent step to an agent step unless the destination's required types are a subset of the source's; check it on action target, assignee, and required-type edits, and name the destination and missing types in the error.
    Editing an existing definition must not change any run's step instructions, required types, assignees, or action targets.
 5. Update the seeded workflow and checker so the documentation-check agent no longer decides whether a required document is missing.
    Use a useful assessment such as checking basic submission text, with matching instructions and branch names.
@@ -85,7 +90,8 @@ Hard deletion of a type used by a document, any instance snapshot, or a register
 - Removing D1 from claims' allowed list is blocked by any registered claim definition that still requires it or any open claim run whose snapshot requires it; completed runs alone do not block that removal.
 - Hard deleting D1 while a document, registered definition, or instance refers to it fails.
 - A human on H selects an action to agent A: missing A-required docs block that decision with a message naming A and the docs; the system checks A only, not possible later branches.
-- Agent A selects agent B and B lacks a required document: A's decision is blocked; the editor must put B's requirement earlier on a human step or add a human step between them, and existing reassignment can recover a stuck open visit.
+- Saving an action from agent A to agent B fails while B requires a type A does not; requiring it on A too, or inserting a human step between them, lets it save.
+  A visit stuck by run-time reassignment to an agent is recovered by reassignment.
 - A run opens at an agent step with missing required docs: start fails cleanly and the case stays draft.
 - A definition changes while an agent run is open, then the CaseWork process restarts: the dispatcher still finds the open agent from the snapshot and uses its frozen instruction and inputs.
 

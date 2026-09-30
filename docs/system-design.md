@@ -554,9 +554,14 @@ The client's case type, document type catalog, and document records remain outsi
 Recovery discovery also follows instances rather than definitions.
 A generic open-step read gives clients the live assignees from open visits; CaseWork decides which of those references it dispatches as agents and which sessions it owns.
 The existing assignee-keyed worklist keeps its meaning, including returning nothing for an empty reference set.
+A second read takes a set of definition IDs and returns every snapshot step, reached or not, of their open runs, with each step's assignee, instructions, and required input type IDs.
+It serves a client that must know whether any open run could still require an input type; the client does the comparison, and FlowCore reports the snapshot without interpreting it.
 
 For a client that must validate the first step before a run exists, `Start` must offer a way to validate the exact definition read in its transaction before writing the snapshot.
+The mechanism is an optional validation callback on `StartParams`, called with the definition `Start` has just read and before the snapshot is written.
+A nil callback changes nothing; an error from it rolls the start back and is returned to the caller unchanged.
 The caller supplies the policy and material; FlowCore only runs the check against its consistent definition read and aborts the start when it fails.
+The callback runs while the start transaction holds a pooled connection, so it should be quick.
 The same consistency need does not apply to later transitions: their targets and required input types are already frozen, and the client can inspect the selected immediate destination before calling `CompleteStep`.
 
 The resolutions behind these — why the library never calls a model, why sequential-only, and the shape of the remark — land as decisions 39 onward and are written into the sections above.

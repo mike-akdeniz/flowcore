@@ -134,7 +134,9 @@ CaseWork refuses a human decision while a required type is missing.
 An agent step's instruction must be nonempty, and its required documents are the documents the agent receives for assessment.
 Before a selected action hands control to an agent step, CaseWork checks that one immediate destination's required documents are present, using the running workflow snapshot.
 It does not walk beyond that destination or require documents for branches the run has not chosen.
-An editor stacking agent steps must place the needed document requirements on the human step before the stack, or insert a human step between agents to collect or verify more documents.
+The editor refuses an action from one agent step to another unless every type the destination requires is also required by the source.
+The source cannot be decided until its own required types are present, and no one can file a document while an agent holds the step, so the subset rule guarantees the destination is never stuck.
+An editor stacking agent steps satisfies it by requiring the later documents on the earlier agent step too, or by inserting a human step between the agents to collect or verify more documents.
 The seeded documentation-check agent, which currently chooses an incomplete branch because a document is missing, is replaced by an agent task consistent with required meaning required.
 
 While a case is draft, any visitor in its session may add an allowed document.

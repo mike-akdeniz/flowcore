@@ -1943,3 +1943,22 @@ This is a consistency requirement, not permission for FlowCore to interpret Case
 This adds step definition and snapshot columns, public read/write fields, and SQL projection changes; it is an additive public API change but changes the stored schema.
 The owner said *"we don't need any data migrations, nobody uses flowcore and casework is just a demo app"*; fresh-schema migration and seed changes remain necessary, while backfill and compatibility code do not.
 FlowCore still does not call a model, construct model-specific prompts, or own subject types.
+
+**Review before implementation.**
+Before any code was written, the owner asked whether the design made sense, and the review was run as an interview.
+Checking the design against the code found a gap: the allowed-list guard in CaseWork decision 37 blocks removing a type while any open run's snapshot requires it, including steps the run has not reached, but no read exposes those steps.
+`WorkflowState` carries only `CurrentStep`, `GetHistory` covers visited steps, and neither the action-target read nor the open-step read above reaches an unvisited step.
+The recommendation was to add a full snapshot read rather than narrow the guard to current steps, which would let a running case come to need a type it could no longer file; the owner said *"add the full snapshot read"*.
+Three shapes were put to the owner: all snapshot steps added to `GetState`, a per-run `GetSnapshot`, or one read over a set of definition IDs.
+The first two answer the guard with one query per open run, and the first makes every state read heavier.
+The owner chose the set-shaped read: given definition IDs, it returns every snapshot step, reached or not, of their open runs, projected as workflow ID, subject reference, step ID, assignee, instructions, and required input type IDs.
+The client does the comparison with the type it is removing, so FlowCore still interprets nothing.
+It stays separate from the open-step read, because current steps and all steps are different questions.
+
+The same review first suggested deferring start-time consistency the way completion-path locking is deferred, on the ground that the race is narrow.
+That reopened a requirement this decision had already settled, and the suggestion was withdrawn once the section above was reread; only the mechanism remained open.
+`Start` already reads the definition and writes the snapshot in one repeatable-read transaction, so a check between the two sees exactly what is frozen.
+The recommendation was an optional `StartParams.Validate func(ctx context.Context, definition WorkflowDefinition) error`: nil changes nothing, and a non-nil error rolls the start back and is returned unwrapped so the client can match its own error type.
+Its costs are an additive field on `StartParams` and client code running while the transaction holds a pooled connection.
+The alternative was optimistic: pass a definition version to `Start` and refuse when it changed, avoiding client code inside the transaction at the price of a single-purpose token and a client retry.
+The owner took the recommendation: *"your recommendation"*.
