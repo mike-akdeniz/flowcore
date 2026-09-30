@@ -10,18 +10,19 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
-// The example document types, and which steps expect them.
+// The example document types, which kinds of case may hold them, and which steps
+// require them.
 //
 // This file is the one place a kind of document is described. It used to be four:
 // a prefix switch in the sample parser, a map of which step read which kind, a
 // map of canned findings, and a SQL CHECK constraint listing them — keyed by
 // three different things, with nothing failing when they drifted apart. The rows
-// below replace all four, and after seeding the database is the source rather
-// than this file.
+// below replace all four, and after seeding the database and the workflow
+// definitions are the source rather than this file.
 //
-// `name` is the document type's name everywhere: on the document row, in the
-// sample's file name, and here. A sample called `1-estimate-pass.txt` is an
-// example of the type named `estimate`, and nothing has to map between them.
+// `name` is the document type's name in the sample's file name and here. A sample
+// called `1-estimate-pass.txt` is an example of the type named `estimate`, and
+// nothing has to map between them. Everything else refers to the type by its id.
 
 type documentType struct {
 	name  string
@@ -30,13 +31,14 @@ type documentType struct {
 	fail  string
 }
 
-// expectedBy names the steps that read a type, by step name.
+// requirement names the document types a decision on a step requires, by step
+// name and type name.
 //
-// Matched to step definition ids at seed time, from the definition the catalog
-// just returned, and stored as ids. Names are fine *here* — this runs once,
-// against a definition created three lines earlier — and would not be fine in the
-// database, where a rename in the workflow editor would orphan them silently.
-type attachment struct {
+// Resolved to type ids and written onto the definition's steps before it is
+// created, so FlowCore stores them and freezes them into every run. Names are
+// fine *here* — this runs once, against a definition built three lines earlier —
+// and would not be fine anywhere they could outlive a rename.
+type requirement struct {
 	step  string
 	types []string
 }
@@ -96,42 +98,42 @@ var applicationDocumentTypes = []documentType{
 	},
 }
 
-// `awaiting documents` expects three kinds, and that is the point of attaching
-// types to steps rather than inferring them. It is a human step that reads
-// nothing itself, so no rule about what a step *judges* would ever reach it — but
-// it is the screen where a missing document arrives, and what is missing might be
-// any of them.
-var claimAttachments = []attachment{
-	{step: "triage", types: []string{"intake-note"}},
-	{step: "documentation check", types: []string{"estimate"}},
-	{step: "awaiting documents", types: []string{"estimate", "police-report", "witness-statement"}},
-	{step: "narrative consistency", types: []string{"police-report", "witness-statement"}},
-}
-
-var applicationAttachments = []attachment{
-	{step: "risk screen", types: []string{"inspection", "prior-insurer"}},
-}
-
-// seedDocumentTypes writes the types and attaches them to the definition's steps.
+// Required means required: a step cannot be decided without them (client
+// decision 36). An agent cannot file a missing document, so the agent steps' sets
+// are chosen to satisfy the two rules an editor would enforce — a case enters
+// `triage` only if its requirements are on file, and an agent hands another
+// agent only requirements it already had (client decision 38). That is why
+// `triage` requires everything its agent successors do.
 //
-// Steps with no attachment — `adjuster review`, `underwriter review` — are left
-// alone deliberately. A step that declares nothing narrows nothing, and the
-// picker offers everything there, because a document that has arrived has to be
-// filable whatever the case is doing.
+// The human steps require nothing. A person can file what is missing before
+// deciding, and the claim's `awaiting documents` loop still turns on whether the
+// estimate is adequate, which is a judgment rather than a presence check.
+var claimRequirements = []requirement{
+	{step: "triage", types: []string{"intake-note", "estimate", "police-report"}},
+	{step: "documentation check", types: []string{"estimate", "police-report"}},
+	{step: "narrative consistency", types: []string{"police-report"}},
+}
+
+var applicationRequirements = []requirement{
+	{step: "risk screen", types: []string{"prior-insurer"}},
+}
+
+// seedDocumentTypes writes the types and allows each of them on this kind of
+// case, returning their ids by name.
+//
+// Every listed type is allowed, including the ones no step requires. A
+// photograph or a letter is something a case may hold without any decision
+// depending on it, which is why the allowed list and the requirements are two
+// lists rather than one derived from the other.
 func (a *App) seedDocumentTypes(
 	ctx context.Context,
 	sessionID string,
-	definition flowcore.WorkflowDefinition,
+	submissionType store.SubmissionType,
 	types []documentType,
-	attachments []attachment,
-) error {
+) (map[string]uuid.UUID, error) {
 	ids := make(map[string]uuid.UUID, len(types))
 
 	for _, declared := range types {
-		if _, done := ids[declared.name]; done {
-			continue
-		}
-
 		id, err := a.Store.EnsureDocumentType(ctx, store.DocumentType{
 			ID:          uuid.Must(uuid.NewV7()),
 			SessionID:   sessionID,
@@ -142,33 +144,49 @@ func (a *App) seedDocumentTypes(
 			CreatedAt:   time.Now(),
 		})
 		if err != nil {
-			return fmt.Errorf("seed document type %q: %w", declared.name, err)
+			return nil, fmt.Errorf("seed document type %q: %w", declared.name, err)
+		}
+
+		if err := a.Store.AllowDocumentType(ctx, id, submissionType); err != nil {
+			return nil, fmt.Errorf("seed allowed document type %q: %w", declared.name, err)
 		}
 
 		ids[declared.name] = id
 	}
 
-	steps := make(map[string]uuid.UUID, len(definition.Steps))
-	for _, step := range definition.Steps {
-		steps[step.Name] = step.ID
-	}
+	return ids, nil
+}
 
-	for _, attached := range attachments {
-		stepID, ok := steps[attached.step]
-		if !ok {
-			return fmt.Errorf("seed attachment: %q has no step named %q",
-				definition.Name, attached.step)
+// require writes the seeded requirements onto a definition's steps, as the
+// opaque type ids FlowCore will store.
+func require(
+	definition *flowcore.WorkflowDefinition,
+	requirements []requirement,
+	ids map[string]uuid.UUID,
+) error {
+	for _, required := range requirements {
+		found := false
+
+		for i := range definition.Steps {
+			if definition.Steps[i].Name != required.step {
+				continue
+			}
+
+			for _, name := range required.types {
+				id, ok := ids[name]
+				if !ok {
+					return fmt.Errorf("seed requirement: no document type named %q", name)
+				}
+
+				definition.Steps[i].RequiredInputTypeIDs = append(
+					definition.Steps[i].RequiredInputTypeIDs, id.String())
+			}
+
+			found = true
 		}
 
-		for _, name := range attached.types {
-			typeID, ok := ids[name]
-			if !ok {
-				return fmt.Errorf("seed attachment: no document type named %q", name)
-			}
-
-			if err := a.Store.AttachDocumentType(ctx, definition.ID, stepID, typeID); err != nil {
-				return err
-			}
+		if !found {
+			return fmt.Errorf("seed requirement: %q has no step named %q", definition.Name, required.step)
 		}
 	}
 

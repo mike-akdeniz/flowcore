@@ -71,10 +71,12 @@ type stepJSON struct {
 	Assignee string `json:"assignee"`
 	StatusID string `json:"statusId"`
 	IsAgent  bool   `json:"isAgent"`
-	// Expects names the document types this step reads. CaseWork's own, keyed to
-	// the step definition id — FlowCore has no notion of a document.
-	Expects []string     `json:"expects"`
-	Actions []actionJSON `json:"actions"`
+	// Expects names the document types a decision on this step requires. FlowCore
+	// stores them as opaque ids on the step; the names are CaseWork's.
+	Expects []string `json:"expects"`
+	// Instructions are what whoever acts on this step is told. Nil when none.
+	Instructions *string      `json:"instructions"`
+	Actions      []actionJSON `json:"actions"`
 }
 
 // concernJSON is something wrong with the graph's shape. StepID is empty when the
@@ -200,15 +202,22 @@ func (s *Server) composeWorkflow(
 		payload.Concerns = append(payload.Concerns, entry)
 	}
 
-	expectations, err := s.app.Store.DocumentTypesByStep(r.Context(), sessionID, definitionID)
+	documentTypes, err := s.app.Store.DocumentTypes(r.Context(), sessionID)
 	if err != nil {
 		return workflowJSON{}, err
 	}
 
+	names := make(map[string]string, len(documentTypes))
+	for _, documentType := range documentTypes {
+		names[documentType.ID.String()] = documentType.Name
+	}
+
 	for _, step := range definition.Steps {
-		expects := make([]string, 0)
-		for _, documentType := range expectations[step.ID] {
-			expects = append(expects, documentType.Name)
+		expects := make([]string, 0, len(step.RequiredInputTypeIDs))
+		for _, id := range step.RequiredInputTypeIDs {
+			if name, ok := names[id]; ok {
+				expects = append(expects, name)
+			}
 		}
 
 		payload.Steps = append(payload.Steps, stepJSON{
@@ -220,9 +229,10 @@ func (s *Server) composeWorkflow(
 			// the library's — FlowCore stores "agent:triage" exactly as it stores
 			// "group:claims-adjusters". Deciding it here keeps that convention in
 			// one place rather than duplicated in the browser.
-			IsAgent: app.IsAgent(step.AssigneeID),
-			Expects: expects,
-			Actions: toActionsJSON(step.Actions),
+			IsAgent:      app.IsAgent(step.AssigneeID),
+			Expects:      expects,
+			Instructions: step.Instructions,
+			Actions:      toActionsJSON(step.Actions),
 		})
 	}
 

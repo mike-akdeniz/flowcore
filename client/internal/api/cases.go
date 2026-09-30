@@ -111,14 +111,13 @@ type caseJSON struct {
 	// case while an agent holds the step — a separate endpoint would mean polling
 	// twice, or a history that lags the step it explains.
 	History []visitJSON `json:"history"`
-	// DocumentTypes is every kind this session knows about, for the upload form's
-	// selector: you file whatever arrived, so that list is never narrowed.
+	// DocumentTypes is every type this session knows about, for labelling what is
+	// already on file — a type can leave the allowed list after a document of it
+	// was filed.
 	DocumentTypes []documentTypeJSON `json:"documentTypes"`
-	// Expects names the document types to offer on this case, narrowest first:
-	// what the step it is waiting on reads, or failing that what any step of its
-	// workflow reads. Empty only when no workflow can be resolved at all, and
-	// then the picker narrows nothing — being unable to file a document that has
-	// arrived would be worse than offering too many.
+	// Expects names the document types that may be filed on this kind of case:
+	// its whole allowed list, the same in draft and at every step (client
+	// decision 36). What the current step requires is a separate question.
 	Expects []string `json:"expects"`
 }
 
@@ -183,11 +182,7 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			documentTypeJSON{Name: documentType.Name, Title: documentType.Title})
 	}
 
-	// The workflow's own types, which is what "a claim document" means without a
-	// column saying so: a type belongs to claims because a step of the claim
-	// workflow reads it. This is the answer for a draft, which has no running
-	// step, and the fallback for a step that declares nothing of its own.
-	payload.Expects, err = s.app.OfferedDocumentTypes(r.Context(), sessionID, submission)
+	payload.Expects, err = s.app.AllowedDocumentTypeNames(r.Context(), sessionID, submission.Type)
 	if err != nil {
 		return caseJSON{}, err
 	}
@@ -257,11 +252,11 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 	// file. Both derived from rows already read — nothing is stored for either,
 	// so neither can disagree with the documents it describes.
 	versions := make(map[uuid.UUID]int, len(documents))
-	seenOfKind := make(map[string]int)
+	seenOfType := make(map[uuid.UUID]int)
 
 	for _, document := range documents {
-		seenOfKind[document.Kind]++
-		versions[document.ID] = seenOfKind[document.Kind]
+		seenOfType[document.DocumentTypeID]++
+		versions[document.ID] = seenOfType[document.DocumentTypeID]
 	}
 
 	readBy, err := app.DocumentReaders(history, documents)
@@ -311,28 +306,6 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 	}
 
 	if state.CurrentStep != nil {
-		// What this step expects, keyed by the definition step the snapshot was
-		// copied from. FlowCore exposes that since its decision 45; the frozen
-		// name was the only alternative, and a name is something the workflow
-		// editor can change out from under these rows.
-		//
-		// Only when the step declares something. A step that declares nothing
-		// keeps the workflow's list rather than falling all the way back to every
-		// type there is — a policy application should never be offered a police
-		// report, whichever step it is sitting on.
-		expected, err := s.app.Store.DocumentTypesForStep(
-			r.Context(), sessionID, state.CurrentStep.StepDefinitionID)
-		if err != nil {
-			return caseJSON{}, err
-		}
-
-		if len(expected) > 0 {
-			payload.Expects = payload.Expects[:0]
-			for _, documentType := range expected {
-				payload.Expects = append(payload.Expects, documentType.Name)
-			}
-		}
-
 		payload.CurrentStep = &currentStepJSON{
 			Name:     state.CurrentStep.Name,
 			Assignee: state.CurrentStep.AssigneeID,
@@ -523,16 +496,16 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		title, err := s.app.DocumentTitle(r.Context(), sessionID, sample.Kind)
+		documentType, err := s.app.AllowedDocumentType(r.Context(), sessionID, submission.Type, sample.Kind)
 		if err != nil {
-			http.Error(w, "no document type named "+sample.Kind, http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 
 			return
 		}
 
 		text, fileName := sample.Body, sample.FileName
-		document.Name = title
-		document.Kind = sample.Kind
+		document.Name = documentType.Title
+		document.DocumentTypeID = documentType.ID
 		document.Body = &text
 		document.SourceFile = &fileName
 	} else {
@@ -548,11 +521,19 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 			document.Name = body.FileName
 		}
 
-		document.Kind = body.Kind
-		if document.Kind == "" {
-			document.Kind = "correspondence"
+		kind := body.Kind
+		if kind == "" {
+			kind = "correspondence"
 		}
 
+		documentType, err := s.app.AllowedDocumentType(r.Context(), sessionID, submission.Type, kind)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		document.DocumentTypeID = documentType.ID
 		document.Body = &text
 		document.SourceFile = &fileName
 	}
@@ -598,9 +579,9 @@ type sampleJSON struct {
 // listSamples serves the whole embedded set, so a hosted visitor has the same
 // documents available as someone who cloned the repository.
 //
-// Unfiltered on purpose. Which of them a particular step should be offered is
-// answered by the case — `expects` on its payload — and doing it here as well
-// would be the same question answered twice.
+// Unfiltered on purpose. Which of them a case may hold is answered by the case —
+// `expects` on its payload — and doing it here as well would be the same
+// question answered twice.
 func (s *Server) listSamples(w http.ResponseWriter, _ *http.Request) {
 	documents := s.app.Samples.All()
 

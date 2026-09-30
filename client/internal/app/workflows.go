@@ -7,6 +7,10 @@ import (
 
 // The two seeded workflows.
 //
+// Each agent step carries its instructions on the step itself, in FlowCore, so a
+// run keeps the ones it started under and an edit reaches only new runs. They
+// are neutral text: FlowCore does not know a model will read them.
+//
 // Every step in the claim workflow demonstrates something structural that no
 // other step does — that was the test the owner set, and decision 17 records the
 // two steps it removed. Assignee strings are opaque to FlowCore: `agent:triage`
@@ -42,6 +46,11 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 				// happen after submitting is this deciding which path the claim takes.
 				ID: triage, WorkflowStatusDefinitionID: inAssessment,
 				Name: "triage", AssigneeID: "agent:triage",
+				Instructions: stepInstructions(`Decide whether this claim can take the fast track.
+
+Fast track suits a claim with no third party to trace, an account the claimant witnessed
+themselves, and an amount inside the fast-track limit. Anything else needs full
+assessment. Read the intake note against the claimant's account.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "fast track", NextStepDefinitionID: &fastTrack},
 					{Name: "full assessment", NextStepDefinitionID: &documentation},
@@ -61,6 +70,11 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 				// An AI step whose failure loops back for more input.
 				ID: documentation, WorkflowStatusDefinitionID: inAssessment,
 				Name: "documentation check", AssigneeID: "agent:intake",
+				Instructions: stepInstructions(`Decide whether the repair estimate can be assessed as it stands.
+
+It is complete when an assessor could check it line by line: parts, labour, hours, rate
+and VAT all stated. It is incomplete when it is a single approximate figure or leaves
+any of those out.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "complete", NextStepDefinitionID: &consistency},
 					{Name: "incomplete", NextStepDefinitionID: &awaiting},
@@ -78,6 +92,11 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 				// An AI step that diverts to a specialist.
 				ID: consistency, WorkflowStatusDefinitionID: inAssessment,
 				Name: "narrative consistency", AssigneeID: "agent:fraud",
+				Instructions: stepInstructions(`Compare the claimant's account with the independent documents on file.
+
+It is consistent when the police report and any witness statement agree with the
+account on where, when and how the damage happened. It is inconsistent when any of
+them contradicts the account on one of those.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "consistent", NextStepDefinitionID: &adjuster},
 					{Name: "inconsistent", NextStepDefinitionID: &fraud},
@@ -131,6 +150,11 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 			{
 				ID: riskScreen, WorkflowStatusDefinitionID: inUnderwriting,
 				Name: "risk screen", AssigneeID: "agent:risk",
+				Instructions: stepInstructions(`Screen this policy application.
+
+It is standard when the disclosures and the previous insurer's letter describe an
+ordinary risk and agree with each other. Refer it when there are convictions, declined
+cover, anything undisclosed, or anything that contradicts the disclosures.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "standard", NextStepDefinitionID: &underwrite},
 					{Name: "refer", NextStepDefinitionID: &senior},
@@ -163,3 +187,5 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 func seededDefinitions() []flowcore.WorkflowDefinition {
 	return []flowcore.WorkflowDefinition{claimAssessmentDefinition(), underwritingDefinition()}
 }
+
+func stepInstructions(text string) *string { return &text }

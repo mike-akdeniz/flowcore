@@ -131,12 +131,17 @@ func TestDocumentRemovalAndHistory(t *testing.T) {
 	}
 
 	body := "A replacement document whose exact text must remain readable."
+	firstType, err := server.app.DocumentTypeNamed(ctx, sessionID, first.Kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	add := func() store.Document {
 		t.Helper()
 
 		document, err := server.app.Store.AddDocument(ctx, store.Document{
 			ID: uuid.Must(uuid.NewV7()), SubmissionID: submission.ID,
-			Name: first.Name, Kind: first.Kind, ReceivedAt: time.Now(), Body: &body,
+			Name: first.Name, DocumentTypeID: firstType.ID, ReceivedAt: time.Now(), Body: &body,
 		})
 		if err != nil {
 			t.Fatal(err)

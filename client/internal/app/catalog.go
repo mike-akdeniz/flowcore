@@ -94,6 +94,9 @@ type NewDefinition struct {
 	StatusName     string
 	StepName       string
 	AssigneeID     string
+	// StepInstructions is required when the first step is an agent's, as it is
+	// for any agent step.
+	StepInstructions *string
 }
 
 // CreateDefinition creates a workflow and records it against this session.
@@ -110,6 +113,11 @@ type NewDefinition struct {
 // different acts, and conflating them would mean building one live: every case
 // filed while you were still adding steps would run the half-finished version.
 func (a *App) CreateDefinition(ctx context.Context, sessionID string, request NewDefinition) (flowcore.WorkflowDefinition, error) {
+	instructions := presentInstructions(request.StepInstructions)
+	if err := requireAgentInstructions(request.StepName, request.AssigneeID, instructions); err != nil {
+		return flowcore.WorkflowDefinition{}, err
+	}
+
 	statusID := uuid.Must(uuid.NewV7())
 	stepID := uuid.Must(uuid.NewV7())
 
@@ -125,6 +133,7 @@ func (a *App) CreateDefinition(ctx context.Context, sessionID string, request Ne
 				WorkflowStatusDefinitionID: statusID,
 				Name:                       request.StepName,
 				AssigneeID:                 request.AssigneeID,
+				Instructions:               instructions,
 			},
 		},
 	})
@@ -195,35 +204,100 @@ type AddStepRequest struct {
 	Name       string
 	StatusID   uuid.UUID
 	AssigneeID string
+	// Instructions are what whoever acts on the step is told; an agent step must
+	// have them. On an update nil keeps the stored instructions and an empty
+	// string clears them, because the editor sends them only when it shows them.
+	Instructions *string
+	// RequiredDocumentTypes are the names of the document types a decision on
+	// this step requires — the whole set, replacing the stored one. Each must be
+	// on the allowed list of the kind of case the workflow serves.
+	RequiredDocumentTypes []string
 }
 
+// AddStep adds a step, with its instructions and required document types.
+//
+// Nothing routes to a new step and it has no actions yet, so the agent handoff
+// rule has nothing to check until an action is added.
 func (a *App) AddStep(ctx context.Context, sessionID string, definitionID uuid.UUID, request AddStepRequest) error {
 	if err := a.mustOwn(ctx, sessionID, definitionID); err != nil {
 		return err
 	}
 
-	_, err := a.Catalog.AddStep(ctx, definitionID, flowcore.AddStepParams{
-		Name:       request.Name,
-		StatusID:   request.StatusID,
-		AssigneeID: request.AssigneeID,
+	instructions := presentInstructions(request.Instructions)
+	if err := requireAgentInstructions(request.Name, request.AssigneeID, instructions); err != nil {
+		return err
+	}
+
+	required, err := a.requiredTypeIDs(ctx, sessionID, definitionID, request.RequiredDocumentTypes)
+	if err != nil {
+		return err
+	}
+
+	_, err = a.Catalog.AddStep(ctx, definitionID, flowcore.AddStepParams{
+		Name:                 request.Name,
+		StatusID:             request.StatusID,
+		AssigneeID:           request.AssigneeID,
+		Instructions:         instructions,
+		RequiredInputTypeIDs: required,
 	})
 
 	return err
 }
 
+// UpdateStep changes a step: its name, status, assignee, instructions and
+// required document types.
+//
+// Built from the stored step's ToUpdate rather than from the request alone,
+// because FlowCore's update is a full replace and the instructions are sent only
+// when the editor shows them.
+//
+// Checked before the write: the required types against the allowed list, an
+// agent's instructions, and the agent handoff rule on every action into or out
+// of this step. The checks read the definition and then write, so a concurrent
+// edit can slip between them — they are the editor's rules, not a lock, as
+// DeleteStep's pre-check is.
 func (a *App) UpdateStep(ctx context.Context, sessionID string, definitionID, stepID uuid.UUID, request AddStepRequest) error {
-	if err := a.mustContain(ctx, sessionID, definitionID, stepID, containsStep); err != nil {
+	definition, err := a.Definition(ctx, sessionID, definitionID)
+	if err != nil {
 		return err
 	}
 
-	// Update is a full replace, so every column the params list is written. There
-	// is no "change only the name" — the form posts all three fields, and building
-	// these by hand while omitting one would overwrite it.
-	_, err := a.Catalog.UpdateStep(ctx, stepID, flowcore.UpdateStepParams{
-		Name:       request.Name,
-		StatusID:   request.StatusID,
-		AssigneeID: request.AssigneeID,
-	})
+	index := stepIndex(definition, stepID)
+	if index < 0 {
+		return fmt.Errorf("%w: it is not part of %q", ErrNotYours, definition.Name)
+	}
+
+	params := definition.Steps[index].ToUpdate()
+	params.Name = request.Name
+	params.StatusID = request.StatusID
+	params.AssigneeID = request.AssigneeID
+
+	if request.Instructions != nil {
+		params.Instructions = presentInstructions(request.Instructions)
+	}
+
+	if err := requireAgentInstructions(params.Name, params.AssigneeID, params.Instructions); err != nil {
+		return err
+	}
+
+	params.RequiredInputTypeIDs, err = a.requiredTypeIDs(ctx, sessionID, definitionID, request.RequiredDocumentTypes)
+	if err != nil {
+		return err
+	}
+
+	// The step as it would be, so the handoff rule is checked against the edit
+	// rather than against what it replaces.
+	edited := definition.Steps[index]
+	edited.Name = params.Name
+	edited.AssigneeID = params.AssigneeID
+	edited.RequiredInputTypeIDs = params.RequiredInputTypeIDs
+	definition.Steps[index] = edited
+
+	if err := a.checkAgentHandoffs(ctx, sessionID, definition, stepID); err != nil {
+		return err
+	}
+
+	_, err = a.Catalog.UpdateStep(ctx, stepID, params)
 
 	return err
 }
@@ -248,19 +322,7 @@ func (a *App) DeleteStep(ctx context.Context, sessionID string, definitionID, st
 			map[bool]string{true: "it", false: "them"}[len(blockers) == 1])
 	}
 
-	if err := a.Catalog.DeleteStep(ctx, stepID); err != nil {
-		return err
-	}
-
-	// The step's document type rows go with it. Nothing else would remove them:
-	// step_document_type records a step definition id without a foreign key,
-	// because a constraint reaching into the library's schema would couple
-	// CaseWork's lifecycle to FlowCore's.
-	//
-	// After the delete rather than before, so a failure leaves rows pointing at
-	// nothing — harmless, matching no step — instead of a step that has lost its
-	// expectations while still being in the workflow.
-	return a.Store.DetachStepDocumentTypes(ctx, stepID)
+	return a.Catalog.DeleteStep(ctx, stepID)
 }
 
 // AddActionRequest routes either to a step or to a terminal status. Exactly one
@@ -271,12 +333,30 @@ type AddActionRequest struct {
 	TerminalStatusID *uuid.UUID
 }
 
+// AddAction adds an action to a step, refusing one that would hand an agent's
+// step to another agent needing documents the first did not require.
 func (a *App) AddAction(ctx context.Context, sessionID string, definitionID, stepID uuid.UUID, request AddActionRequest) error {
-	if err := a.mustContain(ctx, sessionID, definitionID, stepID, containsStep); err != nil {
+	definition, err := a.Definition(ctx, sessionID, definitionID)
+	if err != nil {
 		return err
 	}
 
-	_, err := a.Catalog.AddAction(ctx, stepID, flowcore.AddActionParams{
+	index := stepIndex(definition, stepID)
+	if index < 0 {
+		return fmt.Errorf("%w: it is not part of %q", ErrNotYours, definition.Name)
+	}
+
+	if request.NextStepID != nil {
+		// The action as it would be, so the rule sees the new edge.
+		definition.Steps[index].Actions = append(definition.Steps[index].Actions,
+			flowcore.ActionDefinition{Name: request.Name, NextStepDefinitionID: request.NextStepID})
+
+		if err := a.checkAgentHandoffs(ctx, sessionID, definition, stepID); err != nil {
+			return err
+		}
+	}
+
+	_, err = a.Catalog.AddAction(ctx, stepID, flowcore.AddActionParams{
 		Name:             request.Name,
 		NextStepID:       request.NextStepID,
 		TerminalStatusID: request.TerminalStatusID,
@@ -286,19 +366,37 @@ func (a *App) AddAction(ctx context.Context, sessionID string, definitionID, ste
 }
 
 // UpdateAction renames an action, keeping where it leads.
+//
+// Built from the stored action's ToUpdate, because FlowCore's update is a full
+// replace: params carrying only the name would clear both the next step and the
+// terminal status, and the library refuses an action with neither.
 func (a *App) UpdateAction(
 	ctx context.Context,
 	sessionID string,
 	definitionID, actionID uuid.UUID,
 	name string,
 ) error {
-	if err := a.mustContain(ctx, sessionID, definitionID, actionID, containsAction); err != nil {
+	definition, err := a.Definition(ctx, sessionID, definitionID)
+	if err != nil {
 		return err
 	}
 
-	_, err := a.Catalog.UpdateAction(ctx, actionID, flowcore.UpdateActionParams{Name: name})
+	for _, step := range definition.Steps {
+		for _, action := range step.Actions {
+			if action.ID != actionID {
+				continue
+			}
 
-	return err
+			params := action.ToUpdate()
+			params.Name = name
+
+			_, err := a.Catalog.UpdateAction(ctx, actionID, params)
+
+			return err
+		}
+	}
+
+	return fmt.Errorf("%w: it is not part of %q", ErrNotYours, definition.Name)
 }
 
 func (a *App) DeleteAction(ctx context.Context, sessionID string, definitionID, actionID uuid.UUID) error {
@@ -413,87 +511,6 @@ func (a *App) mustOwn(ctx context.Context, sessionID string, definitionID uuid.U
 	return nil
 }
 
-// AddStepWithTypes adds a step and attaches the document types it reads.
-//
-// Two operations, in this order deliberately. The attachments key on the step
-// definition id, which does not exist until the step does, so inventing one
-// client-side would be the only way to do it in a single call — and a failure
-// after that would leave attachments pointing at a step that was never created.
-// This way a failure leaves a step with no expectations, which is a state the
-// editor can show and a visitor can fix.
-func (a *App) AddStepWithTypes(
-	ctx context.Context,
-	sessionID string,
-	definitionID uuid.UUID,
-	request AddStepRequest,
-	expects []string,
-) error {
-	if err := a.mustOwn(ctx, sessionID, definitionID); err != nil {
-		return err
-	}
-
-	step, err := a.Catalog.AddStep(ctx, definitionID, flowcore.AddStepParams{
-		Name:       request.Name,
-		StatusID:   request.StatusID,
-		AssigneeID: request.AssigneeID,
-	})
-	if err != nil {
-		return err
-	}
-
-	return a.setStepDocumentTypes(ctx, sessionID, definitionID, step.ID, expects)
-}
-
-// UpdateStepWithTypes changes a step and replaces the set of types it reads.
-func (a *App) UpdateStepWithTypes(
-	ctx context.Context,
-	sessionID string,
-	definitionID, stepID uuid.UUID,
-	request AddStepRequest,
-	expects []string,
-) error {
-	if err := a.UpdateStep(ctx, sessionID, definitionID, stepID, request); err != nil {
-		return err
-	}
-
-	return a.setStepDocumentTypes(ctx, sessionID, definitionID, stepID, expects)
-}
-
-// setStepDocumentTypes replaces a step's attachments with exactly this set.
-//
-// Replace rather than a delta, because the caller sends the set it wants and
-// working out which rows to add and which to remove is the kind of arithmetic
-// that goes wrong once and then silently stays wrong.
-func (a *App) setStepDocumentTypes(
-	ctx context.Context,
-	sessionID string,
-	definitionID, stepID uuid.UUID,
-	expects []string,
-) error {
-	known, err := a.Store.DocumentTypes(ctx, sessionID)
-	if err != nil {
-		return err
-	}
-
-	ids := make(map[string]uuid.UUID, len(known))
-	for _, documentType := range known {
-		ids[documentType.Name] = documentType.ID
-	}
-
-	wanted := make([]uuid.UUID, 0, len(expects))
-
-	for _, name := range expects {
-		id, ok := ids[name]
-		if !ok {
-			return fmt.Errorf("no document type named %q", name)
-		}
-
-		wanted = append(wanted, id)
-	}
-
-	return a.Store.SetStepDocumentTypes(ctx, definitionID, stepID, wanted)
-}
-
 // actionsRoutingTo names the actions that would block deleting a step, as
 // "<step> / <action>" so a visitor can find them.
 func (a *App) actionsRoutingTo(
@@ -517,4 +534,34 @@ func (a *App) actionsRoutingTo(
 	}
 
 	return blockers, nil
+}
+
+func stepIndex(definition flowcore.WorkflowDefinition, stepID uuid.UUID) int {
+	for i := range definition.Steps {
+		if definition.Steps[i].ID == stepID {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// presentInstructions treats blank instructions as none. FlowCore refuses an
+// empty string, and a form's empty field means the step has no instructions.
+func presentInstructions(instructions *string) *string {
+	if instructions == nil || strings.TrimSpace(*instructions) == "" {
+		return nil
+	}
+
+	return instructions
+}
+
+// requireAgentInstructions refuses an agent step with nothing to tell the agent.
+// A person can be left to read the case; an agent has only what it is given.
+func requireAgentInstructions(stepName, assigneeID string, instructions *string) error {
+	if IsAgent(assigneeID) && instructions == nil {
+		return fmt.Errorf("%q is assigned to an agent, so it needs instructions", stepName)
+	}
+
+	return nil
 }

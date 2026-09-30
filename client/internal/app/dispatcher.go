@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -227,20 +228,22 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
-	// What this step reads, from CaseWork's own tables. FlowCore has no notion of
-	// a document and never will, so the association between a step and the kinds
-	// of document that answer it lives entirely on this side of the boundary —
-	// keyed to the definition step the snapshot came from.
-	expected, err := d.app.Store.DocumentTypesForStep(
-		ctx, item.SessionID, state.CurrentStep.StepDefinitionID)
+	// What this step requires, from the run's snapshot rather than the
+	// definition: a run keeps the requirements it started under. FlowCore holds
+	// them as opaque ids; what they name is CaseWork's catalog.
+	types, err := d.app.Store.DocumentTypes(ctx, item.SessionID)
 	if err != nil {
-		d.logger.Warn("agent step: reading expectations", "visit", item.VisitID, "err", err)
+		d.logger.Warn("agent step: reading document types", "visit", item.VisitID, "err", err)
 
 		return
 	}
 
-	expects := make([]ExpectedDocument, 0, len(expected))
-	for _, documentType := range expected {
+	expects := make([]ExpectedDocument, 0, len(state.CurrentStep.RequiredInputTypeIDs))
+	for _, documentType := range types {
+		if !slices.Contains(state.CurrentStep.RequiredInputTypeIDs, documentType.ID.String()) {
+			continue
+		}
+
 		expects = append(expects, ExpectedDocument{
 			Name:        documentType.Name,
 			Title:       documentType.Title,

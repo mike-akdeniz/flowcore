@@ -61,8 +61,15 @@ func TestCurrent(t *testing.T) {
 	})
 }
 
+// document files one of a kind, identified by a type id derived from the kind's
+// name so the test can keep naming kinds as words.
 func document(kind string, revision int) Document {
-	return Document{ID: uuid.Must(uuid.NewV7()), Kind: kind, AddedAtRevision: revision}
+	return Document{
+		ID:              uuid.Must(uuid.NewV7()),
+		DocumentTypeID:  uuid.NewSHA1(uuid.NameSpaceOID, []byte(kind)),
+		Kind:            kind,
+		AddedAtRevision: revision,
+	}
 }
 
 func assertKinds(t *testing.T, current []Document, want map[string]uuid.UUID) {

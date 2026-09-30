@@ -72,10 +72,13 @@ type stepEditJSON struct {
 	Name     string `json:"name"`
 	Assignee string `json:"assignee"`
 	StatusID string `json:"statusId"`
-	// Expects is the whole set of document types this step reads, not a delta.
-	// Sending the set means the browser never has to work out which attachments
-	// to add and which to remove.
+	// Expects is the whole set of document types this step requires, not a
+	// delta. Sending the set means the browser never has to work out which to add
+	// and which to remove.
 	Expects []string `json:"expects"`
+	// Instructions are left as they are when absent, and cleared by an empty
+	// string, so an editor that does not show them cannot erase them.
+	Instructions *string `json:"instructions"`
 }
 
 type actionEditJSON struct {
@@ -149,11 +152,13 @@ func (s *Server) addStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.editWorkflow(w, r, func(sessionID string, definitionID uuid.UUID) error {
-		return s.app.AddStepWithTypes(r.Context(), sessionID, definitionID, app.AddStepRequest{
-			Name:       body.Name,
-			StatusID:   statusID,
-			AssigneeID: body.Assignee,
-		}, body.Expects)
+		return s.app.AddStep(r.Context(), sessionID, definitionID, app.AddStepRequest{
+			Name:                  body.Name,
+			StatusID:              statusID,
+			AssigneeID:            body.Assignee,
+			Instructions:          body.Instructions,
+			RequiredDocumentTypes: body.Expects,
+		})
 	})
 }
 
@@ -176,12 +181,14 @@ func (s *Server) updateStep(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.editWorkflow(w, r, func(sessionID string, definitionID uuid.UUID) error {
-		return s.app.UpdateStepWithTypes(r.Context(), sessionID, definitionID, stepID,
+		return s.app.UpdateStep(r.Context(), sessionID, definitionID, stepID,
 			app.AddStepRequest{
-				Name:       body.Name,
-				StatusID:   statusID,
-				AssigneeID: body.Assignee,
-			}, body.Expects)
+				Name:                  body.Name,
+				StatusID:              statusID,
+				AssigneeID:            body.Assignee,
+				Instructions:          body.Instructions,
+				RequiredDocumentTypes: body.Expects,
+			})
 	})
 }
 
@@ -338,6 +345,8 @@ type newWorkflowJSON struct {
 	StatusName string `json:"statusName"`
 	StepName   string `json:"stepName"`
 	Assignee   string `json:"assignee"`
+	// StepInstructions are required when the first step is an agent's.
+	StepInstructions *string `json:"stepInstructions"`
 }
 
 func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
@@ -354,11 +363,12 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	definition, err := s.app.CreateDefinition(r.Context(), sessionFrom(r), app.NewDefinition{
-		Name:           body.Name,
-		SubmissionType: submissionType,
-		StatusName:     body.StatusName,
-		StepName:       body.StepName,
-		AssigneeID:     body.Assignee,
+		Name:             body.Name,
+		SubmissionType:   submissionType,
+		StatusName:       body.StatusName,
+		StepName:         body.StepName,
+		AssigneeID:       body.Assignee,
+		StepInstructions: body.StepInstructions,
 	})
 	if err != nil {
 		s.failEdit(w, err)
@@ -372,20 +382,54 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 type documentTypeEditJSON struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
+	// SubmissionType, when set, allows the new type on that kind of case, which
+	// is what lets a step of a workflow for it require the type.
+	SubmissionType string `json:"submissionType"`
+}
+
+// documentTypeListJSON is a type with the kinds of case that may hold it.
+type documentTypeListJSON struct {
+	Name       string   `json:"name"`
+	Title      string   `json:"title"`
+	AllowedFor []string `json:"allowedFor"`
 }
 
 func (s *Server) listDocumentTypes(w http.ResponseWriter, r *http.Request) {
-	types, err := s.app.Store.DocumentTypes(r.Context(), sessionFrom(r))
+	sessionID := sessionFrom(r)
+
+	types, err := s.app.Store.DocumentTypes(r.Context(), sessionID)
 	if err != nil {
 		s.fail(w, "could not read the document types", err)
 
 		return
 	}
 
-	payload := make([]documentTypeJSON, 0, len(types))
+	allowedFor := make(map[string][]string, len(types))
+	for _, submissionType := range []store.SubmissionType{store.TypeClaim, store.TypeApplication} {
+		names, err := s.app.AllowedDocumentTypeNames(r.Context(), sessionID, submissionType)
+		if err != nil {
+			s.fail(w, "could not read the document types", err)
+
+			return
+		}
+
+		for _, name := range names {
+			allowedFor[name] = append(allowedFor[name], string(submissionType))
+		}
+	}
+
+	payload := make([]documentTypeListJSON, 0, len(types))
 	for _, documentType := range types {
-		payload = append(payload,
-			documentTypeJSON{Name: documentType.Name, Title: documentType.Title})
+		allowed := allowedFor[documentType.Name]
+		if allowed == nil {
+			allowed = []string{}
+		}
+
+		payload = append(payload, documentTypeListJSON{
+			Name:       documentType.Name,
+			Title:      documentType.Title,
+			AllowedFor: allowed,
+		})
 	}
 
 	s.write(w, payload)
@@ -403,7 +447,18 @@ func (s *Server) createDocumentType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := s.app.CreateDocumentType(r.Context(), sessionFrom(r), body.Name, body.Title)
+	var allowOn *store.SubmissionType
+
+	if body.SubmissionType != "" {
+		submissionType, ok := submissionTypeFrom(w, body.SubmissionType)
+		if !ok {
+			return
+		}
+
+		allowOn = &submissionType
+	}
+
+	created, err := s.app.CreateDocumentType(r.Context(), sessionFrom(r), body.Name, body.Title, allowOn)
 	if err != nil {
 		s.failEdit(w, err)
 
@@ -411,4 +466,60 @@ func (s *Server) createDocumentType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.write(w, documentTypeJSON{Name: created.Name, Title: created.Title})
+}
+
+// retitleDocumentType changes what a type is called. Everything that refers to
+// the type does so by id, so nothing else moves.
+func (s *Server) retitleDocumentType(w http.ResponseWriter, r *http.Request) {
+	var body documentTypeEditJSON
+	if !decode(w, r, &body) {
+		return
+	}
+
+	if err := s.app.RetitleDocumentType(r.Context(), sessionFrom(r), r.PathValue("name"), body.Title); err != nil {
+		s.failEdit(w, err)
+
+		return
+	}
+
+	s.listDocumentTypes(w, r)
+}
+
+type allowedDocumentTypesJSON struct {
+	// Names is the whole allowed list for the kind of case, replacing the stored
+	// one, as a step's required types are sent.
+	Names []string `json:"names"`
+}
+
+// setAllowedDocumentTypes replaces what a kind of case may hold. Removing a type
+// something could still require is refused with the reason.
+func (s *Server) setAllowedDocumentTypes(w http.ResponseWriter, r *http.Request) {
+	submissionType, ok := submissionTypeFrom(w, r.PathValue("type"))
+	if !ok {
+		return
+	}
+
+	var body allowedDocumentTypesJSON
+	if !decode(w, r, &body) {
+		return
+	}
+
+	if err := s.app.SetAllowedDocumentTypes(r.Context(), sessionFrom(r), submissionType, body.Names); err != nil {
+		s.failEdit(w, err)
+
+		return
+	}
+
+	s.listDocumentTypes(w, r)
+}
+
+func submissionTypeFrom(w http.ResponseWriter, value string) (store.SubmissionType, bool) {
+	submissionType := store.SubmissionType(value)
+	if submissionType != store.TypeClaim && submissionType != store.TypeApplication {
+		http.Error(w, "unknown submission type", http.StatusBadRequest)
+
+		return "", false
+	}
+
+	return submissionType, true
 }

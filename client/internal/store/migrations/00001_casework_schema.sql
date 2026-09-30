@@ -131,18 +131,19 @@ create table casework.application_detail (
 -- — a prefix switch in the sample parser, a map of which step reads which kind, a
 -- map of canned findings, and a CHECK constraint listing the kinds — keyed by
 -- three different things, with nothing failing when they drifted. Most of that is
--- an ordinary feature in disguise: which documents a stage expects is case
+-- an ordinary feature in disguise: which documents a case can hold is case
 -- management, not demonstration scaffolding.
 --
--- No submission type column. Whether a type belongs to claims or to applications
--- follows from the steps it is attached to, and storing it as well would be the
--- same fact written twice with nothing keeping the two honest.
+-- The id is the type's identity everywhere it is referred to: on a document, in
+-- the allowed lists below, and as the opaque required input type id FlowCore
+-- stores on a step and freezes into every run. The title is only its label, so
+-- renaming a type changes what screens call it and nothing it refers to.
 create table casework.document_type (
     id           uuid primary key,
     session_id   text not null references casework.session (id) on delete cascade,
-    -- name is the value stored on a document, and the prefix a sample file uses:
-    -- `estimate`, `police-report`, `prior-insurer`. One spelling, so the sample
-    -- parser needs no per-kind knowledge at all.
+    -- name is the prefix a sample file uses — `estimate`, `police-report`,
+    -- `prior-insurer` — so the sample parser needs no per-kind knowledge at all.
+    -- It is also the handle the browser uses. Not editable; the title is.
     name         text not null,
     title        text not null,
     -- What a simulated agent step says when a document of this kind passes or
@@ -156,28 +157,19 @@ create table casework.document_type (
 
 create unique index ux_document_type_name on casework.document_type (session_id, name);
 
--- Which steps expect which kinds of document.
+-- Which kinds of document may be filed on which kind of case (client decision 36).
 --
--- Keyed by the step *definition* id, which FlowCore exposes on a running step
--- since its decision 45. The alternative was the step's frozen name, and a name is
--- something the workflow editor is free to change — metadata keyed to one orphans
--- silently, because nothing joins and nothing can fail.
---
--- Descriptive, never a gate: this narrows what the document picker offers and
--- tells an agent step which document answers it. Nothing here stops a run
--- advancing, because deciding whether the file is adequate is a step's own job.
-create table casework.step_document_type (
-    -- Recorded, never enforced, for the same reason workflow_registry records its
-    -- definition id without a foreign key: a constraint across schemas would
-    -- couple CaseWork's lifecycle to the library's.
-    flowcore_definition_id uuid not null,
-    step_definition_id     uuid not null,
-    document_type_id       uuid not null references casework.document_type (id) on delete cascade,
-    primary key (step_definition_id, document_type_id)
+-- An explicit list per case type rather than one derived from the workflow's
+-- steps. What a step requires is a gate on deciding it; what a case may hold is
+-- wider — photographs, correspondence — and a list derived from requirements
+-- could never offer a document no step demands. The session comes from the type.
+create table casework.allowed_document_type (
+    document_type_id uuid not null references casework.document_type (id) on delete cascade,
+    submission_type  text not null,
+    primary key (document_type_id, submission_type),
+    constraint ck_allowed_document_type_submission_type
+        check (submission_type in ('claim', 'application'))
 );
-
-create index ix_step_document_type_definition
-    on casework.step_document_type (flowcore_definition_id);
 
 -- Documents are records carrying text, not files.
 --
@@ -193,12 +185,10 @@ create table casework.document (
     id                uuid primary key,
     submission_id     uuid not null references casework.submission (id) on delete cascade,
     name              text not null,
-    -- The document type's name. Not a foreign key, deliberately: deleting a type
-    -- must not take the documents filed under it, and a case keeps saying what it
-    -- holds either way. The CHECK constraint that used to list the kinds is gone
-    -- with it — adding a kind was a migration, which is absurd for something a
-    -- user configures.
-    kind              text not null,
+    -- The type's stable id. A foreign key without a cascade, so a type cannot be
+    -- deleted while a document is filed under it: the document keeps saying what
+    -- it is, and renaming the type's title relabels it without touching this.
+    document_type_id  uuid not null references casework.document_type (id),
     received_at       date not null,
     body              text,
     -- The file this came from: a sample's name, or the name of an uploaded file.

@@ -10,10 +10,11 @@ import (
 )
 
 func TestDocumentReaders(t *testing.T) {
-	oldEstimate := store.Document{ID: uuid.New(), Kind: "estimate", AddedAtRevision: 1}
-	photograph := store.Document{ID: uuid.New(), Kind: "photograph", AddedAtRevision: 2}
-	newEstimate := store.Document{ID: uuid.New(), Kind: "estimate", AddedAtRevision: 3}
-	unused := store.Document{ID: uuid.New(), Kind: "correspondence", AddedAtRevision: 4}
+	estimate, photographs, correspondence := uuid.New(), uuid.New(), uuid.New()
+	oldEstimate := store.Document{ID: uuid.New(), DocumentTypeID: estimate, AddedAtRevision: 1}
+	photograph := store.Document{ID: uuid.New(), DocumentTypeID: photographs, AddedAtRevision: 2}
+	newEstimate := store.Document{ID: uuid.New(), DocumentTypeID: estimate, AddedAtRevision: 3}
+	unused := store.Document{ID: uuid.New(), DocumentTypeID: correspondence, AddedAtRevision: 4}
 	firstRevision, secondRevision := "2", "3"
 	history := []flowcore.StepVisit{
 		{StepName: "review", Completion: &flowcore.Completion{SubjectVersionToken: &firstRevision}},

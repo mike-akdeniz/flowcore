@@ -124,12 +124,18 @@ export function StepPanel({
         />
 
         <MultiSelect
-          label="Documents this step reads"
-          description="Narrows what the picker offers on a case sitting here. Descriptive, never a gate."
-          data={types.map((documentType) => ({
-            value: documentType.name,
-            label: documentType.title,
-          }))}
+          label="Documents this step requires"
+          description="A decision here waits until each is on the case."
+          data={types
+            .filter(
+              (documentType) =>
+                !documentType.allowedFor ||
+                documentType.allowedFor.includes(workflow.submissionType),
+            )
+            .map((documentType) => ({
+              value: documentType.name,
+              label: documentType.title,
+            }))}
           value={form.expects}
           onChange={(value) => setForm({ ...form, expects: value })}
           searchable
@@ -161,7 +167,11 @@ export function StepPanel({
             disabled={!newType.trim()}
             onClick={async () => {
               try {
-                const created = await api.createDocumentType(newType, newType);
+                const created = await api.createDocumentType(
+                  newType,
+                  newType,
+                  workflow.submissionType,
+                );
                 setTypes((current) =>
                   current.some((candidate) => candidate.name === created.name)
                     ? current

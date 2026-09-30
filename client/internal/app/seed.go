@@ -42,17 +42,24 @@ func (a *App) SeedSession(ctx context.Context, sessionID string) error {
 }
 
 func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
-	definition, err := a.Catalog.Create(ctx, claimAssessmentDefinition())
+	// The types first: a step's requirements are type ids, so they have to exist
+	// before the definition that names them is created.
+	typeIDs, err := a.seedDocumentTypes(ctx, sessionID, store.TypeClaim, claimDocumentTypes)
+	if err != nil {
+		return err
+	}
+
+	template := claimAssessmentDefinition()
+	if err := require(&template, claimRequirements, typeIDs); err != nil {
+		return err
+	}
+
+	definition, err := a.Catalog.Create(ctx, template)
 	if err != nil {
 		return fmt.Errorf("seed claim workflow: %w", err)
 	}
 
 	if err := a.register(ctx, sessionID, store.TypeClaim, definition); err != nil {
-		return err
-	}
-
-	if err := a.seedDocumentTypes(ctx, sessionID, definition,
-		claimDocumentTypes, claimAttachments); err != nil {
 		return err
 	}
 
@@ -111,7 +118,7 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		body := sample.Body
 		fileName := sample.FileName
 
-		title, err := a.DocumentTitle(ctx, sessionID, sample.Kind)
+		documentType, err := a.DocumentTypeNamed(ctx, sessionID, sample.Kind)
 		if err != nil {
 			return err
 		}
@@ -119,13 +126,13 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		// Seeding takes the same path as an upload, so the seeded claim's revision
 		// is a real count of what is on it rather than a number written by hand.
 		if _, err := a.Store.AddDocument(ctx, store.Document{
-			ID:           uuid.Must(uuid.NewV7()),
-			SubmissionID: submissionID,
-			Name:         title,
-			Kind:         sample.Kind,
-			ReceivedAt:   entry.receivedAt,
-			Body:         &body,
-			SourceFile:   &fileName,
+			ID:             uuid.Must(uuid.NewV7()),
+			SubmissionID:   submissionID,
+			Name:           documentType.Title,
+			DocumentTypeID: documentType.ID,
+			ReceivedAt:     entry.receivedAt,
+			Body:           &body,
+			SourceFile:     &fileName,
 		}); err != nil {
 			return err
 		}
@@ -136,11 +143,11 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 	// nothing to show — there is no sample for it, because you cannot upload a
 	// photograph as text.
 	photographs := store.Document{
-		ID:           uuid.Must(uuid.NewV7()),
-		SubmissionID: submissionID,
-		Name:         "Damage photographs",
-		Kind:         "photograph",
-		ReceivedAt:   date(2026, 9, 15),
+		ID:             uuid.Must(uuid.NewV7()),
+		SubmissionID:   submissionID,
+		Name:           "Damage photographs",
+		DocumentTypeID: typeIDs["photograph"],
+		ReceivedAt:     date(2026, 9, 15),
 	}
 
 	_, err = a.Store.AddDocument(ctx, photographs)
@@ -149,14 +156,19 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 }
 
 func (a *App) seedApplicationExample(ctx context.Context, sessionID string) error {
-	definition, err := a.Catalog.Create(ctx, underwritingDefinition())
+	typeIDs, err := a.seedDocumentTypes(ctx, sessionID, store.TypeApplication, applicationDocumentTypes)
 	if err != nil {
-		return fmt.Errorf("seed policy assessment workflow: %w", err)
+		return err
 	}
 
-	if err := a.seedDocumentTypes(ctx, sessionID, definition,
-		applicationDocumentTypes, applicationAttachments); err != nil {
+	template := underwritingDefinition()
+	if err := require(&template, applicationRequirements, typeIDs); err != nil {
 		return err
+	}
+
+	definition, err := a.Catalog.Create(ctx, template)
+	if err != nil {
+		return fmt.Errorf("seed policy assessment workflow: %w", err)
 	}
 
 	if err := a.register(ctx, sessionID, store.TypeApplication, definition); err != nil {
@@ -200,19 +212,19 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	sample := a.Samples.MustHave("4-prior-insurer-fail.txt")
 	body, fileName := sample.Body, sample.FileName
 
-	title, err := a.DocumentTitle(ctx, sessionID, sample.Kind)
+	documentType, err := a.DocumentTypeNamed(ctx, sessionID, sample.Kind)
 	if err != nil {
 		return err
 	}
 
 	_, err = a.Store.AddDocument(ctx, store.Document{
-		ID:           uuid.Must(uuid.NewV7()),
-		SubmissionID: submissionID,
-		Name:         title,
-		Kind:         sample.Kind,
-		ReceivedAt:   date(2026, 9, 18),
-		Body:         &body,
-		SourceFile:   &fileName,
+		ID:             uuid.Must(uuid.NewV7()),
+		SubmissionID:   submissionID,
+		Name:           documentType.Title,
+		DocumentTypeID: documentType.ID,
+		ReceivedAt:     date(2026, 9, 18),
+		Body:           &body,
+		SourceFile:     &fileName,
 	})
 
 	return err
@@ -242,22 +254,19 @@ func date(year int, month time.Month, day int) time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 }
 
-// DocumentTitle is what a document of this kind is called on a case.
-//
-// Looked up rather than carried on the sample, because the title belongs to the
-// document type and a visitor can change it. The kind is stored on the document
-// either way, so a type renamed or deleted later leaves the document readable.
-func (a *App) DocumentTitle(ctx context.Context, sessionID, kind string) (string, error) {
+// DocumentTypeNamed finds one of this session's document types by its name, the
+// handle samples and the browser use.
+func (a *App) DocumentTypeNamed(ctx context.Context, sessionID, name string) (store.DocumentType, error) {
 	types, err := a.Store.DocumentTypes(ctx, sessionID)
 	if err != nil {
-		return "", err
+		return store.DocumentType{}, err
 	}
 
 	for _, documentType := range types {
-		if documentType.Name == kind {
-			return documentType.Title, nil
+		if documentType.Name == name {
+			return documentType, nil
 		}
 	}
 
-	return "", fmt.Errorf("no document type named %q", kind)
+	return store.DocumentType{}, fmt.Errorf("no document type named %q", name)
 }

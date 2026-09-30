@@ -145,15 +145,21 @@ func (a *App) RunningCases(ctx context.Context, sessionID string, definitionID u
 	return a.Store.RunningCases(ctx, sessionID, definitionID)
 }
 
-// CreateDocumentType adds a kind of document this session can file.
+// CreateDocumentType adds a kind of document this session can file, and allows
+// it on a kind of case when one is given.
 //
-// The name is the value stored on a document and the prefix a sample file uses,
-// so it is normalised to the shape those already have: lower case, words joined
-// by hyphens. A type called "Medical report" and one called "medical-report"
-// would otherwise be two types that look like one.
+// The name is the handle the browser uses and the prefix a sample file uses, so
+// it is normalised to the shape those already have: lower case, words joined by
+// hyphens. A type called "Medical report" and one called "medical-report" would
+// otherwise be two types that look like one.
+//
+// Allowing it in the same call serves the editor, which creates a type from the
+// step that needs it: a step may require only what its kind of case allows, so a
+// type created there and not allowed could not be required.
 func (a *App) CreateDocumentType(
 	ctx context.Context,
 	sessionID, name, title string,
+	allowOn *store.SubmissionType,
 ) (store.DocumentType, error) {
 	normalised := strings.ToLower(strings.Join(strings.Fields(name), "-"))
 	if normalised == "" {
@@ -178,6 +184,12 @@ func (a *App) CreateDocumentType(
 	}
 
 	documentType.ID = id
+
+	if allowOn != nil {
+		if err := a.Store.AllowDocumentType(ctx, id, *allowOn); err != nil {
+			return store.DocumentType{}, err
+		}
+	}
 
 	return documentType, nil
 }

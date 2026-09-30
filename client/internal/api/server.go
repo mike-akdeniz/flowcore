@@ -74,6 +74,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("DELETE /api/workflows/{id}/actions/{actionId}", s.deleteAction)
 	mux.HandleFunc("GET /api/document-types", s.listDocumentTypes)
 	mux.HandleFunc("POST /api/document-types", s.createDocumentType)
+	mux.HandleFunc("PATCH /api/document-types/{name}", s.retitleDocumentType)
+	mux.HandleFunc("PUT /api/case-types/{type}/document-types", s.setAllowedDocumentTypes)
 
 	// Everything else is the single-page application: its own router owns the
 	// paths, so any unmatched GET returns the shell.

@@ -300,9 +300,9 @@ func (s *Store) AddDocument(ctx context.Context, document Document) (Document, e
 
 	_, err = tx.Exec(ctx,
 		`insert into casework.document
-		 (id, submission_id, name, kind, received_at, body, source_file, added_at_revision)
+		 (id, submission_id, name, document_type_id, received_at, body, source_file, added_at_revision)
 		 values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		document.ID, document.SubmissionID, document.Name, document.Kind,
+		document.ID, document.SubmissionID, document.Name, document.DocumentTypeID,
 		document.ReceivedAt, document.Body, document.SourceFile, document.AddedAtRevision)
 	if err != nil {
 		return Document{}, err
@@ -323,8 +323,11 @@ func (s *Store) AddDocument(ctx context.Context, document Document) (Document, e
 // three revisions ago, so it is answered by Current at the point of asking.
 func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Document, error) {
 	rows, err := s.pool.Query(ctx,
-		`select id, submission_id, name, kind, received_at, body, source_file, added_at_revision
-		 from casework.document where submission_id = $1 order by added_at_revision, name`,
+		`select d.id, d.submission_id, d.name, d.document_type_id, t.name,
+		        d.received_at, d.body, d.source_file, d.added_at_revision
+		 from casework.document d
+		 join casework.document_type t on t.id = d.document_type_id
+		 where d.submission_id = $1 order by d.added_at_revision, d.name`,
 		submissionID)
 	if err != nil {
 		return nil, err
@@ -333,8 +336,8 @@ func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Docume
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Document, error) {
 		var document Document
 		err := row.Scan(&document.ID, &document.SubmissionID, &document.Name,
-			&document.Kind, &document.ReceivedAt, &document.Body, &document.SourceFile,
-			&document.AddedAtRevision)
+			&document.DocumentTypeID, &document.Kind, &document.ReceivedAt, &document.Body,
+			&document.SourceFile, &document.AddedAtRevision)
 
 		return document, err
 	})
@@ -430,8 +433,8 @@ func (s *Store) EnsureDocumentType(ctx context.Context, documentType DocumentTyp
 	return id, err
 }
 
-// DocumentTypes is every type this session knows about, for the upload form's
-// kind selector — which offers all of them, because you file whatever arrived.
+// DocumentTypes is every type this session knows about, allowed anywhere or not,
+// for resolving names and labelling what is already on file.
 func (s *Store) DocumentTypes(ctx context.Context, sessionID string) ([]DocumentType, error) {
 	rows, err := s.pool.Query(ctx,
 		`select `+documentTypeColumns+` from casework.document_type
@@ -444,39 +447,19 @@ func (s *Store) DocumentTypes(ctx context.Context, sessionID string) ([]Document
 	return pgx.CollectRows(rows, scanDocumentType)
 }
 
-// AttachDocumentType records that a step expects a kind of document.
-func (s *Store) AttachDocumentType(
-	ctx context.Context,
-	definitionID uuid.UUID,
-	stepDefinitionID uuid.UUID,
-	documentTypeID uuid.UUID,
-) error {
-	_, err := s.pool.Exec(ctx,
-		`insert into casework.step_document_type
-		 (flowcore_definition_id, step_definition_id, document_type_id)
-		 values ($1, $2, $3) on conflict do nothing`,
-		definitionID, stepDefinitionID, documentTypeID)
-
-	return err
-}
-
-// DocumentTypesForStep is what one step expects.
-//
-// Keyed by the step definition id rather than the step's name, because a name is
-// something the workflow editor can change and metadata keyed to one orphans
-// without anything failing. FlowCore exposes the definition id on a running step.
-func (s *Store) DocumentTypesForStep(
+// AllowedDocumentTypes is what may be filed on a kind of case, ordered by title.
+func (s *Store) AllowedDocumentTypes(
 	ctx context.Context,
 	sessionID string,
-	stepDefinitionID uuid.UUID,
+	submissionType SubmissionType,
 ) ([]DocumentType, error) {
 	rows, err := s.pool.Query(ctx,
 		`select t.id, t.session_id, t.name, t.title, t.pass_finding, t.fail_finding, t.created_at
 		 from casework.document_type t
-		 join casework.step_document_type a on a.document_type_id = t.id
-		 where t.session_id = $1 and a.step_definition_id = $2
+		 join casework.allowed_document_type a on a.document_type_id = t.id
+		 where t.session_id = $1 and a.submission_type = $2
 		 order by t.title`,
-		sessionID, stepDefinitionID)
+		sessionID, submissionType)
 	if err != nil {
 		return nil, err
 	}
@@ -484,30 +467,43 @@ func (s *Store) DocumentTypesForStep(
 	return pgx.CollectRows(rows, scanDocumentType)
 }
 
-// DocumentTypesForDefinition is every type any step of a workflow expects.
-//
-// This is what answers "which documents belong to a claim" without a column
-// saying so: a type is a claim document because a step of the claim workflow
-// reads it. It is what the picker falls back to on a draft, which has no running
-// step to ask about.
-func (s *Store) DocumentTypesForDefinition(
-	ctx context.Context,
-	sessionID string,
-	definitionID uuid.UUID,
-) ([]DocumentType, error) {
-	rows, err := s.pool.Query(ctx,
-		`select distinct t.id, t.session_id, t.name, t.title, t.pass_finding,
-		        t.fail_finding, t.created_at
-		 from casework.document_type t
-		 join casework.step_document_type a on a.document_type_id = t.id
-		 where t.session_id = $1 and a.flowcore_definition_id = $2
-		 order by t.title`,
-		sessionID, definitionID)
+// AllowDocumentType puts a type on a kind of case's allowed list. Allowing one
+// already there is not an error.
+func (s *Store) AllowDocumentType(ctx context.Context, documentTypeID uuid.UUID, submissionType SubmissionType) error {
+	_, err := s.pool.Exec(ctx,
+		`insert into casework.allowed_document_type (document_type_id, submission_type)
+		 values ($1, $2) on conflict do nothing`,
+		documentTypeID, submissionType)
+
+	return err
+}
+
+// DisallowDocumentType takes a type off a kind of case's allowed list. The app
+// decides whether that is permitted; documents already filed are untouched.
+func (s *Store) DisallowDocumentType(ctx context.Context, documentTypeID uuid.UUID, submissionType SubmissionType) error {
+	_, err := s.pool.Exec(ctx,
+		`delete from casework.allowed_document_type
+		 where document_type_id = $1 and submission_type = $2`,
+		documentTypeID, submissionType)
+
+	return err
+}
+
+// RetitleDocumentType changes what a type is called on screen. The id, the name,
+// and every document and requirement that refers to the type are unchanged.
+func (s *Store) RetitleDocumentType(ctx context.Context, sessionID string, id uuid.UUID, title string) error {
+	tag, err := s.pool.Exec(ctx,
+		`update casework.document_type set title = $3 where session_id = $1 and id = $2`,
+		sessionID, id, title)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return pgx.CollectRows(rows, scanDocumentType)
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 // ActivateWorkflow retires whatever was active for this submission type and
@@ -561,20 +557,6 @@ func (s *Store) ActivateWorkflow(ctx context.Context, workflow RegisteredWorkflo
 	return tx.Commit(ctx)
 }
 
-// DetachStepDocumentTypes removes a deleted step's document type rows.
-//
-// step_document_type references a step definition id with no foreign key —
-// deliberately, since a constraint across schemas would couple CaseWork's
-// lifecycle to the library's — so nothing removes these on its own. Rows matching
-// no step are litter a later reader has to reason about.
-func (s *Store) DetachStepDocumentTypes(ctx context.Context, stepDefinitionID uuid.UUID) error {
-	_, err := s.pool.Exec(ctx,
-		`delete from casework.step_document_type where step_definition_id = $1`,
-		stepDefinitionID)
-
-	return err
-}
-
 // AllRegisteredDefinitionIDs is every workflow any session has registered.
 //
 // Not session-scoped, unlike almost everything else here, and that is the point:
@@ -595,50 +577,6 @@ func (s *Store) AllRegisteredDefinitionIDs(ctx context.Context) ([]uuid.UUID, er
 	})
 }
 
-// DocumentTypesByStep is every step's expected types for one workflow, in one
-// query, keyed by step definition id.
-//
-// One query rather than one per step: the editor shows every step at once, and
-// a canvas of fifteen nodes should not be fifteen round trips.
-func (s *Store) DocumentTypesByStep(
-	ctx context.Context,
-	sessionID string,
-	definitionID uuid.UUID,
-) (map[uuid.UUID][]DocumentType, error) {
-	rows, err := s.pool.Query(ctx,
-		`select a.step_definition_id, t.id, t.session_id, t.name, t.title,
-		        t.pass_finding, t.fail_finding, t.created_at
-		 from casework.step_document_type a
-		 join casework.document_type t on t.id = a.document_type_id
-		 where t.session_id = $1 and a.flowcore_definition_id = $2
-		 order by t.title`,
-		sessionID, definitionID)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	byStep := make(map[uuid.UUID][]DocumentType)
-
-	for rows.Next() {
-		var (
-			stepID       uuid.UUID
-			documentType DocumentType
-		)
-
-		if err := rows.Scan(&stepID, &documentType.ID, &documentType.SessionID,
-			&documentType.Name, &documentType.Title, &documentType.PassFinding,
-			&documentType.FailFinding, &documentType.CreatedAt); err != nil {
-			return nil, err
-		}
-
-		byStep[stepID] = append(byStep[stepID], documentType)
-	}
-
-	return byStep, rows.Err()
-}
-
 // RunningCases counts the submissions part-way through a workflow.
 func (s *Store) RunningCases(ctx context.Context, sessionID string, definitionID uuid.UUID) (int, error) {
 	var count int
@@ -649,39 +587,6 @@ func (s *Store) RunningCases(ctx context.Context, sessionID string, definitionID
 		sessionID, definitionID).Scan(&count)
 
 	return count, err
-}
-
-// SetStepDocumentTypes replaces a step's attachments with exactly this set, in
-// one transaction so the step is never briefly expecting nothing.
-func (s *Store) SetStepDocumentTypes(
-	ctx context.Context,
-	definitionID, stepDefinitionID uuid.UUID,
-	documentTypeIDs []uuid.UUID,
-) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx,
-		`delete from casework.step_document_type where step_definition_id = $1`,
-		stepDefinitionID); err != nil {
-		return err
-	}
-
-	for _, documentTypeID := range documentTypeIDs {
-		if _, err := tx.Exec(ctx,
-			`insert into casework.step_document_type
-			 (flowcore_definition_id, step_definition_id, document_type_id)
-			 values ($1, $2, $3)`,
-			definitionID, stepDefinitionID, documentTypeID); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit(ctx)
 }
 
 // Reopen puts a finished submission back to draft so it can run again.

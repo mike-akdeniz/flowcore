@@ -141,10 +141,12 @@ export const api = {
     edit<Workflow>(`/api/workflows/${id}/actions/${actionId}`, "DELETE"),
 
   documentTypes: () => request<DocumentType[]>("/api/document-types"),
-  createDocumentType: (name: string, title: string) =>
+  // Created allowed on a kind of case, so a step of a workflow for it can
+  // require the new type straight away.
+  createDocumentType: (name: string, title: string, submissionType: string) =>
     request<DocumentType>("/api/document-types", {
       method: "POST",
-      body: JSON.stringify({ name, title }),
+      body: JSON.stringify({ name, title, submissionType }),
     }),
 };
 
@@ -279,6 +281,9 @@ export type NewDocument = {
 export type DocumentType = {
   name: string;
   title: string;
+  // The kinds of case that may hold this type. Present on the list, absent on
+  // a type just created.
+  allowedFor?: string[];
 };
 
 export type Sample = {

@@ -81,9 +81,14 @@ type Document struct {
 	ID           uuid.UUID
 	SubmissionID uuid.UUID
 	Name         string
-	Kind         string
-	ReceivedAt   time.Time
-	Body         *string
+	// DocumentTypeID is the type's stable id, and what currency is keyed on.
+	DocumentTypeID uuid.UUID
+	// Kind is the type's name, read with the document for the callers that match
+	// on it — the samples and the simulated checker. Never written: the id is
+	// what a document stores.
+	Kind       string
+	ReceivedAt time.Time
+	Body       *string
 	// SourceFile is the sample or uploaded file this came from. It is what a
 	// simulated agent step reads when no model is configured.
 	SourceFile *string
@@ -94,7 +99,7 @@ type Document struct {
 // Current returns the document of each kind in force at a revision: the newest
 // one of that kind to have arrived at or before it.
 //
-// Currency is per kind, not per case. That is the whole rule, and it is why a
+// Currency is per type, not per case. That is the whole rule, and it is why a
 // step reading several kinds at once — `documentation check` wants an estimate
 // and a police report — needs no tie-break: two documents only compete when they
 // are the same kind.
@@ -106,16 +111,16 @@ type Document struct {
 // documents must be ordered by AddedAtRevision, which is how Store.Documents
 // returns them.
 func Current(documents []Document, asOfRevision int) []Document {
-	newest := make(map[string]Document, len(documents))
+	newest := make(map[uuid.UUID]Document, len(documents))
 	for _, document := range documents {
 		if document.AddedAtRevision <= asOfRevision {
-			newest[document.Kind] = document
+			newest[document.DocumentTypeID] = document
 		}
 	}
 
 	current := make([]Document, 0, len(newest))
 	for _, document := range documents {
-		if newest[document.Kind].ID == document.ID {
+		if newest[document.DocumentTypeID].ID == document.ID {
 			current = append(current, document)
 		}
 	}
@@ -140,15 +145,14 @@ type RegisteredWorkflow struct {
 // DocumentType is a kind of document CaseWork knows about, and what a simulated
 // agent step says when one passes or fails the check that reads it.
 //
-// Configuration rather than a constant: a visitor can add one, and which steps
-// expect it is a separate set of rows. There is no submission type here —
-// whether a type belongs to claims or to applications follows from the steps it
-// is attached to.
+// Configuration rather than a constant: a visitor can add one. Which kinds of
+// case may hold it is the allowed list; which steps require it is on the
+// workflow definition in FlowCore, as the type's id.
 type DocumentType struct {
 	ID        uuid.UUID
 	SessionID string
-	// Name is what a document records as its kind, and the middle segment of a
-	// sample's file name. One spelling for all three.
+	// Name is the middle segment of a sample's file name, and the handle the
+	// browser uses. Not editable; Title is.
 	Name  string
 	Title string
 	// PassFinding and FailFinding are what the simulation reports. A real model
