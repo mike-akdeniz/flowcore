@@ -1,0 +1,10 @@
+#!/bin/sh
+# Block a commit that stages a secret, such as an API key pasted into .env.example.
+# Installed by `make hooks`. Bypass deliberately with `git commit --no-verify`.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+	echo "gitleaks not found, so this commit is not checked for secrets: brew install gitleaks" >&2
+	exit 1
+fi
+
+exec gitleaks git --pre-commit --staged --redact --verbose

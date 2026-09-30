@@ -31,12 +31,15 @@ on first request. `make fresh` starts the model in the background too — downlo
 time, reusing it after, logging to `bin/model.log` — and stops it when you stop CaseWork.
 
 **The model picker is in the top bar.** It lists what the local server offers and, when a key is
-set, Anthropic's models too:
+set, Anthropic's models too. Put the key in `.env`, which git ignores:
 
 ```
-export ANTHROPIC_API_KEY=...
-make fresh
+cp .env.example .env
 ```
+
+Paste the key after `ANTHROPIC_API_KEY=` in that file, then `make fresh`. CaseWork reads it at
+startup, so restart it after changing the key. Keys come from the Claude Console, billed separately
+from a Claude.ai subscription; set a spend limit and an expiry there.
 
 With exactly one model on offer it is used without asking; with several, agent steps wait until you
 pick one. Every finding ends with the name of the model that wrote it, so switching models and
@@ -51,8 +54,9 @@ agent step visibly reads the case and decides, not to be right.
 
 ```
 ollama pull gemma3:270m
-export CLIENT_LOCAL_MODEL_URL=http://localhost:11434
 ```
+
+and set `CLIENT_LOCAL_MODEL_URL=http://localhost:11434` in `.env`.
 
 ### The commands, and which one you want
 

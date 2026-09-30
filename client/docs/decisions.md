@@ -1893,3 +1893,28 @@ An agent step missing a required document now says so on the case screen, in pla
 `make run`, and so `make fresh`, start the local model in the background and stop it with CaseWork.
 The interview had it as a separate `make model` in a second terminal; the owner, having skipped it and met an empty picker, asked instead that *"make fresh should start the model too"*.
 It is skipped when something already answers on 8081, and when llama.cpp is not installed, in which case CaseWork starts anyway.
+
+## 41. The API key lives in a gitignored `.env`, loaded by the Makefile
+
+**Context.**
+Slice 8 documented `export ANTHROPIC_API_KEY=...` before `make fresh`.
+That holds for one session of one terminal, is easy to forget, and invites pasting the key into `~/.zshrc`, where every process inherits it.
+The owner asked for a setup that is secure and easy for everyone who clones the repo, not only for them.
+
+**Options put to the owner.**
+Shell `export`; a gitignored `.env` with a committed `.env.example`, loaded by the Makefile; the same loaded by the Go client; direnv; a secret manager such as 1Password's `op run` or the macOS Keychain; identity federation.
+Federation does not apply: CaseWork runs on a laptop with no cloud or CI identity provider, and the client has no code path for federated tokens.
+Claude recommended `.env` through the Makefile as the default, with `op run` as a documented upgrade.
+
+**Decision.**
+The owner: *"Let's be honest, I'm gonna guess in practice nobody uses option 5 for testing - demo... If so let's go with option 2 purely."*
+The Makefile does `-include .env` and exports `ANTHROPIC_API_KEY` and `CLIENT_LOCAL_MODEL_URL`; `.env.example` is committed with both variables, the key empty; `.env` is already in `.gitignore`.
+No secret-manager note in the README.
+
+**What it costs.**
+The key is plaintext on disk, ignored by git.
+It reaches CaseWork only through `make`; running `bin/casework` directly still needs the variable in the shell.
+Because a Makefile assignment beats the environment, a key in `.env` wins over one exported in the shell.
+An empty `ANTHROPIC_API_KEY` reads as no key, so an unedited copy of `.env.example` runs on the local model only.
+
+Nothing in this reached the library.

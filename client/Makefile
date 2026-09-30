@@ -6,6 +6,17 @@
 
 .PHONY: up down install build run dev fresh reset model
 
+# Settings and secrets for CaseWork live in a gitignored .env (copy .env.example).
+# Included when present, so a clone without one still runs on the local model.
+# The file wins over the shell's environment, because a Makefile assignment does.
+#
+# Only the variables named here reach CaseWork through make. The binary reads its
+# other settings (CLIENT_ADDR and the rest) from the environment, as before.
+-include .env
+
+export ANTHROPIC_API_KEY
+export CLIENT_LOCAL_MODEL_URL
+
 # Start CaseWork's Postgres and wait for it to accept connections.
 up:
 	docker compose up -d --wait

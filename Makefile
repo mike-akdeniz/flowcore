@@ -18,7 +18,7 @@ MIGRATIONS  := migrations
 #   make test TESTFLAGS=-count=1
 TESTFLAGS ?=
 
-.PHONY: test migrate-test migrate-test-down reset-test-db create-test-db up check-docs
+.PHONY: test migrate-test migrate-test-down reset-test-db create-test-db up check-docs hooks
 
 # Run the suite: apply migrations, then test against the migrated schema.
 #
@@ -90,6 +90,12 @@ check-docs:
 	done; \
 	if [ $$fail -ne 0 ]; then exit 1; fi; \
 	echo "docs OK"
+
+# Point git at the versioned hooks in .githooks, which block a commit that stages a
+# secret. Run once per clone; git does not carry hook settings with the repository.
+# Needs gitleaks installed: brew install gitleaks
+hooks:
+	git config core.hooksPath .githooks
 
 # Start the local docker-compose Postgres and wait until it accepts connections.
 # --wait needs the healthcheck in docker-compose.yml; without one it would return
