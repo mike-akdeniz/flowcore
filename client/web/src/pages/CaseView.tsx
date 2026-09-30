@@ -37,6 +37,9 @@ export function CaseView({
   const [subject, setSubject] = useState<Case | null>(null);
   const [failure, setFailure] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  // A refused submission, shown on the case rather than in place of it: the
+  // usual reason is a missing document, and the fix is on this page.
+  const [submitFailure, setSubmitFailure] = useState<string>();
   const [reopening, setReopening] = useState(false);
   const [documentId, setDocumentId] = useState<string | null>(null);
 
@@ -78,17 +81,22 @@ export function CaseView({
 
   async function submit() {
     setSubmitting(true);
+    setSubmitFailure(undefined);
 
     try {
       setSubject(await api.submitCase(subject!.reference));
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "could not submit it");
+      setSubmitFailure(error instanceof Error ? error.message : "could not submit it");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const canAddDocuments = subject.status === "draft" || subject.currentStep !== null;
+  // The server's rule: anyone while it is a draft, and afterwards only whoever
+  // the case is waiting on.
+  const canAddDocuments =
+    subject.status === "draft" ||
+    (subject.currentStep !== null && canActAs(identity, subject.currentStep.assignee));
 
   async function reopen() {
     setReopening(true);
@@ -130,6 +138,7 @@ export function CaseView({
         subject={subject}
         identity={identity}
         submitting={submitting}
+        submitFailure={submitFailure}
         reopening={reopening}
         onSubmit={submit}
         onReopen={reopen}
@@ -224,6 +233,7 @@ function ActionPanel({
   subject,
   identity,
   submitting,
+  submitFailure,
   reopening,
   onSubmit,
   onReopen,
@@ -232,6 +242,7 @@ function ActionPanel({
   subject: Case;
   identity: Staff;
   submitting: boolean;
+  submitFailure?: string;
   reopening: boolean;
   onSubmit: () => void;
   onReopen: () => void;
@@ -240,17 +251,24 @@ function ActionPanel({
   if (subject.status === "draft") {
     return (
       <Card withBorder padding="md">
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            Not submitted. Add what you have, then send it for assessment.
-          </Text>
-          {/* Always enabled. Whether the file is adequate is the first agent
-              step's judgment, not a form's — letting the process do the checking
-              rather than the input is the point of having a process. */}
-          <Button onClick={onSubmit} loading={submitting}>
-            Submit for assessment
-          </Button>
-        </Group>
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              Not submitted. Add what you have, then send it for assessment.
+            </Text>
+            {/* Always enabled. If the workflow starts at an agent whose required
+                documents are missing, the server refuses and names them — the
+                rule lives there, not in a disabled button. */}
+            <Button onClick={onSubmit} loading={submitting}>
+              Submit for assessment
+            </Button>
+          </Group>
+          {submitFailure && (
+            <Text size="sm" c="red">
+              {submitFailure}
+            </Text>
+          )}
+        </Stack>
       </Card>
     );
   }
@@ -291,6 +309,26 @@ function ActionPanel({
           </Badge>
           {step.isAgent && <Loader size="xs" />}
         </Group>
+
+        {/* What a decision here waits on. The server refuses a decision while any
+            is missing; showing it first saves finding out that way. */}
+        {step.required.length > 0 && (
+          <Group gap="xs">
+            <Text size="sm" c="dimmed">
+              Requires:
+            </Text>
+            {step.required.map((required) => (
+              <Badge
+                key={required.name}
+                size="sm"
+                variant="light"
+                color={required.present ? "green" : "red"}
+              >
+                {required.title} {required.present ? "✓" : "— missing"}
+              </Badge>
+            ))}
+          </Group>
+        )}
 
         {step.isAgent ? (
           // Kept despite being wordy, and trimmed rather than cut. The pause is
@@ -341,9 +379,9 @@ function Documents({
           </Text>
         </Group>
 
-        {/* Offered while the case can still use one — a draft being assembled,
-            and a run in flight. Hidden once the run has finished, where a new
-            document would move the revision and no step would ever read it. */}
+        {/* Offered to whoever may file: anyone on a draft, and afterwards the
+            person or team the case is waiting on. Hidden once the run has
+            finished, where nobody holds it. */}
         {canAdd && <AddDocument subject={subject} hasKey={hasKey} onAdded={onAdded} />}
 
         <Tabs defaultValue="current">
@@ -389,7 +427,6 @@ function DocumentList({ documents, empty, onOpen }: {
               <Anchor component="button" type="button" size="sm" onClick={() => onOpen(document.id)}>
                 {document.name} · v{document.version}
               </Anchor>
-              {document.outcome && <Text size="xs" c="dimmed">{document.outcome}</Text>}
             </Table.Td>
             <Table.Td><Text size="xs" c="dimmed">{document.kind}</Text></Table.Td>
             <Table.Td><Text size="xs" c="dimmed">{document.receivedAt}</Text></Table.Td>

@@ -8,13 +8,14 @@ import {
   Card,
   Grid,
   Group,
+  MultiSelect,
   Select,
   Stack,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
-import { api, type Workflow } from "../api";
+import { api, type DocumentType, type Workflow } from "../api";
 import { submissionName } from "../vocabulary";
 import { StepPanel } from "../workflow/StepPanel";
 import { WorkflowGraph } from "../workflow/WorkflowGraph";
@@ -240,8 +241,123 @@ function WorkflowPanel({
           It arrives unreachable and assigned to a placeholder. Select it on the canvas to
           set the assignee, and add an action somewhere that routes to it.
         </Text>
+
+        <AllowedDocuments workflow={workflow} onFailed={onFailed} />
       </Stack>
     </Card>
+  );
+}
+
+// What this kind of case may hold, and what each kind of document is called.
+//
+// Here because it bounds what the steps of this workflow can require, though it
+// belongs to the kind of case rather than to the workflow: every workflow for
+// claims shares one list. Removing a type something could still require is
+// refused, and the refusal says what requires it.
+function AllowedDocuments({
+  workflow,
+  onFailed,
+}: {
+  workflow: Workflow;
+  onFailed: (message: string) => void;
+}) {
+  const [types, setTypes] = useState<DocumentType[]>([]);
+  const [allowed, setAllowed] = useState<string[]>([]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+
+  function show(list: DocumentType[]) {
+    setTypes(list);
+    setAllowed(
+      list
+        .filter((documentType) => documentType.allowedFor?.includes(workflow.submissionType))
+        .map((documentType) => documentType.name),
+    );
+  }
+
+  useEffect(() => {
+    void api.documentTypes().then(show);
+  }, [workflow.submissionType]);
+
+  async function run(call: () => Promise<DocumentType[]>) {
+    try {
+      show(await call());
+    } catch (error) {
+      onFailed(error instanceof Error ? error.message : "that did not work");
+    }
+  }
+
+  const options = types.map((documentType) => ({
+    value: documentType.name,
+    label: documentType.title,
+  }));
+
+  return (
+    <Stack gap="xs" mt="xs">
+      <Text size="sm" fw={500}>
+        Documents a {submissionName(workflow.submissionType).toLowerCase()} may hold
+      </Text>
+      <Text size="xs" c="dimmed">
+        What can be added to a case of this kind, at any step. A step can require only
+        these.
+      </Text>
+      <Group gap="xs" align="flex-end" wrap="nowrap">
+        <MultiSelect
+          size="xs"
+          flex={1}
+          data={options}
+          value={allowed}
+          onChange={setAllowed}
+          searchable
+        />
+        <Button
+          size="xs"
+          variant="light"
+          onClick={() => run(() => api.setAllowedDocumentTypes(workflow.submissionType, allowed))}
+        >
+          Save
+        </Button>
+      </Group>
+
+      {/* A title is only a label: documents, lists and every run's requirements
+          refer to the type itself, so renaming one changes nothing else. */}
+      <Group gap="xs" align="flex-end" wrap="nowrap">
+        <Select
+          size="xs"
+          flex={1}
+          placeholder="Rename a type…"
+          data={options}
+          value={renaming}
+          onChange={(value) => {
+            setRenaming(value);
+            setTitle(types.find((documentType) => documentType.name === value)?.title ?? "");
+          }}
+        />
+        <TextInput
+          size="xs"
+          flex={1}
+          value={title}
+          disabled={!renaming}
+          onChange={(event) => setTitle(event.currentTarget.value)}
+        />
+        <Button
+          size="xs"
+          variant="light"
+          disabled={!renaming || !title.trim()}
+          onClick={() =>
+            run(async () => {
+              const updated = await api.retitleDocumentType(renaming!, title);
+              setRenaming(null);
+              setTitle("");
+
+              return updated;
+            })
+          }
+        >
+          Rename
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 

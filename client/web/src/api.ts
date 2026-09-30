@@ -141,6 +141,18 @@ export const api = {
     edit<Workflow>(`/api/workflows/${id}/actions/${actionId}`, "DELETE"),
 
   documentTypes: () => request<DocumentType[]>("/api/document-types"),
+  // The whole allowed list for a kind of case. Removing a type something could
+  // still require is refused with the reason.
+  setAllowedDocumentTypes: (submissionType: string, names: string[]) =>
+    request<DocumentType[]>(`/api/case-types/${submissionType}/document-types`, {
+      method: "PUT",
+      body: JSON.stringify({ names }),
+    }),
+  retitleDocumentType: (name: string, title: string) =>
+    request<DocumentType[]>(`/api/document-types/${name}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
   // Created allowed on a kind of case, so a step of a workflow for it can
   // require the new type straight away.
   createDocumentType: (name: string, title: string, submissionType: string) =>
@@ -188,15 +200,12 @@ export type CaseDocument = {
   receivedAt: string;
   body: string | null;
   sourceFile: string | null;
-  // What a sample's name argues for; empty for an uploaded file. Lets the
-  // interface name a document the way the picker does.
-  outcome: string;
   addedAtRevision: number;
   // This document's ordinal among its own kind, oldest first — "Repair estimate
   // v2". Per kind, not per case: addedAtRevision is a case-level number.
   version: number;
-  // The decisions that had this document on file. Empty means no decision has
-  // seen it. Removal also requires the case to be draft.
+  // The decisions made while this document was on file. Empty means none was,
+  // and then it can be removed while the case is a draft.
   readBy: string[];
   // Superseded means a newer document of the same kind has taken over. The row
   // stays on the case: an agent's remark refers to the document it actually
@@ -206,6 +215,8 @@ export type CaseDocument = {
 
 export type CaseStep = {
   name: string;
+  // What a decision here waits on, from the run's own frozen copy of the step.
+  required: { name: string; title: string; present: boolean }[];
   assignee: string;
   isAgent: boolean;
   waitingSince: string;
@@ -239,10 +250,10 @@ export type Case = {
   documents: CaseDocument[];
   // Null on a draft, and null again once the run has finished.
   currentStep: CaseStep | null;
-  // Every kind this session knows about, for the upload selector.
+  // Every type this session knows about, for labelling what is on file.
   documentTypes: DocumentType[];
-  // What the step this case is waiting on has been configured to read. Empty
-  // means it declares nothing, and the picker narrows nothing.
+  // What this kind of case may hold: the whole allowed list, the same in draft
+  // and at every step.
   expects: string[];
   // Every visit, oldest first. Empty on a draft.
   history: Visit[];
@@ -318,8 +329,10 @@ export type WorkflowStep = {
   assignee: string;
   statusId: string;
   isAgent: boolean;
-  // The document types this step reads, by name.
+  // The document types a decision on this step requires, by name.
   expects: string[];
+  // What whoever acts here is told. Required on an agent step.
+  instructions: string | null;
   actions: WorkflowAction[];
 };
 
@@ -351,6 +364,8 @@ export type StepEdit = {
   statusId: string;
   // The whole set, not a delta.
   expects: string[];
+  // Left as stored when absent; an empty string clears them.
+  instructions?: string;
 };
 
 export type NewWorkflow = {

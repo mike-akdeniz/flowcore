@@ -5,17 +5,19 @@ import {
   Button,
   Card,
   Divider,
+  Autocomplete,
   Group,
   MultiSelect,
   Select,
   Stack,
   Text,
   TextInput,
+  Textarea,
 } from "@mantine/core";
 import { api, type DocumentType, type Workflow, type WorkflowStep } from "../api";
 
-// Editing one step: what it is called, who holds it, what it reads, and where it
-// can go.
+// Editing one step: what it is called, who holds it, what it is told, what a
+// decision on it requires, and where it can go.
 //
 // A panel rather than direct manipulation on the canvas. An action is not only an
 // edge — it has a name, and it either routes to a step or ends the run in a
@@ -39,6 +41,7 @@ export function StepPanel({
     assignee: step.assignee,
     statusId: step.statusId,
     expects: step.expects,
+    instructions: step.instructions ?? "",
   });
   const [types, setTypes] = useState<DocumentType[]>([]);
   const [newType, setNewType] = useState("");
@@ -53,6 +56,7 @@ export function StepPanel({
       assignee: step.assignee,
       statusId: step.statusId,
       expects: step.expects,
+      instructions: step.instructions ?? "",
     });
     setFailure(undefined);
   }, [step.id]);
@@ -75,6 +79,17 @@ export function StepPanel({
   }
 
   const isEntry = workflow.entryStepId === step.id;
+  const isAgent = form.assignee.startsWith("agent:");
+
+  // People and teams from the session, plus the agents this workflow already
+  // uses. Free text as well, because an agent is whatever reference you give
+  // it: typing `agent:photos` makes a new one.
+  const assigneeOptions = [
+    ...new Set([
+      ...assignees,
+      ...workflow.steps.map((candidate) => candidate.assignee).filter((a) => a.startsWith("agent:")),
+    ]),
+  ];
 
   return (
     <Card withBorder padding="md">
@@ -103,13 +118,26 @@ export function StepPanel({
           onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
         />
 
-        <Select
+        <Autocomplete
           label="Assignee"
-          description="An agent reference makes this a step the application decides for itself."
-          data={assignees}
+          description="A reference starting agent: makes this a step the application decides for itself."
+          data={assigneeOptions}
           value={form.assignee}
-          onChange={(value) => setForm({ ...form, assignee: value ?? form.assignee })}
-          searchable
+          onChange={(value) => setForm({ ...form, assignee: value })}
+        />
+
+        <Textarea
+          label="Instructions"
+          description={
+            isAgent
+              ? "What the agent is asked to decide. Required for an agent."
+              : "Optional guidance for whoever holds this step."
+          }
+          autosize
+          minRows={2}
+          maxRows={8}
+          value={form.instructions}
+          onChange={(event) => setForm({ ...form, instructions: event.currentTarget.value })}
         />
 
         <Select
@@ -143,15 +171,13 @@ export function StepPanel({
 
         {/* Creating from here because this is the moment you find out you need
             one — "this step reads a medical report, and there is no medical
-            report". A separate screen would mean leaving and coming back.
+            report". A separate screen would mean leaving and coming back. It is
+            created allowed on this workflow's kind of case, since a step can
+            only require what the case may hold.
 
             A row of its own rather than a create-on-type dropdown: Mantine 7
             dropped that from MultiSelect, and an explicit field is clearer than
-            a search box that sometimes makes things.
-
-            No findings asked for. `finding()` falls back to generic wording, so
-            a type made in a moment behaves sensibly and better wording is an
-            improvement rather than a prerequisite. */}
+            a search box that sometimes makes things. */}
         <Group gap="xs" align="flex-end" wrap="nowrap">
           <TextInput
             size="xs"

@@ -5,10 +5,11 @@ import type { Case, Visit } from "../api";
 //
 // The second half is the point. A run that loops through `estimate follow-up`
 // visits `estimate check` twice, with the same name and different answers,
-// and the only thing that explains the change is which documents were on file
-// each time. The server derives that from the revision each visit stamped, so
-// the rule lives in one place — `store.Current` — rather than being reimplemented
-// here in TypeScript.
+// and the only thing that explains the change is its decision documents: the
+// newest of each type the step required, as they stood at the revision each
+// visit stamped. The server derives them, so the rule lives in one place rather
+// than being reimplemented here in TypeScript. They are what a decision depended
+// on, not a claim about what anyone opened.
 export function History({ subject, onOpenDocument }: {
   subject: Case;
   onOpenDocument: (documentId: string) => void;
@@ -46,10 +47,8 @@ export function History({ subject, onOpenDocument }: {
               }
             >
               <Stack gap={2}>
-                {/* pre-line, because a remark is written with line breaks in
-                    it: a finding, then the lines that say it was canned and how
-                    to change it. Without this they render as one paragraph and
-                    the instruction disappears into the apology. */}
+                {/* pre-line, because a remark can be written with line breaks in
+                    it, and they carry meaning a single paragraph would lose. */}
                 {visit.remark && (
                   <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-line" }}>
                     {visit.remark}
@@ -58,7 +57,7 @@ export function History({ subject, onOpenDocument }: {
 
                 {visit.documentIds.length > 0 && (
                   <Text size="xs" c="dimmed">
-                    read:{" "}
+                    decision documents:{" "}
                     {visit.documentIds.map((id, index) => {
                       const document = named.get(id);
                       if (!document) return null;
@@ -68,7 +67,6 @@ export function History({ subject, onOpenDocument }: {
                           {index > 0 && " · "}
                           <Anchor component="button" type="button" size="xs" onClick={() => onOpenDocument(id)}>
                             {document.name} · v{document.version}
-                            {document.outcome && ` — ${document.outcome}`}
                           </Anchor>
                         </span>
                       );

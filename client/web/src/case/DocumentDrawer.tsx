@@ -46,11 +46,6 @@ export function DocumentDrawer({
             <Badge size="sm" variant="light" color="gray">
               v{document.version}
             </Badge>
-            {document.outcome && (
-              <Badge size="sm" variant="light" color="gray">
-                {document.outcome}
-              </Badge>
-            )}
           </Group>
         )
       }
@@ -82,12 +77,14 @@ export function DocumentDrawer({
 
           <Divider />
 
-          {/* The inverse of the history's list of documents, and the same fact
-              that decides whether this can be removed. */}
+          {/* Every decision made while this was on file — wider than the
+              decisions it was a decision document for, and what decides whether
+              it can be removed: a draft's document can go only if no decision
+              ever had it in front of it. */}
           {document.readBy.length > 0 ? (
             <Text size="sm" c="dimmed">
               On file when <b>{document.readBy.join(", ")}</b> decided.{" "}
-              Documents used in a decision cannot be removed.
+              A document on file at a decision cannot be removed.
             </Text>
           ) : subject.status !== "draft" ? (
             <Text size="sm" c="dimmed">

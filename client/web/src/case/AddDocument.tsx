@@ -10,9 +10,9 @@ import {
 } from "@mantine/core";
 import { api, type Case, type NewDocument, type Sample } from "../api";
 
-// A document's kind is now configuration, so there is no list of them here. The
-// case carries every type this session knows about, for the upload selector, and
-// the names the current step expects, for the picker.
+// A document's kind is configuration, so there is no list of them here. The case
+// carries every type this session knows about, for labels, and the ones this kind
+// of case may hold, which is all either selector offers.
 //
 // This replaced a Go literal that had to agree with three other places and a SQL
 // CHECK constraint, none of which failed when they drifted.
@@ -23,11 +23,7 @@ import { api, type Case, type NewDocument, type Sample } from "../api";
 // sample with no key — and both are the same job: say what the next agent step
 // will do, before it does it. One sentence, always present, always true, cannot
 // drift out of step with itself the way two warnings would.
-function whatHappensNext(
-  hasKey: boolean,
-  mode: "sample" | "upload",
-  sample: Sample | undefined,
-): { colour: string; text: string } {
+function whatHappensNext(hasKey: boolean): { colour: string; text: string } {
   if (hasKey) {
     return {
       colour: "gray",
@@ -35,21 +31,11 @@ function whatHappensNext(
     };
   }
 
-  if (mode === "sample" && sample?.outcome) {
-    return {
-      colour: "yellow",
-      text:
-        `No API key. The agent step will read this file's name and act on ` +
-        `"${sample.outcome}" — nothing inside the document is read.`,
-    };
-  }
-
   return {
-    colour: "orange",
+    colour: "yellow",
     text:
-      "No API key, and this file's name carries no outcome. Nothing will be " +
-      "read: the agent step will choose one of its actions at random, and say " +
-      "so on the record.",
+      "No API key. Agent steps are simulated: they read nothing, take a fixed " +
+      "branch, and say so on the record.",
   };
 }
 
@@ -69,9 +55,9 @@ export function AddDocument({
     return titles.get(kind) ?? kind;
   }
 
-  // The step's own list, and everything when it declares none. A step that should
-  // accept a witness statement has one attached to it — a wrong list here is a
-  // configuration mistake with a visible cause, not a guess made in code.
+  // What this kind of case may hold — the same list in draft and at every step
+  // (client decision 36). The server refuses anything else, so offering it here
+  // would only be a way to be refused.
   //
   // Sorted by title so a type's pass and fail sit together, and pass first within
   // each so the ordinary case leads. The numeric prefix the files carry is a
@@ -80,7 +66,7 @@ export function AddDocument({
   const offered = samples
     .filter(
       (candidate) =>
-        subject.expects.length === 0 || subject.expects.includes(candidate.kind),
+        subject.expects.includes(candidate.kind),
     )
     .sort((left, right) => {
       const byTitle = kindLabel(left.kind).localeCompare(kindLabel(right.kind));
@@ -102,9 +88,17 @@ export function AddDocument({
     void api.samples().then(setSamples);
   }, []);
 
+  const allowedTypes = subject.documentTypes.filter((documentType) =>
+    subject.expects.includes(documentType.name),
+  );
+
   useEffect(() => {
-    setUploadKind((current) => current || (subject.documentTypes[0]?.name ?? ""));
-  }, [subject.documentTypes]);
+    setUploadKind((current) =>
+      allowedTypes.some((documentType) => documentType.name === current)
+        ? current
+        : (allowedTypes[0]?.name ?? ""),
+    );
+  }, [allowedTypes.map((documentType) => documentType.name).join(",")]);
 
   // Nothing is selected until someone selects it. Auto-picking the first sample
   // meant pressing Add without reading filed whatever happened to be at the top,
@@ -129,7 +123,7 @@ export function AddDocument({
     (document) => !document.superseded && document.kind === kind,
   );
 
-  const note = whatHappensNext(hasKey, mode, sample);
+  const note = whatHappensNext(hasKey);
   const ready = mode === "sample" ? Boolean(sample) : Boolean(upload);
 
   async function add() {
@@ -202,8 +196,7 @@ export function AddDocument({
           />
           <Select
             label="Kind"
-            // Every type, never narrowed: you file whatever arrived.
-            data={subject.documentTypes.map((documentType) => ({
+            data={allowedTypes.map((documentType) => ({
               value: documentType.name,
               label: documentType.title,
             }))}

@@ -25,12 +25,6 @@ type documentJSON struct {
 	ReceivedAt string  `json:"receivedAt"`
 	Body       *string `json:"body"`
 	SourceFile *string `json:"sourceFile"`
-	// Outcome is what a sample's name says it argues for, resolved here because
-	// the naming convention belongs to the samples package. Empty for anything a
-	// visitor uploaded. It exists so the interface can name a document the way
-	// the picker does — "Repair estimate — pass" — rather than showing a file
-	// name no screen otherwise mentions.
-	Outcome string `json:"outcome"`
 	// AddedAtRevision is when this document arrived, and Superseded says a newer
 	// one of its kind has taken over. Superseded documents are sent rather than
 	// filtered out: an agent's remark refers to the document it actually read,
@@ -293,7 +287,6 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			ReceivedAt:      document.ReceivedAt.Format("2006-01-02"),
 			Body:            document.Body,
 			SourceFile:      document.SourceFile,
-			Outcome:         s.sampleOutcome(document.SourceFile),
 			AddedAtRevision: document.AddedAtRevision,
 			Superseded:      !inForce[document.ID],
 			Version:         versions[document.ID],
@@ -922,21 +915,6 @@ func (s *Server) listAllCases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.write(w, payload)
-}
-
-// sampleOutcome is what a document's source file argues for, or empty for one a
-// visitor uploaded.
-func (s *Server) sampleOutcome(sourceFile *string) string {
-	if sourceFile == nil {
-		return ""
-	}
-
-	sample, ok := s.app.Samples.ByName(*sourceFile)
-	if !ok {
-		return ""
-	}
-
-	return string(sample.Outcome)
 }
 
 // reopenCase puts a finished case back to draft so it can run again.

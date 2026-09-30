@@ -57,7 +57,7 @@ func chooseChecker(logger *slog.Logger) Checker {
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		logger.Info("agent steps are simulated",
 			"reason", "ANTHROPIC_API_KEY is not set",
-			"how", "sample documents by file name, anything else at random")
+			"how", "a fixed demo branch per step, or its first action")
 
 		return SimulatedChecker{}
 	}
