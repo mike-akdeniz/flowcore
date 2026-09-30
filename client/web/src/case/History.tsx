@@ -1,5 +1,21 @@
+import { useEffect, useState } from "react";
 import { Anchor, Badge, Card, Group, Stack, Text, Timeline } from "@mantine/core";
 import type { Case, Visit } from "../api";
+
+// How long a decision that has just been recorded stays highlighted.
+//
+// The spinner says something is happening; this says it happened. Judged from
+// when the decision was recorded rather than from what this screen has seen, so
+// it survives the screen being remounted — the demo user switcher does that the
+// instant an agent hands a step to a person, which is exactly when the agent's
+// finding arrives. It trusts the browser's clock to be near the server's, which
+// it is on one machine and is within a second or two anywhere sensible; a clock
+// far behind would show no highlight, and one far ahead would show none either.
+const freshMilliseconds = 6000;
+
+function ageOf(visit: Visit) {
+  return visit.completedAt === null ? null : Date.now() - new Date(visit.completedAt).getTime();
+}
 
 // What happened, and what it was decided against.
 //
@@ -14,6 +30,21 @@ export function History({ subject, onOpenDocument }: {
   subject: Case;
   onOpenDocument: (documentId: string) => void;
 }) {
+  // Re-render once the freshest decision has aged out, so the highlight fades
+  // on its own instead of waiting for the next poll, which may never come.
+  const [, expire] = useState(0);
+  const newest = Math.min(
+    ...subject.history.map((visit) => ageOf(visit) ?? Infinity),
+  );
+
+  useEffect(() => {
+    if (newest >= freshMilliseconds) return;
+
+    const timer = setTimeout(() => expire((tick) => tick + 1), freshMilliseconds - newest);
+
+    return () => clearTimeout(timer);
+  }, [newest]);
+
   if (subject.history.length === 0) return null;
 
   const named = new Map(subject.documents.map((document) => [document.id, document]));
@@ -29,53 +60,63 @@ export function History({ subject, onOpenDocument }: {
           lineWidth={2}
           styles={{ itemBody: { paddingBottom: 4 } }}
         >
-          {subject.history.map((visit, index) => (
-            <Timeline.Item
-              key={index}
-              title={
+          {subject.history.map((visit, index) => {
+            const age = ageOf(visit);
+            const fresh = age !== null && age < freshMilliseconds;
+
+            return (
+              <Timeline.Item
+                key={index}
+                style={{
+                  backgroundColor: fresh ? "var(--mantine-color-violet-light)" : "transparent",
+                  borderRadius: 4,
+                  transition: "background-color 1.5s ease",
+                }}
+                title={
+                  <Stack gap={2}>
+                    {/* A run boundary. The library hands every visit its run's id,
+                        so this needs nothing remembered on this side — the marker
+                        appears wherever the id changes. */}
+                    {index > 0 && visit.runId !== subject.history[index - 1].runId && (
+                      <Badge size="xs" variant="outline" color="gray">
+                        reopened — new run
+                      </Badge>
+                    )}
+                    <Heading visit={visit} />
+                  </Stack>
+                }
+              >
                 <Stack gap={2}>
-                  {/* A run boundary. The library hands every visit its run's id,
-                      so this needs nothing remembered on this side — the marker
-                      appears wherever the id changes. */}
-                  {index > 0 && visit.runId !== subject.history[index - 1].runId && (
-                    <Badge size="xs" variant="outline" color="gray">
-                      reopened — new run
-                    </Badge>
+                  {/* pre-line, because a remark can be written with line breaks in
+                      it, and they carry meaning a single paragraph would lose. */}
+                  {visit.remark && (
+                    <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-line" }}>
+                      {visit.remark}
+                    </Text>
                   )}
-                  <Heading visit={visit} />
+
+                  {visit.documentIds.length > 0 && (
+                    <Text size="xs" c="dimmed">
+                      decision documents:{" "}
+                      {visit.documentIds.map((id, index) => {
+                        const document = named.get(id);
+                        if (!document) return null;
+
+                        return (
+                          <span key={id}>
+                            {index > 0 && " · "}
+                            <Anchor component="button" type="button" size="xs" onClick={() => onOpenDocument(id)}>
+                              {document.name} · v{document.version}
+                            </Anchor>
+                          </span>
+                        );
+                      })}
+                    </Text>
+                  )}
                 </Stack>
-              }
-            >
-              <Stack gap={2}>
-                {/* pre-line, because a remark can be written with line breaks in
-                    it, and they carry meaning a single paragraph would lose. */}
-                {visit.remark && (
-                  <Text size="sm" c="dimmed" style={{ whiteSpace: "pre-line" }}>
-                    {visit.remark}
-                  </Text>
-                )}
-
-                {visit.documentIds.length > 0 && (
-                  <Text size="xs" c="dimmed">
-                    decision documents:{" "}
-                    {visit.documentIds.map((id, index) => {
-                      const document = named.get(id);
-                      if (!document) return null;
-
-                      return (
-                        <span key={id}>
-                          {index > 0 && " · "}
-                          <Anchor component="button" type="button" size="xs" onClick={() => onOpenDocument(id)}>
-                            {document.name} · v{document.version}
-                          </Anchor>
-                        </span>
-                      );
-                    })}
-                  </Text>
-                )}
-              </Stack>
-            </Timeline.Item>
-          ))}
+              </Timeline.Item>
+            );
+          })}
         </Timeline>
       </Stack>
     </Card>

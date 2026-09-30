@@ -2052,3 +2052,50 @@ The point, as with decision 45, is that a bare `fail` beside a document reads as
 A `pass` or `fail` file dropped into `sample-documents/` is no longer recognised as carrying an outcome; it loads as a sample with none, as an uploaded file does.
 
 Nothing in this reached the library.
+
+## 47. An agent step's spinner has a minimum time on screen
+
+**Context.**
+Submit a case with no model chosen, choose one, and the step ran without the screen showing it: no spinner and no running text, then the finished step a moment later.
+The cause was that choosing a model starts the step on the server at once, a local model decides in about half a second, and the screen was polling every five seconds while it waited for a model.
+The owner: *"Make sure that the spinner is visible just long enough no matter how long the model takes. This is not something we are trying to invent for the demo, there should be an UI - UX principle related to this idea: let the user know - perceive that an operation is happening - happened. If a better solution exists I'm open."*
+
+**Decision.**
+The principle is Nielsen's visibility of system status, applied as a floor under a busy indicator: once shown, it stays for at least a second, so a fast result is still seen to have happened.
+Claude considered holding every update back and chose the narrower rule, which is what the owner described:
+
+- The floor is one second and applies only to the agent step's working state.
+  A model that takes ten seconds shows ten; nothing is stretched past the real wait.
+- When a person does something that puts a waiting step to work, which is choosing a model, the screen shows the step as running from that moment, because the server is already doing it.
+  The real state replaces it on the next load, held until the floor has passed.
+- An update that says the step is over waits for the floor; anything else, including the response to a decision, is shown at once.
+- The hold is in one place, `useHeldSubject`, and every update the case screen receives goes through it.
+
+**What it costs.**
+The screen can trail the server by up to a second after an agent finishes.
+If a chosen model turns out not to run the step, the running state shows for up to a second first.
+On a hard refresh of a case whose agent step is parked, the model arriving after the page loads can show running for up to a second before the real state returns; rare, and corrected by the next load.
+
+**Not done.**
+Claude offered showing that something happened as well as that something is happening, for example highlighting the new entry in the history when the agent's finding arrives.
+It is not part of this change.
+
+Nothing in this reached the library.
+
+## 48. A decision just recorded is highlighted in the History
+
+**Context.**
+Decision 47 keeps the spinner up long enough to be seen, which says something is happening.
+Claude offered the other half, that it happened, by highlighting the new entry when the agent's finding arrives, and the owner: *"Yes, add the history highlight"*.
+
+**Decision.**
+A history entry whose decision was recorded in the last six seconds has a soft violet background that fades out over a second and a half.
+It applies to any decision, not only an agent's: a person recording one gets the same acknowledgement, and the two would look inconsistent otherwise.
+
+- It is judged from the decision's recorded time, not from what this screen has seen arrive.
+  The alternative, remembering which entries were there when the screen opened, is lost when the screen remounts, and the demo user switcher remounts it the moment an agent hands a step to a person, which is when the finding arrives.
+- **What it costs:** it trusts the browser's clock to be near the server's.
+  On one machine that holds; a clock more than a few seconds off shows no highlight, or an old one.
+  Opening a case within six seconds of a decision highlights it too, which reads as correct.
+
+Nothing in this reached the library.

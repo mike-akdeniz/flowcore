@@ -21,6 +21,7 @@ import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
 import { History } from "../case/History";
 import { Notice, type Severity } from "../case/Notice";
+import { agentIsWorking, useHeldSubject } from "../case/useHeldSubject";
 import { DocumentDrawer } from "../case/DocumentDrawer";
 
 // A case, in whichever state it is in.
@@ -47,7 +48,7 @@ export function CaseView({
   onSwitch: (reference: string) => Promise<void>;
 }) {
   const { reference } = useParams();
-  const [subject, setSubject] = useState<Case | null>(null);
+  const { subject, receive, expectWork } = useHeldSubject();
   const [failure, setFailure] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   // A refused submission, shown on the case rather than in place of it: the
@@ -64,11 +65,11 @@ export function CaseView({
     if (!reference) return;
 
     try {
-      setSubject(await api.case(reference));
+      receive(await api.case(reference));
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "could not load it");
     }
-  }, [reference]);
+  }, [reference, receive]);
 
   useEffect(() => {
     void load();
@@ -86,6 +87,22 @@ export function CaseView({
   const pollEvery = agent ? (agentIsWorking(agent) ? 1500 : 5000) : null;
   const loadRef = useRef(load);
   loadRef.current = load;
+
+  // Choosing a model puts the waiting step to work at once on the server, and a
+  // local model decides in about a second. Waiting for the slow poll used to
+  // miss all of it: the screen showed "choose a model" and then, a few seconds
+  // later, the finished step, with no spinner between. Show the step as running
+  // from the moment the model changes, hold that for the minimum the spinner is
+  // owed (useHeldSubject), and reload so the real state replaces it.
+  const previousModel = useRef(model);
+
+  useEffect(() => {
+    if (previousModel.current === model) return;
+
+    previousModel.current = model;
+    if (model) expectWork(model);
+    void loadRef.current();
+  }, [model, expectWork]);
 
   useEffect(() => {
     if (pollEvery === null) return;
@@ -128,7 +145,7 @@ export function CaseView({
     setSubmitFailure(undefined);
 
     try {
-      setSubject(await api.submitCase(subject!.reference));
+      receive(await api.submitCase(subject!.reference));
     } catch (error) {
       setSubmitFailure(error instanceof Error ? error.message : "could not submit it");
     } finally {
@@ -146,7 +163,7 @@ export function CaseView({
     setReopening(true);
 
     try {
-      setSubject(await api.reopenCase(subject!.reference));
+      receive(await api.reopenCase(subject!.reference));
     } catch (error) {
       setActionFailure(error instanceof Error ? error.message : "could not reopen it");
     } finally {
@@ -197,7 +214,7 @@ export function CaseView({
         reopening={reopening}
         onSubmit={submit}
         onReopen={reopen}
-        onChanged={setSubject}
+        onChanged={receive}
         onFailure={setActionFailure}
       />
 
@@ -209,7 +226,7 @@ export function CaseView({
         subject={subject}
         canAdd={canAddDocuments}
         model={model}
-        onAdded={setSubject}
+        onAdded={receive}
         onOpen={setDocumentId}
       />
 
@@ -218,7 +235,7 @@ export function CaseView({
         subject={subject}
         document={subject.documents.find((document) => document.id === documentId) ?? null}
         onClose={() => setDocumentId(null)}
-        onChanged={setSubject}
+        onChanged={receive}
       />
 
       {subject.claim && (
@@ -263,11 +280,6 @@ function canActAs(identity: Staff, assignee: string) {
   return identity.reference === assignee || identity.groups.includes(assignee);
 }
 
-// Queued, being asked, or about to be asked again: states that end on their own.
-function agentIsWorking(agent: AgentStatus) {
-  return agent.state === "queued" || agent.state === "running" || agent.state === "retrying";
-}
-
 // What an agent step is waiting on, and what would move it (client decision 40).
 // One line per state, because each has a different answer to "what do I do":
 // wait, choose a model, start the server, or choose another model or reassign.
@@ -296,7 +308,7 @@ function agentLine(
     case "retrying":
       return { text: `The last attempt failed and will be tried again: ${agent.detail}` };
     case "needs-model":
-      return { text: "Choose a model in the top bar to decide this step.", severity: "warning" };
+      return { text: "Choose a model in the top bar for automatic processing of all agent steps.", severity: "warning" };
     case "unavailable":
       return {
         text: agent.detail
@@ -402,7 +414,7 @@ function ActionPanel({
         <Stack gap="xs">
           <Group justify="space-between">
             <Text size="sm" c="dimmed">
-              Not submitted. Add what you have, then send it for assessment.
+              Not submitted.
             </Text>
             {/* Always enabled. If the workflow starts at an agent whose required
                 documents are missing, the server refuses and names them — the
@@ -457,7 +469,7 @@ function ActionPanel({
           w={320}
           withArrow
           position="bottom-start"
-          label="Demo mode. Opening a case, or moving it to its next step, signs you in as someone who holds that step, so you can follow a case from person to person without the account menu. Turn it off to stay as yourself. The server applies the same rules either way. Agent steps leave you as you are."
+          label="Demo mode. Opening a case, or moving it to its next step, signs you in as someone who holds that step, so you can follow a case from person to person without the account menu. Turn it off to stay as yourself."
         >
           <Group gap="sm" w="fit-content" style={{ cursor: "help" }}>
             <Switch
