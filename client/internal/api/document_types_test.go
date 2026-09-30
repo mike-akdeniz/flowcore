@@ -109,7 +109,7 @@ func TestDocumentsMustBeAllowedOnTheCase(t *testing.T) {
 
 	// An inspection is an application's document, not a claim's.
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents",
-		newDocumentJSON{SampleFile: "3-inspection-pass.txt"}, http.StatusBadRequest)
+		newDocumentJSON{SampleFile: "3-inspection-demo-pass.txt"}, http.StatusBadRequest)
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents",
 		newDocumentJSON{FileName: "notes.txt", Body: "text", Kind: "inspection"}, http.StatusBadRequest)
 

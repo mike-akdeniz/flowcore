@@ -8,16 +8,19 @@ import {
   Group,
   Loader,
   Stack,
+  Switch,
   Table,
   Tabs,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { api, type AgentStatus, type Case, type CaseDocument, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
 import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
 import { History } from "../case/History";
+import { Notice, type Severity } from "../case/Notice";
 import { DocumentDrawer } from "../case/DocumentDrawer";
 
 // A case, in whichever state it is in.
@@ -29,11 +32,19 @@ import { DocumentDrawer } from "../case/DocumentDrawer";
 export function CaseView({
   model,
   identity,
+  roster,
+  demoSwitcher,
+  onDemoSwitcherChange,
+  onSwitch,
 }: {
   // The model that will decide this session's agent steps, if one is chosen and
   // available.
   model: string | null;
   identity: Staff;
+  roster: Staff[];
+  demoSwitcher: boolean;
+  onDemoSwitcherChange: (on: boolean) => void;
+  onSwitch: (reference: string) => Promise<void>;
 }) {
   const { reference } = useParams();
   const [subject, setSubject] = useState<Case | null>(null);
@@ -43,6 +54,10 @@ export function CaseView({
   // usual reason is a missing document, and the fix is on this page.
   const [submitFailure, setSubmitFailure] = useState<string>();
   const [reopening, setReopening] = useState(false);
+  // A refused decision, reassignment or reopen, shown in the notices above the
+  // action panel. Distinct from `failure`, which is the case failing to load and
+  // replaces the page.
+  const [actionFailure, setActionFailure] = useState<string>();
   const [documentId, setDocumentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -80,6 +95,31 @@ export function CaseView({
     return () => clearInterval(timer);
   }, [pollEvery]);
 
+  // The demo user switcher: when the case is waiting on a person who is not you,
+  // become someone who holds the step. Runs on opening the case and whenever the
+  // step changes, so following a case from person to person needs no account
+  // menu. An agent step has no one to switch to, and a team step leaves you be if
+  // you are already in the team. The server applies its rule whoever you are.
+  //
+  // The roster and the switch go through a ref, like `load`, so a re-render that
+  // changes neither the step nor who you are does not sign in a second time.
+  const step = subject?.currentStep ?? null;
+  const switchRef = useRef({ roster, onSwitch });
+  switchRef.current = { roster, onSwitch };
+
+  useEffect(() => {
+    if (!demoSwitcher || !step || step.isAgent) return;
+    if (canActAs(identity, step.assignee)) return;
+
+    const holder = switchRef.current.roster.find((member) => canActAs(member, step.assignee));
+    if (holder) void switchRef.current.onSwitch(holder.reference);
+  }, [demoSwitcher, step?.visitId, step?.assignee, identity]);
+
+  // A failure belongs to the step it happened on; a new step starts clean.
+  useEffect(() => {
+    setActionFailure(undefined);
+  }, [step?.visitId]);
+
   if (failure) return <Text c="red">{failure}</Text>;
   if (!subject) return <Text c="dimmed">Loading…</Text>;
 
@@ -108,7 +148,7 @@ export function CaseView({
     try {
       setSubject(await api.reopenCase(subject!.reference));
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "could not reopen it");
+      setActionFailure(error instanceof Error ? error.message : "could not reopen it");
     } finally {
       setReopening(false);
     }
@@ -118,7 +158,7 @@ export function CaseView({
     <Stack gap="md">
       <Stack gap={2}>
         <Anchor component={Link} to="/" size="sm">
-          ← My work
+          ← All work
         </Anchor>
         <Group gap="sm">
           <Title order={3}>{subject.reference}</Title>
@@ -138,16 +178,32 @@ export function CaseView({
           add-document card past the history. Ordered so that what you act on
           comes before what you read — on a demonstration the case's own details
           are the least urgent thing on the page, so they are last. */}
+      {/* Everything that needs attention, in one place above the panel it
+          concerns: what the case is waiting on a person to fix, and what a click
+          just failed to do. Derived from the case, so a warning goes when its
+          cause does — choosing a model clears "choose a model". Progress
+          (queued, running, retrying) is not a warning and stays in the panel. */}
+      <Notices
+        warning={subject.currentStep ? stepNotice(subject.currentStep) : null}
+        failures={[submitFailure, actionFailure]}
+      />
+
       <ActionPanel
         subject={subject}
         identity={identity}
+        demoSwitcher={demoSwitcher}
+        onDemoSwitcherChange={onDemoSwitcherChange}
         submitting={submitting}
-        submitFailure={submitFailure}
         reopening={reopening}
         onSubmit={submit}
         onReopen={reopen}
         onChanged={setSubject}
+        onFailure={setActionFailure}
       />
+
+      {/* History before the documents: the agent's finding is what a person
+          reads before deciding, so it sits next to the decision. */}
+      <History subject={subject} onOpenDocument={setDocumentId} />
 
       <Documents
         subject={subject}
@@ -156,8 +212,6 @@ export function CaseView({
         onAdded={setSubject}
         onOpen={setDocumentId}
       />
-
-      <History subject={subject} onOpenDocument={setDocumentId} />
 
       <DocumentDrawer
         key={`${subject.reference}:${documentId ?? "closed"}`}
@@ -217,13 +271,16 @@ function agentIsWorking(agent: AgentStatus) {
 // What an agent step is waiting on, and what would move it (client decision 40).
 // One line per state, because each has a different answer to "what do I do":
 // wait, choose a model, start the server, or choose another model or reassign.
-function agentLine(agent: AgentStatus, missingDocuments: boolean): { text: string; colour?: string } {
+function agentLine(
+  agent: AgentStatus,
+  missingDocuments: boolean,
+): { text: string; severity?: Severity } {
   // An agent cannot file a document, so a step missing one waits for a person
   // to take it back, whatever the model is doing.
   if (missingDocuments) {
     return {
-      text: "Waiting for the missing documents above. An agent cannot file them — reassign the step to someone who can.",
-      colour: "orange",
+      text: "Waiting for the documents marked missing. An agent cannot file them — reassign the step to someone who can.",
+      severity: "warning",
     };
   }
 
@@ -239,20 +296,61 @@ function agentLine(agent: AgentStatus, missingDocuments: boolean): { text: strin
     case "retrying":
       return { text: `The last attempt failed and will be tried again: ${agent.detail}` };
     case "needs-model":
-      return { text: "Choose a model in the top bar to decide this step.", colour: "orange" };
+      return { text: "Choose a model in the top bar to decide this step.", severity: "warning" };
     case "unavailable":
       return {
         text: agent.detail
           ? `${agent.detail} is not available. Start the local model server with make model, or choose another model in the top bar.`
           : "No model is available. Start the local model server with make model, or set ANTHROPIC_API_KEY and restart.",
-        colour: "orange",
+        severity: "warning",
       };
     case "parked":
       return {
         text: `The model could not decide this step, and asking again would fail the same way: ${agent.detail}. Choose another model in the top bar, or reassign the step.`,
-        colour: "red",
+        severity: "error",
       };
   }
+}
+
+// The agent's line for a step, whatever its state, or null when a person holds it.
+function stepLine(step: NonNullable<Case["currentStep"]>) {
+  return step.agent
+    ? agentLine(
+        step.agent,
+        step.required.some((required) => !required.present),
+      )
+    : null;
+}
+
+// The part of that line that is a warning or an error rather than progress.
+function stepNotice(step: NonNullable<Case["currentStep"]>) {
+  const line = stepLine(step);
+
+  return line?.severity ? { text: line.text, severity: line.severity } : null;
+}
+
+// Warnings and failures above the action panel. Nothing renders when there are
+// none, so a healthy case has no banner and its absence is itself a signal.
+function Notices({
+  warning,
+  failures,
+}: {
+  warning: { text: string; severity: Severity } | null;
+  failures: (string | undefined)[];
+}) {
+  const messages = failures.filter((message): message is string => Boolean(message));
+  if (!warning && messages.length === 0) return null;
+
+  return (
+    <Stack gap="xs">
+      {warning && <Notice severity={warning.severity}>{warning.text}</Notice>}
+      {messages.map((message) => (
+        <Notice key={message} severity="error">
+          {message}
+        </Notice>
+      ))}
+    </Stack>
+  );
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -278,21 +376,25 @@ function Field({ label, value }: { label: string; value: string }) {
 function ActionPanel({
   subject,
   identity,
+  demoSwitcher,
+  onDemoSwitcherChange,
   submitting,
-  submitFailure,
   reopening,
   onSubmit,
   onReopen,
   onChanged,
+  onFailure,
 }: {
   subject: Case;
   identity: Staff;
+  demoSwitcher: boolean;
+  onDemoSwitcherChange: (on: boolean) => void;
   submitting: boolean;
-  submitFailure?: string;
   reopening: boolean;
   onSubmit: () => void;
   onReopen: () => void;
   onChanged: (updated: Case) => void;
+  onFailure: (message?: string) => void;
 }) {
   if (subject.status === "draft") {
     return (
@@ -309,11 +411,6 @@ function ActionPanel({
               Submit for assessment
             </Button>
           </Group>
-          {submitFailure && (
-            <Text size="sm" c="red">
-              {submitFailure}
-            </Text>
-          )}
         </Stack>
       </Card>
     );
@@ -345,11 +442,38 @@ function ActionPanel({
 
   const step = subject.currentStep;
   const missing = step.required.some((required) => !required.present);
-  const line = step.agent ? agentLine(step.agent, missing) : null;
+  const line = stepLine(step);
 
   return (
     <Card withBorder padding="md">
       <Stack gap="sm">
+        {/* On the left, at normal size, because it changes who you are: off to
+            one side and small, a visitor watching the user switch by itself
+            would take it for a bug. The tooltip wraps the whole control — a
+            Switch alone only reacts on its hidden input, so hovering the label
+            showed nothing. */}
+        <Tooltip
+          multiline
+          w={320}
+          withArrow
+          position="bottom-start"
+          label="Demo mode. Opening a case, or moving it to its next step, signs you in as someone who holds that step, so you can follow a case from person to person without the account menu. Turn it off to stay as yourself. The server applies the same rules either way. Agent steps leave you as you are."
+        >
+          <Group gap="sm" w="fit-content" style={{ cursor: "help" }}>
+            <Switch
+              size="sm"
+              label="Demo user switcher"
+              checked={demoSwitcher}
+              onChange={(event) => onDemoSwitcherChange(event.currentTarget.checked)}
+            />
+            {demoSwitcher && !step.isAgent && canActAs(identity, step.assignee) && (
+              <Text size="sm" c="dimmed">
+                Acting as {identity.name}
+              </Text>
+            )}
+          </Group>
+        </Tooltip>
+
         <Group gap="xs">
           <Text fw={500}>Now at: {step.name}</Text>
           <Badge size="sm" variant="light" color={step.isAgent ? "violet" : "gray"}>
@@ -382,8 +506,8 @@ function ActionPanel({
             the demonstration, not a delay to apologise for: the run is open in
             the database with nothing attending it, which is what a workflow
             engine exists to survive. */}
-        {line && (
-          <Text size="sm" c={line.colour ?? "dimmed"}>
+        {line && !line.severity && (
+          <Text size="sm" c="dimmed">
             {line.text}
           </Text>
         )}
@@ -392,6 +516,7 @@ function ActionPanel({
           subject={subject}
           canDecide={canActAs(identity, step.assignee)}
           onChanged={onChanged}
+          onFailure={onFailure}
         />
       </Stack>
     </Card>
@@ -472,7 +597,8 @@ function DocumentList({ documents, empty, onOpen }: {
           <Table.Tr key={document.id}>
             <Table.Td>
               <Anchor component="button" type="button" size="sm" onClick={() => onOpen(document.id)}>
-                {document.name} · v{document.version}
+                {document.name}
+                {document.outcome ? ` / ${document.outcome}` : ""} · v{document.version}
               </Anchor>
             </Table.Td>
             <Table.Td><Text size="xs" c="dimmed">{document.kind}</Text></Table.Td>

@@ -17,7 +17,7 @@ import (
 // database and the workflow definitions are the source rather than this file.
 //
 // `name` is the document type's name in the sample's file name and here. A sample
-// called `1-estimate-pass.txt` is an example of the type named `estimate`, and
+// called `1-estimate-demo-pass.txt` is an example of the type named `estimate`, and
 // nothing has to map between them. Everything else refers to the type by its id.
 
 type documentType struct {

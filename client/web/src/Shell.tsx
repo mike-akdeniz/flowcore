@@ -17,8 +17,8 @@ import { ModelPicker } from "./ModelPicker";
 // that belonged to no slice, which is a promise not kept — a nav item that never
 // activates reads as something forgotten rather than something declined.
 const nav = [
-  { to: "/", label: "My work" },
-  { to: "/cases", label: "All work" },
+  { to: "/", label: "All work" },
+  { to: "/mine", label: "My work" },
   { to: "/workflows", label: "Workflows" },
 ];
 

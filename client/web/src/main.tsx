@@ -7,7 +7,7 @@ import { App } from "./App";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MantineProvider defaultColorScheme="auto">
+    <MantineProvider forceColorScheme="dark">
       <BrowserRouter>
         <App />
       </BrowserRouter>

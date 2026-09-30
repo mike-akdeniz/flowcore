@@ -25,6 +25,11 @@ type documentJSON struct {
 	ReceivedAt string  `json:"receivedAt"`
 	Body       *string `json:"body"`
 	SourceFile *string `json:"sourceFile"`
+	// Outcome is what a sample document argues for, `demo-pass` or `demo-fail`, read from
+	// the sample's file name, and empty for anything that is not one of the
+	// embedded samples. Shown in the document's label on the case and nowhere
+	// else, where a bare fail would read as the case's own verdict.
+	Outcome string `json:"outcome"`
 	// AddedAtRevision is when this document arrived, and Superseded says a newer
 	// one of its kind has taken over. Superseded documents are sent rather than
 	// filtered out: an agent's remark refers to the document it actually read,
@@ -290,6 +295,13 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 
 	payload.Documents = make([]documentJSON, 0, len(documents))
 	for _, document := range documents {
+		outcome := ""
+		if document.SourceFile != nil {
+			if sample, ok := s.app.Samples.ByName(*document.SourceFile); ok {
+				outcome = string(sample.Outcome)
+			}
+		}
+
 		payload.Documents = append(payload.Documents, documentJSON{
 			ID:              document.ID.String(),
 			Name:            document.Name,
@@ -297,6 +309,7 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			ReceivedAt:      document.ReceivedAt.Format("2006-01-02"),
 			Body:            document.Body,
 			SourceFile:      document.SourceFile,
+			Outcome:         outcome,
 			AddedAtRevision: document.AddedAtRevision,
 			Superseded:      !inForce[document.ID],
 			Version:         versions[document.ID],

@@ -22,13 +22,16 @@ import (
 //
 // Two words, and deliberately only two. There were eight — complete/incomplete,
 // consistent/contradicts, simple/complex, clean/adverse — one private pair per
-// agent step, and every new step wanted a ninth and tenth. `pass` and `fail` say
-// the one thing a sample needs to say: whether the step it reaches will be
-// satisfied. A claim that passes triage takes the fast track; one that fails
+// agent step, and every new step wanted a ninth and tenth. `demo-pass` and
+// `demo-fail` say the one thing a sample needs to say: whether the step it
+// reaches will be satisfied. The `demo-` is there because the words are shown
+// beside a document on a case, where a bare `fail` reads as an error that has
+// happened rather than as what the example was written to argue (client decision
+// 46). A claim that passes triage takes the fast track; one that fails
 // needs full assessment. Triage is a screen, so the words fit it as well as they
 // fit the risk screen.
 //
-// It labels the sample in the picker — "Repair estimate — pass" — so a visitor
+// It labels the sample in the picker — "Repair estimate / demo-pass" — so a visitor
 // can choose which way to push the model deciding agent steps. What the model
 // decides is its own: a small local model may not follow the text's argument
 // (client decision 40).
@@ -38,8 +41,8 @@ const (
 	// OutcomeNone is a document whose name carries no outcome — anything a
 	// visitor uploaded themselves.
 	OutcomeNone Outcome = ""
-	OutcomePass Outcome = "pass"
-	OutcomeFail Outcome = "fail"
+	OutcomePass Outcome = "demo-pass"
+	OutcomeFail Outcome = "demo-fail"
 )
 
 // Outcomes is the vocabulary.

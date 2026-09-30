@@ -42,7 +42,7 @@ export function NewCase() {
     <Stack gap="md" maw={640}>
       <Stack gap={2}>
         <Anchor component={Link} to="/" size="sm">
-          ← My work
+          ← All work
         </Anchor>
         <Title order={3}>New submission</Title>
         <Text size="sm" c="dimmed">

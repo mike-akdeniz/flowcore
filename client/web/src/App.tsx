@@ -12,8 +12,23 @@ import { WorkflowEdit } from "./pages/WorkflowEdit";
 import { WorkflowView } from "./pages/WorkflowView";
 import { Shell } from "./Shell";
 
+// The demo user switcher's setting, remembered across reloads. On unless the
+// visitor turned it off; storage that cannot be read or written leaves it on.
+const demoSwitcherKey = "casework.demoSwitcher";
+
+function readDemoSwitcher() {
+  try {
+    return localStorage.getItem(demoSwitcherKey) !== "off";
+  } catch {
+    return true;
+  }
+}
+
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
+  // Held here, above the routes, because switching identity remounts them and
+  // anything held lower down would reset on the very switch it caused.
+  const [demoSwitcher, setDemoSwitcher] = useState(readDemoSwitcher);
   // The session's model, held here because two places read it: the picker in
   // the top bar, and the case screen's note on who will read a new document.
   const [models, setModels] = useState<Models | null>(null);
@@ -23,6 +38,21 @@ export function App() {
   useEffect(() => {
     void reload();
   }, []);
+
+  const changeDemoSwitcher = (on: boolean) => {
+    setDemoSwitcher(on);
+
+    try {
+      localStorage.setItem(demoSwitcherKey, on ? "on" : "off");
+    } catch {
+      // Not remembered, still applied for this visit.
+    }
+  };
+
+  const switchTo = async (reference: string) => {
+    await api.signIn(reference);
+    await reload();
+  };
 
   const signedIn = session?.signedInAs?.reference;
 
@@ -49,8 +79,8 @@ export function App() {
           re-reading on a switch is the rule rather than an exception — making it
           structural beats remembering to add a dependency to each new page. */}
       <Routes key={session.signedInAs.reference}>
-        <Route path="/" element={<MyWork />} />
-        <Route path="/cases" element={<AllWork />} />
+        <Route path="/" element={<AllWork />} />
+        <Route path="/mine" element={<MyWork />} />
         <Route path="/cases/new" element={<NewCase />} />
         <Route
           path="/cases/:reference"
@@ -58,6 +88,10 @@ export function App() {
             <CaseView
               model={models?.chosen && models.available ? models.chosen.label : null}
               identity={session.signedInAs}
+              roster={session.roster}
+              demoSwitcher={demoSwitcher}
+              onDemoSwitcherChange={changeDemoSwitcher}
+              onSwitch={switchTo}
             />
           }
         />

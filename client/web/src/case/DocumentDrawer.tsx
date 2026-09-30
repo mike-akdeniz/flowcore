@@ -10,6 +10,7 @@ import {
   Text,
 } from "@mantine/core";
 import { api, type Case, type CaseDocument } from "../api";
+import { Notice } from "./Notice";
 
 // A document, read.
 //
@@ -95,11 +96,7 @@ export function DocumentDrawer({
               <Text size="sm" c="dimmed">
                 No decision has seen this document yet.
               </Text>
-              {failure && (
-                <Text size="sm" c="red">
-                  {failure}
-                </Text>
-              )}
+              {failure && <Notice severity="error">{failure}</Notice>}
               <Group justify="flex-end">
                 <Button
                   size="xs"

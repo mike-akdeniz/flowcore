@@ -7,12 +7,14 @@ set.
 **The name says what the document argues for.** Each file is `<order>-<document>-<outcome>.txt`, and
 the outcome is one of two words:
 
-- `pass` — the step judging this document should be satisfied.
-- `fail` — it should not.
+- `demo-pass` — the step judging this document should be satisfied.
+- `demo-fail` — it should not.
+
+The `demo-` keeps the word from reading as an error when the application shows it beside a document.
 
 Two words rather than one pair per step. An intake note that passes sends a claim down the fast track
 at `triage` and one that fails needs full assessment; an estimate that passes `estimate check` is
-itemised and one that fails is a scribbled figure. What "pass" means is a property of the step, not
+itemised and one that fails is a scribbled figure. What "demo-pass" means is a property of the step, not
 of the vocabulary.
 
 **The name is a label, not an instruction.** The agent steps read what is *inside* these files, along
@@ -28,27 +30,27 @@ a time.
 ## Claims
 
 The longer workflow: seven steps, three of them decided by an agent, and a loop back through
-`estimate follow-up`. Worth doing second.
+`estimate follow-up`. The seeded lists lead with it, so start here.
 
 | # | File | What it does |
 |---|------|--------------|
-| 1 | `1-estimate-pass.txt` | The document the seeded claim is waiting for. Add it at `estimate follow-up` and the claim moves on. |
-| 2 | `2-police-report-pass.txt` | Changes the ending: `narrative consistency` sends the claim to the adjuster instead of to fraud. |
-| 3 | `3-witness-statement-fail.txt` | A second voice against the claimant's account. |
-| 4 | `4-witness-statement-pass.txt` | A second voice for it. |
-| 5 | `5-intake-note-pass.txt` | On a claim you file yourself, sends it down the fast track at `triage`. |
-| 6 | `6-intake-note-fail.txt` | Already on the seeded claim — the reason it takes the long route. |
-| 7 | `7-estimate-fail.txt` | Already on the seeded claim — the reason it stalls. |
-| 8 | `8-police-report-fail.txt` | Already on the seeded claim — the reason it ends in a fraud referral. |
+| 1 | `1-estimate-demo-pass.txt` | The document the seeded claim is waiting for. Add it at `estimate follow-up` and the claim moves on. |
+| 2 | `2-police-report-demo-pass.txt` | Changes the ending: `narrative consistency` sends the claim to the adjuster instead of to fraud. |
+| 3 | `3-witness-statement-demo-fail.txt` | A second voice against the claimant's account. |
+| 4 | `4-witness-statement-demo-pass.txt` | A second voice for it. |
+| 5 | `5-intake-note-demo-pass.txt` | On a claim you file yourself, sends it down the fast track at `triage`. |
+| 6 | `6-intake-note-demo-fail.txt` | Already on the seeded claim — the reason it takes the long route. |
+| 7 | `7-estimate-demo-fail.txt` | Already on the seeded claim — the reason it stalls. |
+| 8 | `8-police-report-demo-fail.txt` | Already on the seeded claim — the reason it ends in a fraud referral. |
 
 ## Policy applications
 
 | # | File | What it does |
 |---|------|--------------|
-| 1 | `1-prior-insurer-pass.txt` | Supersedes the letter on the seeded application, so `risk screen` passes it to an ordinary underwriter. **Start here** — the policy application is the shorter workflow and the better one to meet first. |
-| 2 | `2-inspection-fail.txt` | A vehicle that is not the one proposed. |
-| 3 | `3-inspection-pass.txt` | A vehicle that is. |
-| 4 | `4-prior-insurer-fail.txt` | Already on the seeded application — the reason it goes to a senior underwriter. |
+| 1 | `1-prior-insurer-demo-pass.txt` | Supersedes the letter on the seeded application, so `risk screen` passes it to an ordinary underwriter. The policy application is the shorter workflow, if you want a run's whole shape in a minute. |
+| 2 | `2-inspection-demo-fail.txt` | A vehicle that is not the one proposed. |
+| 3 | `3-inspection-demo-pass.txt` | A vehicle that is. |
+| 4 | `4-prior-insurer-demo-fail.txt` | Already on the seeded application — the reason it goes to a senior underwriter. |
 
 ## Required documents
 

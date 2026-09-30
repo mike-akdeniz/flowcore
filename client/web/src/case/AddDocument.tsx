@@ -9,6 +9,7 @@ import {
   Text,
 } from "@mantine/core";
 import { api, type Case, type NewDocument, type Sample } from "../api";
+import { Notice } from "./Notice";
 
 // A document's kind is configuration, so there is no list of them here. The case
 // carries every type this session knows about, for labels, and the ones this kind
@@ -165,7 +166,7 @@ export function AddDocument({
           data={offered.map((candidate) => ({
             value: candidate.fileName,
             label: candidate.outcome
-              ? `${kindLabel(candidate.kind)} — ${candidate.outcome}`
+              ? `${kindLabel(candidate.kind)} / ${candidate.outcome}`
               : kindLabel(candidate.kind),
           }))}
           value={chosen}
@@ -220,11 +221,7 @@ export function AddDocument({
         </Alert>
       )}
 
-      {failure && (
-        <Text size="sm" c="red">
-          {failure}
-        </Text>
-      )}
+      {failure && <Notice severity="error">{failure}</Notice>}
 
       <Group justify="flex-end">
         <Button size="sm" onClick={add} disabled={!ready} loading={busy}>

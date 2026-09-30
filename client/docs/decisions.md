@@ -1918,3 +1918,137 @@ Because a Makefile assignment beats the environment, a key in `.env` wins over o
 An empty `ANTHROPIC_API_KEY` reads as no key, so an unedited copy of `.env.example` runs on the local model only.
 
 Nothing in this reached the library.
+
+## 42. The claim leads the lists, All work is the home page, and History comes before Documents
+
+**Context.**
+Looking at a Haiku-run claim, the owner found the History panel, with the agent's signed findings and their documents, *"the most impressive thing in the screen"*.
+That prompted three changes to what a visitor sees first.
+
+**Decisions.**
+The owner: *"move it just after the top 'Now at:...' panel"*; *"on the left menu, 'All work' on top, 'My work' after that. Home page is 'All work'."*; *"Change seed data so that the sample claim submission and workflow appear on top of the lists."*
+
+- On the case screen History sits between the action panel and Documents.
+  Claude's recommendation, accepted: it follows the action panel's rule that what you read before deciding sits next to the decision.
+  Cost: a long history pushes Documents and the add-document control down; the missing-document line stays in the action panel.
+  Collapsing older entries is deferred until a long history makes it necessary.
+- All work is `/` and My work is `/mine`.
+  The old `/cases` route is gone, so a bookmark to it lands on the home page through the catch-all.
+  The back links on the case and new-submission screens now read "← All work".
+- The seed creates the application first and the claim second, so the claim is the newer and leads both lists.
+  This reverses decision 30's *"The policy application leads"*, which had itself reversed the claim-first call; the owner's latest answer wins and decision 30's reasoning stands as history.
+  `sample-documents/README.md` moves its "Start here" to the claim to match, so the screen and the document agree on where to begin.
+
+Decision 22's line that a new claim is filed from My work, the landing page, is older than decision 30 and was already superseded by it.
+
+Nothing in this reached the library.
+
+## 43. A demo user switcher replaces "reassign to take it on"
+
+**Context.**
+A visitor who opened a case waiting on someone else met the label *"Not yours to decide — reassign to take it on"*, which taught them to reassign the step to themselves to act, and so to fake the very hand-off the workflow was about.
+The owner: *"I don't like this: 'Not yours to decide — reassign to take it on' and our tip to reassign to yourself to perform next action."*
+
+**Proposal and interview.**
+The owner proposed a toggle at the top of the same panel, on by default, named *Demo User Switcher*, with a tooltip explaining the mode, which switches the user to the current step's assignee automatically.
+Claude's recommendation was yes, with three facts from the code:
+
+- Deciding stays the server's rule, enforced whoever you are, so the toggle changes who you appear to be and loosens nothing; matching a person's groups to an assignee is interpretation, which is allowed in client code and never in the library.
+- An assignee can be a team or an agent, so "the assignee" needs two rules: for a team, the first roster member in it, and stay put if you already belong; for an agent step, stay put.
+- Decision 23 makes reassigning open to anyone and the only way a failed agent step reaches a person, so the Reassign control cannot go.
+
+The one question put to the owner was whether Reassign stays.
+The owner: *"Yes, keep Reassign, relabel it."*
+
+**Decision.**
+- The toggle is in the step panel, on by default, remembered in `localStorage`, and held in `App` above the routes because switching identity remounts them.
+- It acts on the case screen only, on opening a case and whenever the step changes; the list pages never switch you.
+- Reassign stays, labelled plainly *"Reassign to"* in every case.
+- A person who cannot decide sees *"Waiting on <assignee>."* rather than a card with no reason, as the comment in `Decide.tsx` already asked.
+- The agent-step lines that say to reassign (a missing document, a model that cannot decide) stay: they are about agent steps, where reassigning to a person is the way out.
+
+**Review.**
+The owner found two faults after seeing it: *"You missed the tooltip, that is important so that people can see what demo user switcher does if they want. Also put the switcher on the left. It's barely noticeable on right and users can think user's switching all the time is a bug."*
+The tooltip had been there, wrapped around the `Switch` alone, which only reacts on its hidden input, so hovering the label showed nothing.
+It now wraps the whole control, and the control sits on the left at normal size.
+
+**Not done.**
+Claude suggested a notice naming who you were switched to.
+Building it needed state that survives the remount it follows, so instead the panel says *"Acting as <name>"* whenever the switcher has made you the step's holder, which is derived and needs none.
+The server's own refusal, *"so it is not yours to decide — reassign it first"*, is untouched.
+
+**What it costs.**
+A switch signs you in as a different person on your own, which is the point in a demo and a surprise anywhere else; the toggle's tooltip says so.
+Nothing in this reached the library.
+
+## 44. Warnings and failures collect in one notice area above the action panel
+
+**Context.**
+The case screen said problems three ways: coloured text inside the panel, red text under a button, and an `Alert`.
+A line such as *"Choose a model in the top bar to decide this step."* sat between the required-documents badges and the Reassign box.
+The owner: *"Display warning and error messages similar to this ... on a separate panel above the 'Now at:...' panel. (similar to ROR flash notifications) The goal is to make the error and warning messages consistent and easier to notice, right now that message is in the middle of many other things."*
+
+**Interview.**
+Claude agreed, with one narrowing and the differences from a flash message:
+
+- Only states that need someone to act go in the notice area: the agent states needs-model, unavailable and parked, and missing documents.
+  Queued, running and retrying are progress and stay in the panel; the line that nothing is holding the run open is the demonstration, and a banner would make every agent step look like a warning.
+- Flash messages are transient; these are derived from the case and disappear when their cause does, so nothing is dismissible.
+- The notice appearing moves the panel below it down, accepted for something meant to be noticed.
+
+The one question put to the owner was whether a failed action belongs there too: a refused decision, submission or reassignment.
+Claude recommended yes, since it happens in the panel directly below and the error had been at the bottom of a long card.
+The owner: *"Yes, move action failures up too."*
+
+**Decision.**
+- One `Notice` component, orange for a warning and red for an error, used by the case screen's notice area.
+- Agent warnings and errors, a refused submission, and a refused decision or reassignment appear above "Now at:", warning first, then failures.
+  A failure clears when a new action starts and when the step changes.
+- The document-add and document-drawer failures stay beside their controls in the Documents card, but use the same `Notice`, so they look alike.
+- The missing-documents line no longer says "above", since it now sits above the badges it points at; it says "the documents marked missing".
+
+**Found on the way.**
+A failed reopen used the same state as a failed load, which replaces the whole page with the error.
+It now goes to the notice area like the other action failures.
+
+The new-claim and new-application forms still show their failures as red text; they are other screens and were not part of the ask.
+
+Nothing in this reached the library.
+
+## 45. A sample's pass or fail is part of its label in the Documents grid, and only there
+
+**Context.**
+A sample document argues for an outcome, `pass` or `fail`, read from its file name.
+The picker showed it, but the Documents grid did not, so a case with a failing intake note gave no sign of why it took the long route.
+The owner: *"Show fail - pass text in the entries in the Documents panel in Current and Archive tab. Show it as part of the document title-label on the grid, otherwise they look as if some error has happened and don't show them on any other places."*
+
+**Decision.**
+- The grid's label reads `<title> — <outcome> · v<n>`, for example *Intake note — fail · v1*, in the Current and Archive tabs alike, as plain text in the link and not a coloured badge, because a coloured fail is what reads as an error.
+- Nowhere else: not the history's document lists, the drawer, the required-document badges, or the notice area.
+- The picker keeps its existing `<title> — <outcome>`, which is how a sample is chosen, and is not a new place.
+  Claude read the owner's "any other places" as not adding more; if they meant the picker too, that is a separate change and costs the ability to choose which way to push the model (sample README).
+- The server sends `outcome` on each document, looked up from the embedded sample named by its source file, so the file-name convention is parsed in one place, `internal/samples`.
+  An uploaded file has no sample behind it and gets none — except that one uploaded under the exact name of an embedded sample is taken for it, an edge accepted because nothing else records where a document came from.
+
+Nothing in this reached the library.
+
+## 46. Sample outcomes are `demo-pass` and `demo-fail`, shown as `Title / outcome`
+
+**Context.**
+Decision 45 put a sample's `pass` or `fail` in its label in the Documents grid.
+The owner, seeing it: *"Rename the files and show the rows in this manner: 'Intake note / demo-fail' so its demo-fail demo-pass instead of fail pass and / as separator on the ui"*.
+The point, as with decision 45, is that a bare `fail` beside a document reads as something having gone wrong.
+
+**Decision.**
+- The sample files are renamed `<order>-<type>-demo-pass.txt` and `<order>-<type>-demo-fail.txt`.
+  The parser is unchanged in shape: it strips an outcome suffix from the name, now `demo-pass` or `demo-fail`, and what remains is the type, so `intake-note-demo-fail` is still the type `intake-note`.
+- The label is `<title> / <outcome>` in the grid and in the picker, with the version kept after it in the grid, *Intake note / demo-fail · v1*.
+  The owner's example has no version; Claude kept it because the Archive tab lists several versions of one type, and without it the rows would be identical.
+  The picker's separator changes from a dash to a slash to match.
+- Seeding, the tests and the samples README follow the new names.
+  Older entries in this log, and the decision 40 and 45 text, still use the old file names and words; they are a record of when they were written.
+
+**What it costs.**
+A `pass` or `fail` file dropped into `sample-documents/` is no longer recognised as carrying an outcome; it loads as a sample with none, as an uploaded file does.
+
+Nothing in this reached the library.

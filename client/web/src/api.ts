@@ -222,6 +222,9 @@ export type CaseDocument = {
   receivedAt: string;
   body: string | null;
   sourceFile: string | null;
+  // What a sample document argues for — "demo-pass" or "demo-fail" — or empty. Shown in
+  // the document's label on the case and nowhere else.
+  outcome: string;
   addedAtRevision: number;
   // This document's ordinal among its own kind, oldest first — "Repair estimate
   // v2". Per kind, not per case: addedAtRevision is a case-level number.
@@ -326,8 +329,8 @@ export type Sample = {
   // The document type's name. Its title comes from the case's documentTypes, so
   // renaming a type relabels every sample of it.
   kind: string;
-  // What the document argues for, read out of its file name. Empty for a file
-  // carrying no outcome.
+  // What the document argues for ("demo-pass" or "demo-fail"), read out of its
+  // file name. Empty for a file carrying no outcome.
   outcome: string;
   body: string;
 };

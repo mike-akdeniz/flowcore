@@ -22,23 +22,23 @@ import (
 // visitor's first action is submitting the draft, so they watch the workflow
 // begin rather than arriving part-way through one.
 func (a *App) SeedSession(ctx context.Context, sessionID string) error {
-	// The claim first, so the policy application is the newer of the two and
-	// leads both lists a visitor lands on — the queue and the workflows are
-	// ordered newest first, so creation order is what decides.
+	// The application first, so the claim is the newer of the two and leads both
+	// lists a visitor lands on — the queue and the workflows are ordered newest
+	// first, so creation order is what decides.
 	//
-	// The policy application leads deliberately. Its workflow is three steps
-	// against the claim's seven, so the whole shape of a run — submit, an agent
-	// decides, a person decides, it ends — can be seen in a minute, before
-	// meeting the `estimate follow-up` loop and three agent steps at once.
+	// The claim leads deliberately: it is the richer example, with agent steps
+	// reading several documents and a history worth looking at (client decision
+	// 42). It used to be the application, for its three steps against the claim's
+	// seven; the owner reversed that.
 	//
 	// Ordering the lists by kind would have done the same thing and been a lie,
-	// since nothing about an application makes it sort before a claim. Seeding in
+	// since nothing about a claim makes it sort before an application. Seeding in
 	// the order we want them read costs a comment and no query.
-	if err := a.seedClaimExample(ctx, sessionID); err != nil {
+	if err := a.seedApplicationExample(ctx, sessionID); err != nil {
 		return err
 	}
 
-	return a.seedApplicationExample(ctx, sessionID)
+	return a.seedClaimExample(ctx, sessionID)
 }
 
 func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
@@ -104,9 +104,9 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		fileName   string
 		receivedAt time.Time
 	}{
-		{"6-intake-note-fail.txt", date(2026, 9, 15)},
-		{"7-estimate-fail.txt", date(2026, 9, 16)},
-		{"8-police-report-fail.txt", date(2026, 9, 16)},
+		{"6-intake-note-demo-fail.txt", date(2026, 9, 15)},
+		{"7-estimate-demo-fail.txt", date(2026, 9, 16)},
+		{"8-police-report-demo-fail.txt", date(2026, 9, 16)},
 	}
 
 	for _, entry := range seeded {
@@ -203,7 +203,7 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	//
 	// It is also the document `risk screen` requires, so the application can be
 	// submitted as it stands.
-	sample := a.Samples.MustHave("4-prior-insurer-fail.txt")
+	sample := a.Samples.MustHave("4-prior-insurer-demo-fail.txt")
 	body, fileName := sample.Body, sample.FileName
 
 	documentType, err := a.DocumentTypeNamed(ctx, sessionID, sample.Kind)

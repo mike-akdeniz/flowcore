@@ -40,10 +40,14 @@ export function Decide({
   subject,
   canDecide,
   onChanged,
+  onFailure,
 }: {
   subject: Case;
   canDecide: boolean;
   onChanged: (updated: Case) => void;
+  // A refused decision or reassignment is shown at the top of the case screen,
+  // with the other warnings, not here; undefined clears it.
+  onFailure: (message?: string) => void;
 }) {
   const step = subject.currentStep!;
   const [action, setAction] = useState<string | null>(null);
@@ -51,7 +55,6 @@ export function Decide({
   const [assignee, setAssignee] = useState<string | null>(null);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [busy, setBusy] = useState<"decide" | "reassign">();
-  const [failure, setFailure] = useState<string>();
 
   useEffect(() => {
     void api.assignees().then(setAssignees);
@@ -66,12 +69,12 @@ export function Decide({
 
   async function run(what: "decide" | "reassign", call: () => Promise<Case>) {
     setBusy(what);
-    setFailure(undefined);
+    onFailure(undefined);
 
     try {
       onChanged(await call());
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "that did not work");
+      onFailure(error instanceof Error ? error.message : "that did not work");
     } finally {
       setBusy(undefined);
     }
@@ -125,13 +128,19 @@ export function Decide({
 
       {/* One line instead of an alert box. Deleting the explanation outright
           would leave someone who is not the assignee looking at a card with no
-          Decision control and no reason given; saying it in six words costs a
-          line rather than a panel. */}
+          Decision control and no reason given; saying who it waits on costs a
+          line rather than a panel. An agent step says its own state above. */}
+      {!canDecide && !step.isAgent && (
+        <Text size="sm" c="dimmed">
+          Waiting on {step.assignee}.
+        </Text>
+      )}
+
       <Group align="flex-end" gap="xs" wrap="nowrap">
         <Select
           flex={1}
           size="sm"
-          label={canDecide ? "Reassign to" : "Not yours to decide — reassign to take it on"}
+          label="Reassign to"
           placeholder="a person or a team"
           // Grouped by kind, and labelled with names rather than references.
           // The value stays the raw reference — that is what FlowCore stores,
@@ -155,12 +164,6 @@ export function Decide({
           Reassign
         </Button>
       </Group>
-
-      {failure && (
-        <Text size="sm" c="red">
-          {failure}
-        </Text>
-      )}
     </Stack>
   );
 }

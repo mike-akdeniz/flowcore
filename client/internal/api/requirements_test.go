@@ -173,7 +173,7 @@ func TestDecisionsWaitForRequiredDocuments(t *testing.T) {
 	}
 
 	// Only whoever the case waits on may file on it once it is submitted.
-	witness := newDocumentJSON{SampleFile: "4-witness-statement-pass.txt"}
+	witness := newDocumentJSON{SampleFile: "4-witness-statement-demo-pass.txt"}
 	requestAs(t, server, sessionID, "user:marek", http.MethodPost, "/api/cases/C-1042/documents",
 		witness, http.StatusForbidden)
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents", witness, http.StatusForbidden)
