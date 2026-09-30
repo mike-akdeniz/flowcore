@@ -19,7 +19,27 @@ export type Staff = {
 export type Session = {
   signedInAs: Staff | null;
   roster: Staff[];
-  agentMode: string;
+};
+
+// A model agent steps can be decided by. Value is the choice as the API takes it
+// back; the browser never looks inside it.
+export type ModelOption = { value: string; label: string };
+
+export type Models = {
+  // One group per backend that is answering: the local server, and Anthropic
+  // when a key is set.
+  groups: { label: string; models: ModelOption[] }[];
+  // The session's model — chosen, or the only one offered. Null when there is none.
+  chosen: ModelOption | null;
+  // False when the chosen model is not being offered right now.
+  available: boolean;
+};
+
+// Where an agent step stands, and the one detail that explains it: the model's
+// name, or the error.
+export type AgentStatus = {
+  state: "queued" | "running" | "needs-model" | "unavailable" | "retrying" | "parked";
+  detail: string;
 };
 
 export type QueueItem = {
@@ -61,6 +81,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ reference }),
     }),
+  models: () => request<Models>("/api/models"),
+  chooseModel: (value: string) => edit<Models>("/api/models/chosen", "PUT", { value }),
   queue: () => request<QueueItem[]>("/api/queue"),
   allCases: () => request<QueueItem[]>("/api/cases"),
   workflows: () => request<WorkflowSummary[]>("/api/workflows"),
@@ -219,6 +241,8 @@ export type CaseStep = {
   required: { name: string; title: string; present: boolean }[];
   assignee: string;
   isAgent: boolean;
+  // Null on a person's step.
+  agent: AgentStatus | null;
   waitingSince: string;
   visitId: string;
   actions: { id: string; name: string }[];

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -45,28 +46,40 @@ type workItem struct {
 // gets to it. That pause is the thing a workflow engine exists to survive, and it
 // is only visible because nothing is holding it open.
 type Dispatcher struct {
-	app     *App
-	checker Checker
-	logger  *slog.Logger
-	work    chan workItem
+	app    *App
+	logger *slog.Logger
+	work   chan workItem
+	// nudge asks the sweep to run now rather than at its next tick — after a
+	// session chooses a model, say, so work waiting for one does not sit for
+	// another fifteen seconds.
+	nudge chan struct{}
 
 	// queued guards against dispatching the same visit twice — once from the
 	// response that opened it and once from the sweep below.
 	mutex  sync.Mutex
 	queued map[uuid.UUID]bool
+	// attempts is what the dispatcher knows about each visit it has tried: a call
+	// in flight, or the last one's failure and the model it failed under. In
+	// memory, so a restart forgets it; that costs at most one repeated call.
+	attempts map[uuid.UUID]attempt
 }
 
-func NewDispatcher(application *App, checker Checker, logger *slog.Logger) *Dispatcher {
+type attempt struct {
+	running bool
+	choice  ModelChoice
+	failure error
+}
+
+func NewDispatcher(application *App, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
-		app:     application,
-		checker: checker,
-		logger:  logger,
-		work:    make(chan workItem, 64),
-		queued:  make(map[uuid.UUID]bool),
+		app:      application,
+		logger:   logger,
+		work:     make(chan workItem, 64),
+		nudge:    make(chan struct{}, 1),
+		queued:   make(map[uuid.UUID]bool),
+		attempts: make(map[uuid.UUID]attempt),
 	}
 }
-
-func (d *Dispatcher) Mode() string { return d.checker.Mode() }
 
 // Start runs one worker and a periodic sweep.
 //
@@ -151,7 +164,18 @@ func (d *Dispatcher) sweep(ctx context.Context) {
 			return
 		case <-ticker.C:
 			d.sweepOnce(ctx)
+		case <-d.nudge:
+			d.sweepOnce(ctx)
 		}
+	}
+}
+
+// Nudge runs the sweep now. It never blocks: one pending nudge is as good as
+// several.
+func (d *Dispatcher) Nudge() {
+	select {
+	case d.nudge <- struct{}{}:
+	default:
 	}
 }
 
@@ -201,7 +225,7 @@ func sessionOf(subjectReference string) string {
 	return session
 }
 
-// run does one agent step: read where the work stands, assemble what the checker
+// run does one agent step: read where the work stands, assemble what the model
 // needs from both halves, decide, and record.
 func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	state, err := d.app.Engine.GetState(ctx, item.SubjectReference, item.DefinitionID)
@@ -256,26 +280,66 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
-	verdict, err := d.checker.Check(ctx, CheckRequest{
-		Agent:        state.CurrentStep.AssigneeID,
-		StepName:     state.CurrentStep.Name,
-		Instructions: state.CurrentStep.Instructions,
-		Reference:    reference,
-		SubjectText:  view.Text,
-		Actions:      state.CurrentStep.Actions,
-	})
+	// Which model decides is the session's choice (client decision 40). Until
+	// there is one, or while the one chosen is not being offered, the visit stays
+	// open and the case screen says why; the sweep comes back to it.
+	choice, chosen, err := d.app.AgentChoice(ctx, item.SessionID)
 	if err != nil {
-		// The visit stays open, so the sweep will try again. If it keeps failing, a
-		// person reassigns the step to themselves and decides it by hand — they
-		// cannot decide it as it stands, because deciding belongs to the assignee
-		// and no person is ever the assignee of an agent step (client decision
-		// 23). Either way a failed agent does not strand a run.
-		d.logger.Warn("agent step: check failed", "visit", item.VisitID, "err", err)
+		d.logger.Warn("agent step: reading the model choice", "visit", item.VisitID, "err", err)
 
 		return
 	}
 
-	// The revision stamped here is the one the checker actually read, not whatever
+	if !chosen {
+		d.logger.Info("agent step: waiting for a model to be chosen", "visit", item.VisitID)
+
+		return
+	}
+
+	backend, model, available := d.app.Models.Find(ctx, choice)
+	if !available {
+		d.logger.Info("agent step: the chosen model is not available", "visit", item.VisitID, "model", choice)
+
+		return
+	}
+
+	// A failure that would repeat is not repeated. Choosing another model, or
+	// taking the step over, is what moves it.
+	if previous := d.attempt(item.VisitID); previous.failure != nil &&
+		isPermanent(previous.failure) && previous.choice == choice {
+		return
+	}
+
+	question, err := NewQuestion(CheckRequest{
+		Agent:        state.CurrentStep.AssigneeID,
+		StepName:     state.CurrentStep.Name,
+		Instructions: state.CurrentStep.Instructions,
+		SubjectText:  view.Text,
+		Actions:      state.CurrentStep.Actions,
+	})
+	if err != nil {
+		d.failed(item.VisitID, choice, err)
+
+		return
+	}
+
+	d.begin(item.VisitID, choice)
+
+	answer, err := backend.Decide(ctx, model.ID, question)
+	if err != nil {
+		d.failed(item.VisitID, choice, err)
+
+		return
+	}
+
+	verdict, err := NewVerdict(answer, state.CurrentStep.Actions, Signature(backend, model))
+	if err != nil {
+		d.failed(item.VisitID, choice, err)
+
+		return
+	}
+
+	// The revision stamped here is the one the model actually read, not whatever
 	// the claim is at by the time this write lands. A document added in between
 	// belongs to the next visit, and saying so is the entire point of recording
 	// it: a step reached twice by the `estimate follow-up` loop leaves two visits,
@@ -289,13 +353,15 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 			SubjectVersionToken: strconv.Itoa(view.Revision),
 		})
 	if err != nil {
-		d.logger.Warn("agent step: completing", "visit", item.VisitID, "err", err)
+		d.failed(item.VisitID, choice, transient(fmt.Errorf("recording the decision: %w", err)))
 
 		return
 	}
 
+	d.Release(item.VisitID)
+
 	d.logger.Info("agent step completed",
-		"step", state.CurrentStep.Name, "by", state.CurrentStep.AssigneeID, "mode", d.checker.Mode())
+		"step", state.CurrentStep.Name, "by", state.CurrentStep.AssigneeID, "model", choice)
 
 	// The next step may be another agent's, which is how two agent steps run back
 	// to back without anything polling.
@@ -315,4 +381,101 @@ func subjectOf(subjectReference string) string {
 	}
 
 	return subject
+}
+
+func (d *Dispatcher) attempt(visitID uuid.UUID) attempt {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	return d.attempts[visitID]
+}
+
+func (d *Dispatcher) begin(visitID uuid.UUID, choice ModelChoice) {
+	d.mutex.Lock()
+	d.attempts[visitID] = attempt{running: true, choice: choice}
+	d.mutex.Unlock()
+}
+
+// failed records a failed call. A transient failure is retried by the next
+// sweep; a permanent one parks the visit for that model.
+//
+// Before this, every failure was retried every fifteen seconds for ever, and a
+// refusal or a reply that ran out of room is billed each time.
+func (d *Dispatcher) failed(visitID uuid.UUID, choice ModelChoice, err error) {
+	d.mutex.Lock()
+	d.attempts[visitID] = attempt{choice: choice, failure: err}
+	d.mutex.Unlock()
+
+	d.logger.Warn("agent step: the model call failed",
+		"visit", visitID, "model", choice, "permanent", isPermanent(err), "err", err)
+}
+
+// Release forgets what the dispatcher knew about a visit: after it is decided,
+// or after it is reassigned, which is one of the two ways out of a parked visit.
+func (d *Dispatcher) Release(visitID uuid.UUID) {
+	d.mutex.Lock()
+	delete(d.attempts, visitID)
+	d.mutex.Unlock()
+}
+
+// AgentState is where an agent step stands, as the case screen shows it.
+type AgentState string
+
+const (
+	// AgentQueued is waiting for the worker, or being asked right now.
+	AgentQueued AgentState = "queued"
+	// AgentRunning is a model call in flight.
+	AgentRunning AgentState = "running"
+	// AgentNeedsModel is waiting for the session to choose a model.
+	AgentNeedsModel AgentState = "needs-model"
+	// AgentUnavailable is waiting for the chosen model to be offered again, or
+	// for any model at all to be.
+	AgentUnavailable AgentState = "unavailable"
+	// AgentRetrying failed in a way the next sweep may not repeat.
+	AgentRetrying AgentState = "retrying"
+	// AgentParked failed in a way that would repeat with this model.
+	AgentParked AgentState = "parked"
+)
+
+// AgentStatus is an agent state and the one detail that explains it: the
+// model's name, or the error.
+type AgentStatus struct {
+	State  AgentState
+	Detail string
+}
+
+// Status reports where an open agent visit stands, from the session's choice,
+// what the backends offer, and what the dispatcher last tried.
+func (d *Dispatcher) Status(ctx context.Context, sessionID string, visitID uuid.UUID) (AgentStatus, error) {
+	choice, chosen, err := d.app.AgentChoice(ctx, sessionID)
+	if err != nil {
+		return AgentStatus{}, err
+	}
+
+	if !chosen {
+		if len(d.app.Models.List(ctx)) == 0 {
+			return AgentStatus{State: AgentUnavailable}, nil
+		}
+
+		return AgentStatus{State: AgentNeedsModel}, nil
+	}
+
+	backend, model, available := d.app.Models.Find(ctx, choice)
+	if !available {
+		return AgentStatus{State: AgentUnavailable, Detail: choice.Model}, nil
+	}
+
+	signature := Signature(backend, model)
+	previous := d.attempt(visitID)
+
+	switch {
+	case previous.running:
+		return AgentStatus{State: AgentRunning, Detail: signature}, nil
+	case previous.failure != nil && previous.choice == choice && isPermanent(previous.failure):
+		return AgentStatus{State: AgentParked, Detail: previous.failure.Error()}, nil
+	case previous.failure != nil && previous.choice == choice:
+		return AgentStatus{State: AgentRetrying, Detail: previous.failure.Error()}, nil
+	}
+
+	return AgentStatus{State: AgentQueued, Detail: signature}, nil
 }

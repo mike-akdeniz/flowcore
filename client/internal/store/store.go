@@ -72,6 +72,34 @@ func (s *Store) ExpiredSessions(ctx context.Context, ttl time.Duration) ([]strin
 	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
+// SessionAgentModel is the model a session chose for its agent steps, as
+// stored; nil until one is chosen.
+func (s *Store) SessionAgentModel(ctx context.Context, id string) (*string, error) {
+	var model *string
+
+	err := s.pool.QueryRow(ctx,
+		`select agent_model from casework.session where id = $1`, id).Scan(&model)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+
+	return model, err
+}
+
+func (s *Store) SetSessionAgentModel(ctx context.Context, id, model string) error {
+	tag, err := s.pool.Exec(ctx,
+		`update casework.session set agent_model = $2 where id = $1`, id, model)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+
+	return nil
+}
+
 // --- staff ----------------------------------------------------------------
 
 func (s *Store) Roster(ctx context.Context) ([]Staff, error) {
@@ -323,7 +351,7 @@ func (s *Store) AddDocument(ctx context.Context, document Document) (Document, e
 // three revisions ago, so it is answered by Current at the point of asking.
 func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Document, error) {
 	rows, err := s.pool.Query(ctx,
-		`select d.id, d.submission_id, d.name, d.document_type_id, t.name,
+		`select d.id, d.submission_id, d.name, d.document_type_id, t.name, t.title,
 		        d.received_at, d.body, d.source_file, d.added_at_revision
 		 from casework.document d
 		 join casework.document_type t on t.id = d.document_type_id
@@ -336,7 +364,7 @@ func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Docume
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (Document, error) {
 		var document Document
 		err := row.Scan(&document.ID, &document.SubmissionID, &document.Name,
-			&document.DocumentTypeID, &document.Kind, &document.ReceivedAt, &document.Body,
+			&document.DocumentTypeID, &document.Kind, &document.Title, &document.ReceivedAt, &document.Body,
 			&document.SourceFile, &document.AddedAtRevision)
 
 		return document, err

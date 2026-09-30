@@ -104,8 +104,18 @@ func (a *App) CompleteStep(
 // There is no unassign: FlowCore requires a value, and work with no assignee
 // would match no worklist query, so releasing it that way would hide it rather
 // than free it.
+//
+// Reassigning is also one of the two ways out of an agent step parked on a
+// failure, so what the dispatcher knew about the visit is dropped with it.
 func (a *App) Reassign(ctx context.Context, visitID uuid.UUID, assignee string) (flowcore.WorkflowState, error) {
-	return a.Engine.Reassign(ctx, visitID, assignee)
+	state, err := a.Engine.Reassign(ctx, visitID, assignee)
+	if err != nil {
+		return flowcore.WorkflowState{}, err
+	}
+
+	a.Dispatcher.Release(visitID)
+
+	return state, nil
 }
 
 // Assignee is somebody a step can be handed to, with a label for the interface.

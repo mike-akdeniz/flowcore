@@ -84,13 +84,14 @@ type Document struct {
 	// DocumentTypeID is the type's stable id, and what currency is keyed on.
 	DocumentTypeID uuid.UUID
 	// Kind is the type's name, read with the document for the callers that match
-	// on it — the samples and the simulated checker. Never written: the id is
-	// what a document stores.
-	Kind       string
+	// on it — the samples. Never written: the id is what a document stores.
+	Kind string
+	// Title is the type's title, "Police report", read with the document because
+	// it is how an agent's instructions refer to it. Never written either.
+	Title      string
 	ReceivedAt time.Time
 	Body       *string
-	// SourceFile is the sample or uploaded file this came from. It is what a
-	// simulated agent step reads when no model is configured.
+	// SourceFile is the sample file this came from, if it came from one.
 	SourceFile *string
 	// AddedAtRevision is the submission revision this document arrived at.
 	AddedAtRevision int

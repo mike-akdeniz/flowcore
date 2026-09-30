@@ -25,6 +25,12 @@ type Config struct {
 	// deploy grows the database slowly, where the reverse deletes a local user's
 	// workflows overnight.
 	SessionTTL time.Duration
+	// LocalModelURL is the local model server's address. The default is where
+	// `make model` starts llama-server: port 8081, because 8080 is CaseWork's.
+	LocalModelURL string
+	// AnthropicAPIKey, when set, adds Anthropic's models to the ones a session
+	// can choose from.
+	AnthropicAPIKey string
 }
 
 // LoadConfig reads the environment, falling back to values that work against the
@@ -33,7 +39,9 @@ func LoadConfig() (Config, error) {
 	config := Config{
 		DatabaseURL: environmentOr("CLIENT_DATABASE_URL",
 			"postgres://flowcore:flowcore@localhost:5433/flowcore_client?sslmode=disable"),
-		Addr: environmentOr("CLIENT_ADDR", ":8080"),
+		Addr:            environmentOr("CLIENT_ADDR", ":8080"),
+		LocalModelURL:   environmentOr("CLIENT_LOCAL_MODEL_URL", "http://localhost:8081"),
+		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 	}
 
 	raw := environmentOr("CLIENT_SESSION_TTL", "0")

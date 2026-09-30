@@ -2,54 +2,63 @@
 
 ## Current task and next step
 
-Handover written 2026-09-29 on branch `main`, at commit `cb3c16f` with a clean working tree.
-The agent-step work of CaseWork slice 7 is implemented, verified, and committed in four passes.
-The owner then added a new slice before the close-out: **8 — Real agent steps**, recorded in the [agreed UI rebuild plan](client-ui-rebuild.md).
-The next step is to run that slice's **design interview**, not to build: nothing about the real agent path is settled.
-Work within the plan's order: slice 8 (real agent steps), then slice 9 (close out).
+Handover written 2026-09-30 on branch `main`, at commit `d65d718` (the slice 8 design docs), with slice 8's implementation uncommitted in the working tree.
+Slice 8, **Real agent steps**, of the [agreed UI rebuild plan](client-ui-rebuild.md) is implemented and verified; the owner has not yet reviewed or committed it.
+The next step is the owner's review and commit of the slice 8 working tree.
+After that the plan's order leaves slice 9, close out.
 
-## The real agent steps slice
+## What slice 8 settled
 
-The slice entry in [client-ui-rebuild.md](client-ui-rebuild.md) holds what exists today and the decisions to make; read it first rather than relying on this summary.
-The owner's framing: agent steps have only run in canned mode, and *"We didn't design how caseFlow will run a real agent step when API key is setup. So we have many decisions to make such as: how the api configuration is stored, how the instruction refers to the required documents, how the response from API is turned in a step decision and so on."*
-Run it as a grilling interview per `CLAUDE.md`: one question at a time, each with a recommendation, root decisions first, facts looked up rather than asked, and the exchange logged in [client decisions](../../client/docs/decisions.md) (or [FlowCore decisions](../decisions.md) if it reveals anything about the library).
-Nothing is written to design docs or code until the owner says the questions are settled.
-
-Facts worth having before the first question, all in `client/internal/app/`:
-
-- `app.go` `chooseChecker` picks `ClaudeChecker` when `ANTHROPIC_API_KEY` is set in the environment, otherwise `SimulatedChecker`.
-- `checker_claude.go` hard-codes the model as `claude-opus-5` with 1024 output tokens; that id has not been checked against current model ids (use the `claude-api` skill for model ids and SDK usage).
-- It sends the step's frozen instructions plus an `ACTION:` / `FINDING:` reply format as the system prompt, and `SubjectText` (the case details and every current document's text, not only the required ones) as the user message; `parseVerdict` matches the action by name.
-- `dispatcher.go` retries a failed check on every 15-second sweep with no backoff or limit, and skips an agent whose required documents are missing.
-- `checker_canned.go` is the simulation settled in client decision 39: a fixed demo-branch list (`full assessment`, `adequate`, `inconsistent`, `refer`), else the first action, with one disclosed remark.
-- None of the real path has tests or has been run with a key.
-
-## What slice 7's agent-step work settled
-
-Authoritative records: [FlowCore decision 47](../decisions.md) (including its *Review before implementation* section), [client decisions 36–39](../../client/docs/decisions.md), both system designs, and the [implementation checklist](agent-step-configuration.md).
+Authoritative record: [client decision 40](../../client/docs/decisions.md), which logs the design interview with the owner's words and ends with *What building it found*.
+The slice entry and its eleven-item Done when are in [client-ui-rebuild.md](client-ui-rebuild.md).
 In short:
 
-- FlowCore stores step `Instructions` and opaque `RequiredInputTypeIDs` on definitions and snapshots them into every run; `StartParams.Validate`, `ListOpenSteps`, `GetActionTarget`, and `ListOpenRunSteps` exist for clients (migration `00006`, with index `ix_workflow_open_definition`).
-- CaseWork keeps document types (stable id, name, editable title), per-case-type allowed lists, required-document checks at decide, one-step agent lookahead and agent-entry start, assignee-only filing after submission, snapshot-based agent discovery, and decision documents in history.
-- The editor refuses agent-to-agent handoffs that would strand the destination (decision 38) and agent steps without instructions.
-- The documentation-check agent became `estimate check` (`adequate` / `needs detail`) with loop step `estimate follow-up` (decision 39).
-- Sample `-pass` / `-fail` labels show only in the sample picker, never on filed documents (owner: *"if you do 2, I'm ok with pass - fail wording as it will only appear in the picker"*).
+- Canned mode is gone; decision 5 and the simulation parts of decisions 21, 25, 31 and 39 are superseded.
+- The default model is local: Gemma 3 270M (`ggml-org/gemma-3-270m-it-GGUF`, alias `gemma-3-270m`, 288 MB) served by llama.cpp's `llama-server` on port 8081, through one OpenAI-compatible client configured only by `CLIENT_LOCAL_MODEL_URL`.
+- Anthropic is added when `ANTHROPIC_API_KEY` is set, via structured outputs with minimal request parameters; models are listed live and filtered to those supporting structured outputs.
+- No model id exists in code or configuration: the session chooses from a top-bar dropdown, stored in `casework.session.agent_model` as `backend/model`; with exactly one model offered it is used without asking, with several an agent step waits.
+- One reply contract: a per-step schema with `finding` then an `action` enum; the whole current file goes to the model, documents labelled by type title.
+- The local request alone adds temperature 0 and an 80-character minimum finding, which made Gemma's findings usable.
+- Transient failures retry on the sweep; permanent ones park the visit in memory until the session picks another model or the step is reassigned.
+- The finding is signed with `— <model> (<backend>)` and trimmed to FlowCore's 3000-character remark limit.
+- The case screen shows one of six agent states (queued, running, needs-model, unavailable, retrying, parked), plus a line when required documents are missing.
+- No verification step may cost money: owner, *"Running a test should never cost money."*
+- `make run`, and so `make fresh`, start the local model in the background and stop it with CaseWork; owner: *"make fresh should start the model too"*.
+  `make dev` deliberately does not: owner, *"no model start for make dev"*.
+- When a fresh interview answer conflicts with an older design-doc line, the interview wins and the doc is corrected (owner's rule, recorded in decision 40).
+
+## Pending changes
+
+Uncommitted, all in `client/`: the backends (`backend_local.go`, `backend_anthropic.go`), `models.go`, the rewritten `checker.go` and `dispatcher.go`, the model endpoints (`internal/api/models.go`), the session column (edited in place in `00001`), the picker (`web/src/ModelPicker.tsx`) and case-screen changes, the Makefile, `README.md`'s *Run it* section, sample-document comments, and decision 40's two appended sections.
+`checker_canned.go` and `checker_claude.go` are deleted; nothing is staged.
+Suggested commit message, one line and no attribution: `Run agent steps on a local model by default, with a per-session model picker and no canned mode`.
 
 ## Verification state
 
-- Library: `make test` passes against real Postgres, including `step_configuration_test.go`.
-- Client: `CASEWORK_TEST_DSN=... go test ./...` passes; tests need a migrated database with both schemas. The last runs used a `casework_test` database created in the `flowcore-client-postgres` container (port 5433), migrated with goose using `-table public.flowcore_goose_db_version` for `../migrations` and `-table public.casework_goose_db_version` for `internal/store/migrations`; recreate it after any schema edit.
-- The nine checklist scenarios were verified against the running binary on a throwaway database (31 of 31 checks, plus the restart scenario); that database was dropped.
+- Library: `make test` passes.
+- Client: `CASEWORK_TEST_DSN=postgres://flowcore:flowcore@localhost:5433/casework_test?sslmode=disable go test ./...` passes, three runs in a row; `casework_test` was recreated with the new schema by starting the binary against it once.
+- Opt-in local test: `CASEWORK_LOCAL_MODEL_URL=http://localhost:8081` plus the DSN runs `TestLocalModelDecidesTheSeededCases` (the seeded claim and application through a real model); passes on Gemma.
+- Manual checklist against the binary on a throwaway database, local model only: 15 of 15, covering all four seeded agent steps, refusal of an unoffered model, the unavailable state, and a CaseWork restart with the model down followed by recovery.
+  Needs-model, parked and unparking were not reachable with one local model and are covered by dispatcher tests.
+- `make run` starting and stopping the model was checked on a spare port; the "already running" and "not installed" branches were not exercised.
+- Anthropic has never been called; its client is tested only against a fake server.
 - Not done: a visual check of the UI in a browser.
-- CaseWork migrations are edited in place, so the owner's development database needs `make reset` (or `make fresh`) after the recent schema changes.
+
+## Environment
+
+- llama.cpp was installed with Homebrew this session; Gemma and the rejected SmolLM2-360M are cached in `~/.cache/huggingface`.
+- The owner's development database needs `make fresh` (or `make reset`) after the in-place schema edit; the owner had a CaseWork on 8080 from the old Makefile and was told to restart it.
+- No model server or CaseWork process started by the agent is left running; the throwaway databases were dropped.
+- To use Claude models: `export ANTHROPIC_API_KEY=...` before `make fresh`; keys come from the Claude Console, billed separately from a Claude.ai subscription.
 
 ## Open items for the owner
 
-- Proposed, not applied: `docs/status.md` still reads "Remaining: define agent steps in the editor, then close out." Suggested: "Remaining: real agent steps, then close out." The owner decides status text.
-- Slice 9 close-out will include deleting dead code such as the unused `seededDefinitions()` in `client/internal/app/workflows.go`.
+- Proposed, not applied: `docs/status.md` still reads "Remaining: define agent steps in the editor, then close out." Suggested: "Remaining: close out." once slice 8 is committed. The owner decides status text.
+- Offered and not yet answered: make the model picker's empty placeholder say how to start a model (for example "No model — run make model").
+- Slice 9 close-out: the full `client/README.md` pass (its *What to try* and *How it is built* sections still describe the old HTMX build), the library README, a polish pass, and deleting dead code such as `seededDefinitions()` in `client/internal/app/workflows.go`.
 
 ## Resume safely
 
-Read [project status](../status.md), then the slice 8 entry in the plan, then client decisions 36–39.
-Verify this account against `git log` and the working tree before acting.
-Keep all work uncommitted for owner review; suggest one-line commit messages with no attribution lines.
+Read [project status](../status.md), [client decision 40](../../client/docs/decisions.md), and the slice 8 and 9 entries in [the plan](client-ui-rebuild.md).
+Verify this account against `git status` and `git log` before acting.
+Keep work uncommitted for owner review; suggest one-line commit messages with no attribution lines.

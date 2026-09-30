@@ -41,6 +41,8 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("GET /api/session", s.showSession)
 	mux.HandleFunc("POST /api/session", s.signIn)
+	mux.HandleFunc("GET /api/models", s.listModels)
+	mux.HandleFunc("PUT /api/models/chosen", s.chooseModel)
 	mux.HandleFunc("GET /api/queue", s.showQueue)
 	mux.HandleFunc("GET /api/cases", s.listAllCases)
 	mux.HandleFunc("GET /api/cases/{reference}", s.showCase)
@@ -168,7 +170,6 @@ type staffJSON struct {
 type sessionJSON struct {
 	SignedInAs *staffJSON  `json:"signedInAs"`
 	Roster     []staffJSON `json:"roster"`
-	AgentMode  string      `json:"agentMode"`
 }
 
 func (s *Server) showSession(w http.ResponseWriter, r *http.Request) {
@@ -180,8 +181,7 @@ func (s *Server) showSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := sessionJSON{
-		Roster:    make([]staffJSON, 0, len(roster)),
-		AgentMode: s.app.Dispatcher.Mode(),
+		Roster: make([]staffJSON, 0, len(roster)),
 	}
 
 	for _, member := range roster {

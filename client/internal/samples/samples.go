@@ -5,9 +5,8 @@
 // see and edit them, and they are embedded in the binary so a hosted visitor —
 // who has no folder to browse — gets the same set from the application itself.
 //
-// The file name is a convention with two jobs. It tells a person what the
-// document argues for, and when no model is configured it is the *only* thing the
-// simulated agent steps have to go on.
+// The file name tells a person what the document argues for. It is a label for
+// the picker and nothing else: agent steps read the text, never the name.
 package samples
 
 import (
@@ -30,9 +29,9 @@ import (
 // fit the risk screen.
 //
 // It labels the sample in the picker — "Repair estimate — pass" — so a visitor
-// with an API key can choose which way to push a real model. Without a key
-// nothing reads it: the simulated checker follows fixed branches (client
-// decision 39).
+// can choose which way to push the model deciding agent steps. What the model
+// decides is its own: a small local model may not follow the text's argument
+// (client decision 40).
 type Outcome string
 
 const (

@@ -13,33 +13,56 @@ nothing here that wraps it; this is an example of *being* the client.
 
 ## Run it
 
+Agent steps are decided by a model, and the default one runs on your machine: Gemma 3 270M, about
+290 MB, served by llama.cpp. Once:
+
+```
+brew install llama.cpp
+```
+
+Then:
+
 ```
 make fresh
 ```
 
-Then <http://localhost:8080>. Nothing else to configure — the client applies the library's schema
-itself, seeds your session on first request, and simulates its agent steps with fixed branches when
-no API key is set.
+Then <http://localhost:8080>. The client applies the library's schema itself and seeds your session
+on first request. `make fresh` starts the model in the background too — downloading it the first
+time, reusing it after, logging to `bin/model.log` — and stops it when you stop CaseWork.
 
-To have a model make those judgments instead:
+**The model picker is in the top bar.** It lists what the local server offers and, when a key is
+set, Anthropic's models too:
 
 ```
 export ANTHROPIC_API_KEY=...
 make fresh
 ```
 
-Everything else on the path is identical either way: the same queue, the same worker, the same
-`CompleteStep` call, the same remark stamped on the same visit. Only the source of the judgment
-changes, and the interface says which is live.
+With exactly one model on offer it is used without asking; with several, agent steps wait until you
+pick one. Every finding ends with the name of the model that wrote it, so switching models and
+running the same case again compares them. Choosing a Claude model spends from that key.
+
+**Without a model, CaseWork still runs.** If llama.cpp is not installed, `make fresh` says so and
+starts CaseWork anyway; agent steps wait, and the case screen says why. Start `make model` in another
+terminal and they go. A small local model makes quick, often wrong judgments — it is there so an
+agent step visibly reads the case and decides, not to be right.
+
+**Ollama works too.** It answers the same API, so point CaseWork at it instead:
+
+```
+ollama pull gemma3:270m
+export CLIENT_LOCAL_MODEL_URL=http://localhost:11434
+```
 
 ### The commands, and which one you want
 
 | | what it does | when |
 | --- | --- | --- |
-| `make fresh` | reset, then build and serve on 8080 | **start here**, and whenever the schema has changed |
-| `make run` | build, serve on 8080 | keep the cases you have created, and see current code |
+| `make fresh` | reset, then build and serve on 8080, with the local model on 8081 | **start here**, and whenever the schema has changed |
+| `make run` | build, serve on 8080, with the local model on 8081 | keep the cases you have created, and see current code |
 | `make dev` | API on 8080, Vite on **5173** with hot reload | editing `.tsx` and wanting the browser to keep up |
 | `make reset` | drop the database | rarely on its own — `fresh` includes it |
+| `make model` | serve the local model on 8081, in the foreground | to read its log, or keep it up across CaseWork restarts; `run` and `fresh` use it if it is already up |
 
 **`make run` is the deployment shape**: one binary serving its own embedded front end, which is what
 somebody visiting a hosted instance gets. `make dev` is not — Vite serves the front end from source

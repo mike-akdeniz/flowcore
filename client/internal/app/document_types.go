@@ -13,8 +13,7 @@ import (
 
 // Document types across the boundary.
 //
-// CaseWork owns the types: their ids, names, titles, simulated findings, and
-// which kinds of case may hold them. FlowCore holds only which of them a step
+// CaseWork owns the types: their ids, names, titles, and which kinds of case may hold them. FlowCore holds only which of them a step
 // requires, as opaque ids on the step definition, frozen into every run at start
 // (FlowCore decision 47). The rules here are CaseWork's, enforced over both:
 // a step may require only what its kind of case allows, a type may leave that

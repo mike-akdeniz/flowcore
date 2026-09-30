@@ -98,9 +98,8 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 	// on full assessment, the estimate is a scribbled figure `estimate check`
 	// should send back for detail, and the police report contradicts the
 	// claimant's account on both the circumstances and the timing, which is what
-	// `narrative consistency` is for. Without a key the simulated checker takes
-	// the same long route by fixed branches, except that it passes the estimate,
-	// since a simulation that always took the loop back would never leave it.
+	// `narrative consistency` is for. Whether a model follows that argument is the
+	// model's: a small local one may not.
 	seeded := []struct {
 		fileName   string
 		receivedAt time.Time

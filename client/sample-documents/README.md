@@ -15,11 +15,11 @@ at `triage` and one that fails needs full assessment; an estimate that passes `e
 itemised and one that fails is a scribbled figure. What "pass" means is a property of the step, not
 of the vocabulary.
 
-**The name is a label, not an instruction.** With `ANTHROPIC_API_KEY` set, the agent steps read what
-is *inside* these files, along with the rest of the case, and decide for themselves; the outcome in
-the name is what the text was written to argue, and the picker shows it so you can choose which way to
-push the model. Without a key nothing reads the documents at all: each agent step takes a fixed branch
-and its remark says so (client decision 39). The tables below describe what happens with a key.
+**The name is a label, not an instruction.** The agent steps read what is *inside* these files, along
+with the rest of the case, and the model chosen in the top bar decides for itself; the outcome in the
+name is what the text was written to argue, and the picker shows it so you can choose which way to
+push the model. The tables below describe what a model that follows the argument does — a small local
+model may not, and that is its finding to make (client decision 40).
 
 **The number is a suggested order**, and nothing else — the application strips it before reading the
 name. Numbering restarts for each kind of submission, because the picker only ever shows one kind at

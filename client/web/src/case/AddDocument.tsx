@@ -17,35 +17,30 @@ import { api, type Case, type NewDocument, type Sample } from "../api";
 // This replaced a Go literal that had to agree with three other places and a SQL
 // CHECK constraint, none of which failed when they drifted.
 
-// whatHappensNext is the one line this control exists around.
-//
-// The owner asked for two warnings — one for an upload with no key, one for a
-// sample with no key — and both are the same job: say what the next agent step
-// will do, before it does it. One sentence, always present, always true, cannot
-// drift out of step with itself the way two warnings would.
-function whatHappensNext(hasKey: boolean): { colour: string; text: string } {
-  if (hasKey) {
+// whatHappensNext is the one line this control exists around: say what the next
+// agent step will do, before it does it. One sentence, always present, always
+// true — it names the model the session chose, or says there is none.
+function whatHappensNext(model: string | null): { colour: string; text: string } {
+  if (model) {
     return {
       colour: "gray",
-      text: "A model will read this document's text and decide for itself.",
+      text: `${model} will read this document's text and decide for itself.`,
     };
   }
 
   return {
     colour: "yellow",
-    text:
-      "No API key. Agent steps are simulated: they read nothing, take a fixed " +
-      "branch, and say so on the record.",
+    text: "No model is chosen. Agent steps wait until one is — choose it in the top bar.",
   };
 }
 
 export function AddDocument({
   subject,
-  hasKey,
+  model,
   onAdded,
 }: {
   subject: Case;
-  hasKey: boolean;
+  model: string | null;
   onAdded: (updated: Case) => void;
 }) {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -123,7 +118,7 @@ export function AddDocument({
     (document) => !document.superseded && document.kind === kind,
   );
 
-  const note = whatHappensNext(hasKey);
+  const note = whatHappensNext(model);
   const ready = mode === "sample" ? Boolean(sample) : Boolean(upload);
 
   async function add() {

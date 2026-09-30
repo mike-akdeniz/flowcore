@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   AppShell,
-  Badge,
   Burger,
   Button,
   Group,
@@ -11,7 +10,8 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api, type Session } from "./api";
+import { api, type Models, type Session } from "./api";
+import { ModelPicker } from "./ModelPicker";
 
 // Every item here goes somewhere. There was a disabled "Cases" entry for a page
 // that belonged to no slice, which is a promise not kept — a nav item that never
@@ -30,10 +30,14 @@ function isCurrent(path: string, to: string) {
 
 export function Shell({
   session,
+  models,
+  onModelsChanged,
   onSignedOut,
   children,
 }: {
   session: Session;
+  models: Models | null;
+  onModelsChanged: (models: Models) => void;
   onSignedOut: () => void;
   children: ReactNode;
 }) {
@@ -69,11 +73,10 @@ export function Shell({
               New submission
             </Button>
 
-            {/* Grey, not the default primary. Blue is reserved for things you
-                can click — a badge that reports the mode is not one of them. */}
-            <Badge variant="light" size="sm" color="gray">
-              agents: {session.agentMode}
-            </Badge>
+            {/* Replaced a badge naming the mode — real or simulated — which
+                was fixed when the process started. The model is now the
+                visitor's to choose, so the top bar holds the choice. */}
+            <ModelPicker models={models} onChanged={onModelsChanged} />
             {/* Switching identity lives in the account menu, where a real
                 application puts it — not beside the page content. */}
             <Menu position="bottom-end">

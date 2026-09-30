@@ -13,10 +13,15 @@ create schema casework;
 -- as the same person would work the same claim. Everything below except staff
 -- carries a session id, and the session's rows are copied from a template on
 -- first arrival.
+--
+-- `agent_model` is the model this visitor chose to decide agent steps, as
+-- "backend/model" — "local/gemma-3-270m". Empty until one is chosen, and read
+-- only by CaseWork, which is the only thing that knows the format.
 create table casework.session (
     id           text primary key,
     created_at   timestamptz not null,
-    last_seen_at timestamptz not null
+    last_seen_at timestamptz not null,
+    agent_model  text
 );
 
 -- The cast: shared across every session, read-only.
@@ -186,8 +191,7 @@ create table casework.document (
     received_at       date not null,
     body              text,
     -- The file this came from: a sample's name, or the name of an uploaded file.
-    -- Real provenance, and the only thing a simulated agent step has to read when
-    -- no model is configured.
+    -- Provenance only; agent steps read the body.
     source_file       text,
     -- The submission revision this document arrived at, which is what makes
     -- "what did that visit read" answerable: the visit stamped a revision, and

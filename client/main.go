@@ -90,6 +90,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	application.StartJanitor(ctx, logger)
+	application.ReportModels(ctx, logger)
 	application.Dispatcher.Start(ctx)
 
 	built, err := assets()

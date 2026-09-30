@@ -1869,3 +1869,27 @@ The owner accepted the list: *"I'm ok with your recommendation"*.
 
 Nothing in this interview reached the library.
 Every change is in `client/`, and FlowCore's API showed no friction.
+
+**What building it found.**
+The shipped model is Gemma 3 270M, served by `make model` as `ggml-org/gemma-3-270m-it-GGUF` (288 MB downloaded).
+Both candidates held every reply to the schema on all four seeded agent steps.
+SmolLM2-360M's findings were fragments — *"appl"*, *"p-2087"*, *"Approve claim"* — where Gemma's quoted the case, so Gemma ships.
+Neither is accurate: Gemma sends the seeded claim down the fast track, which the intake note argues against, as the owner's *"the accuracy of the model is not the point of the demo"* allowed.
+A step takes about half a second on a laptop.
+
+Four settings made Gemma's findings usable, found by running the opt-in test:
+
+- The question's wording.
+  Asked for "two or three sentences on what you found", Gemma echoed the request back as its finding; asked to name the document or detail that decided it, it quoted the case.
+- The finding comes before the action in the schema, so a model writes its reason before its choice.
+- The local request alone sets temperature 0: `llama-server` samples at 0.8 by default, and a different finding of very different quality came back on every run of the same case.
+- The local request alone requires a finding of at least 80 characters: at temperature 0, Gemma otherwise stopped after the case reference.
+
+The last two are only in the local request, not in the shared question, because the Anthropic request stays minimal and structured outputs need not accept every JSON Schema keyword a local grammar does.
+They are request settings for one backend, not a second contract.
+
+An agent step missing a required document now says so on the case screen, in place of a spinner that would never stop; the dispatcher already skipped it.
+
+`make run`, and so `make fresh`, start the local model in the background and stop it with CaseWork.
+The interview had it as a separate `make model` in a second terminal; the owner, having skipped it and met an empty picker, asked instead that *"make fresh should start the model too"*.
+It is skipped when something already answers on 8081, and when llama.cpp is not installed, in which case CaseWork starts anyway.

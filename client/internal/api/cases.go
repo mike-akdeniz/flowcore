@@ -97,12 +97,22 @@ type currentStepJSON struct {
 	Name string `json:"name"`
 	// Required is what a decision here waits on, from the run's snapshot. A
 	// decision is refused while any of it is not present.
-	Required     []requiredDocumentJSON `json:"required"`
-	Assignee     string                 `json:"assignee"`
-	IsAgent      bool                   `json:"isAgent"`
-	WaitingSince string                 `json:"waitingSince"`
-	VisitID      string                 `json:"visitId"`
-	Actions      []actionJSON           `json:"actions"`
+	Required []requiredDocumentJSON `json:"required"`
+	Assignee string                 `json:"assignee"`
+	IsAgent  bool                   `json:"isAgent"`
+	// Agent is where an agent step stands; nil on a person's step.
+	Agent        *agentStatusJSON `json:"agent"`
+	WaitingSince string           `json:"waitingSince"`
+	VisitID      string           `json:"visitId"`
+	Actions      []actionJSON     `json:"actions"`
+}
+
+// agentStatusJSON says why an agent step has not been decided yet, so the case
+// screen can say what would move it: wait, choose a model, start the model
+// server, or choose another model or reassign (client decision 40).
+type agentStatusJSON struct {
+	State  string `json:"state"`
+	Detail string `json:"detail"`
 }
 
 type caseJSON struct {
@@ -335,6 +345,15 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 		for _, action := range state.CurrentStep.Actions {
 			payload.CurrentStep.Actions = append(payload.CurrentStep.Actions,
 				actionJSON{ID: action.ID.String(), Name: action.Name})
+		}
+
+		if payload.CurrentStep.IsAgent {
+			status, err := s.app.Dispatcher.Status(r.Context(), sessionID, state.CurrentStep.VisitID)
+			if err != nil {
+				return caseJSON{}, err
+			}
+
+			payload.CurrentStep.Agent = &agentStatusJSON{State: string(status.State), Detail: status.Detail}
 		}
 
 		payload.CurrentStep.Required = make([]requiredDocumentJSON, 0, len(state.CurrentStep.RequiredInputTypeIDs))

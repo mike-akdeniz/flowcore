@@ -13,7 +13,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { api, type Case, type CaseDocument, type Staff } from "../api";
+import { api, type AgentStatus, type Case, type CaseDocument, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
 import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
@@ -27,10 +27,12 @@ import { DocumentDrawer } from "../case/DocumentDrawer";
 // once the run has finished. Splitting them would have meant building a second
 // screen in slice 4 and discarding this one.
 export function CaseView({
-  agentMode,
+  model,
   identity,
 }: {
-  agentMode: string;
+  // The model that will decide this session's agent steps, if one is chosen and
+  // available.
+  model: string | null;
   identity: Staff;
 }) {
   const { reference } = useParams();
@@ -61,20 +63,22 @@ export function CaseView({
   //
   // Submitting returns as soon as the run reaches its first step, because the
   // dispatcher works off the request — so the response is already stale by
-  // design. The condition here is what keeps that honest and cheap: it runs for
-  // the two seconds the simulation takes, or the ten a model takes, and then
-  // stops. A case waiting on a person polls nothing at all.
-  const waitingOnAgent = subject?.currentStep?.isAgent ?? false;
+  // design. Quickly while the agent is working, which on a local model is about
+  // a second; slowly while it waits on something a person has to do — choose a
+  // model, start the model server — since nothing will change until they do. A
+  // case waiting on a person polls nothing at all.
+  const agent = subject?.currentStep?.agent ?? null;
+  const pollEvery = agent ? (agentIsWorking(agent) ? 1500 : 5000) : null;
   const loadRef = useRef(load);
   loadRef.current = load;
 
   useEffect(() => {
-    if (!waitingOnAgent) return;
+    if (pollEvery === null) return;
 
-    const timer = setInterval(() => void loadRef.current(), 1500);
+    const timer = setInterval(() => void loadRef.current(), pollEvery);
 
     return () => clearInterval(timer);
-  }, [waitingOnAgent]);
+  }, [pollEvery]);
 
   if (failure) return <Text c="red">{failure}</Text>;
   if (!subject) return <Text c="dimmed">Loading…</Text>;
@@ -148,7 +152,7 @@ export function CaseView({
       <Documents
         subject={subject}
         canAdd={canAddDocuments}
-        hasKey={!noKey(agentMode)}
+        model={model}
         onAdded={setSubject}
         onOpen={setDocumentId}
       />
@@ -205,8 +209,50 @@ function canActAs(identity: Staff, assignee: string) {
   return identity.reference === assignee || identity.groups.includes(assignee);
 }
 
-function noKey(mode: string) {
-  return /no api key/i.test(mode);
+// Queued, being asked, or about to be asked again: states that end on their own.
+function agentIsWorking(agent: AgentStatus) {
+  return agent.state === "queued" || agent.state === "running" || agent.state === "retrying";
+}
+
+// What an agent step is waiting on, and what would move it (client decision 40).
+// One line per state, because each has a different answer to "what do I do":
+// wait, choose a model, start the server, or choose another model or reassign.
+function agentLine(agent: AgentStatus, missingDocuments: boolean): { text: string; colour?: string } {
+  // An agent cannot file a document, so a step missing one waits for a person
+  // to take it back, whatever the model is doing.
+  if (missingDocuments) {
+    return {
+      text: "Waiting for the missing documents above. An agent cannot file them — reassign the step to someone who can.",
+      colour: "orange",
+    };
+  }
+
+  switch (agent.state) {
+    case "queued":
+      return {
+        text: `Waiting for ${agent.detail}. Nothing is holding this open — the run is sitting in the database until the worker picks it up.`,
+      };
+    case "running":
+      return {
+        text: `${agent.detail} is reading the case. Nothing is holding this open — the run is sitting in the database until the answer is recorded.`,
+      };
+    case "retrying":
+      return { text: `The last attempt failed and will be tried again: ${agent.detail}` };
+    case "needs-model":
+      return { text: "Choose a model in the top bar to decide this step.", colour: "orange" };
+    case "unavailable":
+      return {
+        text: agent.detail
+          ? `${agent.detail} is not available. Start the local model server with make model, or choose another model in the top bar.`
+          : "No model is available. Start the local model server with make model, or set ANTHROPIC_API_KEY and restart.",
+        colour: "orange",
+      };
+    case "parked":
+      return {
+        text: `The model could not decide this step, and asking again would fail the same way: ${agent.detail}. Choose another model in the top bar, or reassign the step.`,
+        colour: "red",
+      };
+  }
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -298,6 +344,8 @@ function ActionPanel({
   }
 
   const step = subject.currentStep;
+  const missing = step.required.some((required) => !required.present);
+  const line = step.agent ? agentLine(step.agent, missing) : null;
 
   return (
     <Card withBorder padding="md">
@@ -307,7 +355,7 @@ function ActionPanel({
           <Badge size="sm" variant="light" color={step.isAgent ? "violet" : "gray"}>
             {step.assignee}
           </Badge>
-          {step.isAgent && <Loader size="xs" />}
+          {step.agent && agentIsWorking(step.agent) && !missing && <Loader size="xs" />}
         </Group>
 
         {/* What a decision here waits on. The server refuses a decision while any
@@ -330,16 +378,15 @@ function ActionPanel({
           </Group>
         )}
 
-        {step.isAgent ? (
-          // Kept despite being wordy, and trimmed rather than cut. The pause is
-          // the demonstration, not a delay to apologise for: the run is open in
-          // the database with nothing attending it, which is what a workflow
-          // engine exists to survive. It is on screen for two seconds.
-          <Text size="sm" c="dimmed">
-            Nothing is holding this open — the run is sitting in the database
-            waiting for a worker to pick it up.
+        {/* The line about the database stays while the agent works. The pause is
+            the demonstration, not a delay to apologise for: the run is open in
+            the database with nothing attending it, which is what a workflow
+            engine exists to survive. */}
+        {line && (
+          <Text size="sm" c={line.colour ?? "dimmed"}>
+            {line.text}
           </Text>
-        ) : null}
+        )}
 
         <Decide
           subject={subject}
@@ -359,13 +406,13 @@ function ActionPanel({
 function Documents({
   subject,
   canAdd,
-  hasKey,
+  model,
   onAdded,
   onOpen,
 }: {
   subject: Case;
   canAdd: boolean;
-  hasKey: boolean;
+  model: string | null;
   onAdded: (updated: Case) => void;
   onOpen: (documentId: string) => void;
 }) {
@@ -382,7 +429,7 @@ function Documents({
         {/* Offered to whoever may file: anyone on a draft, and afterwards the
             person or team the case is waiting on. Hidden once the run has
             finished, where nobody holds it. */}
-        {canAdd && <AddDocument subject={subject} hasKey={hasKey} onAdded={onAdded} />}
+        {canAdd && <AddDocument subject={subject} model={model} onAdded={onAdded} />}
 
         <Tabs defaultValue="current">
           <Tabs.List>

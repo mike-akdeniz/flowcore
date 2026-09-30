@@ -81,10 +81,6 @@ export function SignIn({
             ))}
           </Stack>
         </Card>
-
-        <Text size="xs" c="dimmed">
-          Agent steps: {session.agentMode}.
-        </Text>
       </Stack>
     </Center>
   );

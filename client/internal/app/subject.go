@@ -109,10 +109,14 @@ func withDocuments(text *strings.Builder, documents []store.Document, revision i
 	// it to weigh a document the case has already moved past.
 	current := store.Current(documents, revision)
 
+	// Each document is headed by its type's title, because that is what a step's
+	// instructions call it — "read the intake note against the claimant's
+	// account" — and even the smallest model can match the words it was given to
+	// the words on the page (client decision 40).
 	text.WriteString("Documents on file:\n")
 	for _, document := range current {
-		fmt.Fprintf(text, "- %s (%s, received %s)\n",
-			document.Name, document.Kind, document.ReceivedAt.Format("2 January 2006"))
+		fmt.Fprintf(text, "- %s: %s, received %s\n",
+			document.Title, document.Name, document.ReceivedAt.Format("2 January 2006"))
 
 		// A photograph is a row with no body. The ones that carry text are what
 		// an agent actually weighs against the account above — the text is the

@@ -2,10 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mike-akdeniz/flowcore"
@@ -29,6 +30,8 @@ type App struct {
 	// Samples are the example documents a visitor can add to a case, and what the
 	// seed is built from, so the two cannot drift.
 	Samples *samples.Library
+	// Models is what the configured backends offer to decide agent steps.
+	Models *ModelDirectory
 	// Dispatcher runs agent steps off the web request. Set by New.
 	Dispatcher *Dispatcher
 }
@@ -41,31 +44,86 @@ func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *sl
 		Store:   store.New(pool),
 		Samples: library,
 	}
-	application.Dispatcher = NewDispatcher(application, chooseChecker(logger), logger)
+	application.Models = NewModelDirectory(backends(config)...)
+	application.Dispatcher = NewDispatcher(application, logger)
 
 	return application
 }
 
-// chooseChecker decides whether agent steps consult a model or are simulated.
+// backends are what agent steps can be decided by: always the local model
+// server, which may or may not be running, and Anthropic when a key is set.
 //
-// Detect and switch, per decision 5: with a key the findings are real, without one
-// they are simulated and say so. Everything else on the path — the queue, the
-// worker, the CompleteStep call, the remark on the visit — is identical, so
-// someone who clones this with nothing configured still sees the whole
-// application work.
-func chooseChecker(logger *slog.Logger) Checker {
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		logger.Info("agent steps are simulated",
-			"reason", "ANTHROPIC_API_KEY is not set",
-			"how", "a fixed demo branch per step, or its first action")
+// There is no mode to choose between them. Both are listed, a session picks a
+// model from whichever answers, and there is no simulated fallback: without a
+// model an agent step waits (client decision 40, superseding decision 5).
+func backends(config Config) []Backend {
+	available := []Backend{NewLocalBackend(config.LocalModelURL)}
 
-		return SimulatedChecker{}
+	if config.AnthropicAPIKey != "" {
+		available = append(available, NewAnthropicBackend(option.WithAPIKey(config.AnthropicAPIKey)))
 	}
 
-	checker := NewClaudeChecker()
-	logger.Info("agent steps call a model", "mode", checker.Mode())
+	return available
+}
 
-	return checker
+// ReportModels says at startup what agent steps can use, and how to fix it when
+// the answer is nothing. It is advice, not a gate: CaseWork runs without a
+// model, and agent steps wait for one.
+func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
+	groups := a.Models.List(ctx)
+
+	listed := false
+	for _, group := range groups {
+		if group.Backend == "local" {
+			listed = true
+		}
+
+		for _, model := range group.Models {
+			logger.Info("agent model available", "backend", group.Backend, "model", model.ID)
+		}
+	}
+
+	if !listed {
+		logger.Warn("no local model server is answering; agent steps wait until a model is available",
+			"url", a.Config.LocalModelURL,
+			"how", "run `make model` in another terminal")
+	}
+}
+
+// AgentChoice is the model that decides this session's agent steps: the one it
+// chose, or, if it has not chosen and exactly one model is offered, that one.
+// Chosen is false when there is nothing to use.
+func (a *App) AgentChoice(ctx context.Context, sessionID string) (ModelChoice, bool, error) {
+	stored, err := a.Store.SessionAgentModel(ctx, sessionID)
+	if err != nil {
+		return ModelChoice{}, false, err
+	}
+
+	if stored != nil {
+		choice, ok := ParseModelChoice(*stored)
+
+		return choice, ok, nil
+	}
+
+	choice, only := a.Models.Only(ctx)
+
+	return choice, only, nil
+}
+
+// ChooseModel records a session's choice, if it names a model that is offered
+// now, and wakes the dispatcher so work waiting for a model goes at once.
+func (a *App) ChooseModel(ctx context.Context, sessionID string, choice ModelChoice) error {
+	if _, _, available := a.Models.Find(ctx, choice); !available {
+		return fmt.Errorf("%s is not available", choice.Model)
+	}
+
+	if err := a.Store.SetSessionAgentModel(ctx, sessionID, choice.String()); err != nil {
+		return err
+	}
+
+	a.Dispatcher.Nudge()
+
+	return nil
 }
 
 // StartJanitor expires idle sessions and deletes the definitions they created.
