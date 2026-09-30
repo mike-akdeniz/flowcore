@@ -73,6 +73,10 @@ var (
 	// ErrInvalidIdentifier is returned when an opaque identifier is empty or too
 	// long. See InvalidIdentifierError.
 	ErrInvalidIdentifier = errors.New("flowcore: invalid identifier")
+
+	// ErrInvalidInstructions is returned when a step's instructions are empty or
+	// longer than 10000 characters. See InvalidInstructionsError.
+	ErrInvalidInstructions = errors.New("flowcore: invalid instructions")
 )
 
 // Entity labels carried on errors so a caller can name the offending kind.
@@ -270,3 +274,16 @@ func (e *InvalidRemarkError) Error() string {
 	return "flowcore: remark must be between 1 and 3000 characters"
 }
 func (e *InvalidRemarkError) Unwrap() error { return ErrInvalidRemark }
+
+// InvalidInstructionsError reports step instructions that are empty or longer
+// than 10000 characters. Like InvalidRemarkError it carries no field: there is one
+// instructions column per step, and its bound differs from both the name and the
+// identifier limits, so it cannot share either of their messages. Nil, not an
+// empty string, is how a step says it has no instructions. Wraps
+// ErrInvalidInstructions.
+type InvalidInstructionsError struct{}
+
+func (e *InvalidInstructionsError) Error() string {
+	return "flowcore: instructions must be between 1 and 10000 characters"
+}
+func (e *InvalidInstructionsError) Unwrap() error { return ErrInvalidInstructions }

@@ -46,6 +46,16 @@ type StepDefinition struct {
 	// client, rather than an absent one no worklist could find.
 	AssigneeID string
 	Name       string
+	// Instructions is neutral guidance for whoever acts on this step, a person or
+	// an agent alike. Nil when the step has none. The library stores and snapshots
+	// it and never reads it.
+	Instructions *string
+	// RequiredInputTypeIDs are opaque client-defined ids for the kinds of input a
+	// decision on this step requires. Sorted and duplicate-free; empty, never nil,
+	// on a read, meaning nothing is required. The library never resolves them and
+	// never checks that such inputs exist — what "required" enforces is the
+	// client's policy.
+	RequiredInputTypeIDs []string
 	// Actions is the set of actions leaving this step. Loaded by Get and by the
 	// mutating methods on return. An empty non-nil slice means "loaded, no
 	// actions"; nil means "not loaded".
@@ -103,13 +113,16 @@ func (s WorkflowStatusDefinition) ToUpdate() UpdateStatusParams {
 //
 // This is the safe way to build UpdateStepParams, not merely the convenient one.
 // Update is a full replace, so params assembled by hand overwrite every column
-// they list; starting from ToUpdate carries the stored assignee forward so that
-// changing a step's name cannot unassign it as a side effect.
+// they list; starting from ToUpdate carries the stored assignee, instructions, and
+// required input types forward so that changing a step's name cannot clear them
+// as a side effect.
 func (s StepDefinition) ToUpdate() UpdateStepParams {
 	return UpdateStepParams{
-		Name:       s.Name,
-		StatusID:   s.WorkflowStatusDefinitionID,
-		AssigneeID: s.AssigneeID,
+		Name:                 s.Name,
+		StatusID:             s.WorkflowStatusDefinitionID,
+		AssigneeID:           s.AssigneeID,
+		Instructions:         s.Instructions,
+		RequiredInputTypeIDs: append([]string(nil), s.RequiredInputTypeIDs...),
 	}
 }
 

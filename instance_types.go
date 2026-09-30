@@ -18,8 +18,8 @@ import (
 // from several tables.
 //
 // Nothing here mirrors the snapshot tables (flowcore.step, flowcore.action) as
-// such. A client never receives a raw snapshot row, because there is no question
-// in the current API whose answer is one.
+// such. SnapshotStep comes closest, and even it carries its run's subject, which
+// lives on another table.
 //
 // Every field is frozen at the moment the run passed through it. A definition
 // edited or deleted after the run started changes none of it.
@@ -80,6 +80,14 @@ type CurrentStep struct {
 	// the step.
 	AssigneeID string
 	EnteredAt  time.Time
+	// Instructions and RequiredInputTypeIDs are the step's, frozen at start: what
+	// whoever acts here is told, and the opaque ids of the inputs a decision here
+	// requires. A client enforcing "required" reads them from here, never from the
+	// definition, which may have been edited since. Instructions is nil when the
+	// step has none; RequiredInputTypeIDs is sorted, and empty when nothing is
+	// required.
+	Instructions         *string
+	RequiredInputTypeIDs []string
 	// Actions is the set of choices available here, frozen at start. Empty means
 	// the run cannot advance — a dead end in the definition it started from.
 	Actions []Action
@@ -115,9 +123,15 @@ type AssignedStep struct {
 	// VisitID is what CompleteStep and Reassign act on.
 	VisitID uuid.UUID
 	// StepID is the snapshot step; StepName is its name, frozen at start.
-	StepID     uuid.UUID
-	StepName   string
-	AssigneeID string
+	StepID   uuid.UUID
+	StepName string
+	// Instructions and RequiredInputTypeIDs are the step's, frozen at start, as on
+	// CurrentStep. They are here because an agent picking work off this list acts
+	// on them directly, and fetching them per row would be the fan-out the missing
+	// actions avoid.
+	Instructions         *string
+	RequiredInputTypeIDs []string
+	AssigneeID           string
 	// EnteredAt is when the run arrived here, which is what makes "waiting
 	// longest" sortable by the caller without a second query.
 	EnteredAt time.Time
@@ -152,10 +166,14 @@ type StepVisit struct {
 	// remember run ids itself.
 	WorkflowID uuid.UUID
 	// StepID is the snapshot step; StepName is its name, frozen at start.
-	StepID     uuid.UUID
-	StepName   string
-	AssigneeID string
-	EnteredAt  time.Time
+	StepID   uuid.UUID
+	StepName string
+	// RequiredInputTypeIDs are the step's, frozen at start. They are what lets a
+	// client explain a past decision — which inputs it depended on — after the
+	// definition has been edited or deleted.
+	RequiredInputTypeIDs []string
+	AssigneeID           string
+	EnteredAt            time.Time
 	// Completion is nil while the visit is open, and set once. Grouping these
 	// fields behind one pointer mirrors the schema, where completion time,
 	// completer, and selected action are written together or not at all — so a
@@ -189,4 +207,27 @@ type Completion struct {
 	// rewritten, on the same terms — the visit is append-only in effect, because
 	// no method rewrites a closed one, not because a constraint forbids it.
 	Remark *string
+}
+
+// SnapshotStep is one step of a run's frozen graph, whether or not the run has
+// reached it: GetActionTarget returns the step an action leads to, and
+// ListOpenRunSteps returns every step of the open runs of some definitions.
+//
+// It describes the step, not a visit to it, so AssigneeID is the frozen default
+// the step's next visit will be seeded with, not whoever holds a current visit —
+// that is on CurrentStep and AssignedStep.
+type SnapshotStep struct {
+	// ID is the snapshot step, the same id CurrentStep.ID and StepVisit.StepID
+	// carry.
+	ID uuid.UUID
+	// WorkflowID and SubjectReference say which run this step belongs to and what
+	// it concerns, since ListOpenRunSteps spans runs.
+	WorkflowID       uuid.UUID
+	SubjectReference string
+	Name             string
+	AssigneeID       string
+	// Instructions is nil when the step has none; RequiredInputTypeIDs is sorted,
+	// and empty when nothing is required.
+	Instructions         *string
+	RequiredInputTypeIDs []string
 }

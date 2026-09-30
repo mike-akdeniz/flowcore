@@ -169,7 +169,8 @@ func listStepVisitsBySubject(
 	workflowDefinitionID uuid.UUID,
 ) ([]StepVisit, error) {
 	rows, err := q.Query(ctx,
-		`select v.id, v.workflow_id, v.step_id, s.name, v.assignee_id, v.entered_at,
+		`select v.id, v.workflow_id, v.step_id, s.name, s.required_input_type_ids,
+		        v.assignee_id, v.entered_at,
 		        v.completed_at, v.completed_by, v.selected_action_id, a.name,
 		        v.subject_version_token, v.remark
 		 from flowcore.step_visit v
@@ -214,6 +215,7 @@ func rowToStepVisit(row pgx.CollectableRow) (StepVisit, error) {
 		&visit.WorkflowID,
 		&visit.StepID,
 		&visit.StepName,
+		&visit.RequiredInputTypeIDs,
 		&visit.AssigneeID,
 		&visit.EnteredAt,
 		&completedAt,
@@ -308,7 +310,8 @@ func reassignStepVisit(ctx context.Context, q querier, visitID uuid.UUID, assign
 // free: matching nothing is the right answer to asking about nobody.
 func listAssignedSteps(ctx context.Context, q querier, assigneeReferences []string) ([]AssignedStep, error) {
 	rows, err := q.Query(ctx,
-		`select v.id, v.step_id, s.name, v.assignee_id, v.entered_at,
+		`select v.id, v.step_id, s.name, s.instructions, s.required_input_type_ids,
+		        v.assignee_id, v.entered_at,
 		        w.id, w.workflow_definition_id, w.name, w.subject_reference
 		 from flowcore.step_visit v
 		 join flowcore.step s on s.id = v.step_id
@@ -320,12 +323,38 @@ func listAssignedSteps(ctx context.Context, q querier, assigneeReferences []stri
 		return nil, err
 	}
 
+	return collectAssignedSteps(rows)
+}
+
+// listOpenSteps is listAssignedSteps without the assignee filter: every open
+// visit, oldest first. It reads the same columns in the same order, so both share
+// one scan.
+func listOpenSteps(ctx context.Context, q querier) ([]AssignedStep, error) {
+	rows, err := q.Query(ctx,
+		`select v.id, v.step_id, s.name, s.instructions, s.required_input_type_ids,
+		        v.assignee_id, v.entered_at,
+		        w.id, w.workflow_definition_id, w.name, w.subject_reference
+		 from flowcore.step_visit v
+		 join flowcore.step s on s.id = v.step_id
+		 join flowcore.workflow w on w.id = v.workflow_id
+		 where v.completed_at is null
+		 order by v.entered_at, v.id`)
+	if err != nil {
+		return nil, err
+	}
+
+	return collectAssignedSteps(rows)
+}
+
+func collectAssignedSteps(rows pgx.Rows) ([]AssignedStep, error) {
 	assigned, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (AssignedStep, error) {
 		var step AssignedStep
 		err := row.Scan(
 			&step.VisitID,
 			&step.StepID,
 			&step.StepName,
+			&step.Instructions,
+			&step.RequiredInputTypeIDs,
 			&step.AssigneeID,
 			&step.EnteredAt,
 			&step.WorkflowID,

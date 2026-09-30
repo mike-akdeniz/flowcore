@@ -2,6 +2,8 @@ package flowcore
 
 import (
 	"context"
+	"slices"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -38,6 +40,15 @@ func (c *Catalog) Create(ctx context.Context, definition WorkflowDefinition) (Wo
 	definition = definition.clone()
 	if err := fillIDs(&definition); err != nil {
 		return WorkflowDefinition{}, err
+	}
+
+	for i := range definition.Steps {
+		requiredInputTypeIDs, err := normalizeRequiredInputTypeIDs(definition.Steps[i].RequiredInputTypeIDs)
+		if err != nil {
+			return WorkflowDefinition{}, err
+		}
+
+		definition.Steps[i].RequiredInputTypeIDs = requiredInputTypeIDs
 	}
 
 	// Resolve the entry step after fillIDs, so the default uses Steps[0]'s final
@@ -182,6 +193,11 @@ func (c *Catalog) DeleteStatus(ctx context.Context, statusID uuid.UUID) error {
 // otherwise), enforced as in AddStatus. The returned step has an empty, non-nil
 // Actions slice: it is loaded and has no actions yet.
 func (c *Catalog) AddStep(ctx context.Context, workflowDefinitionID uuid.UUID, p AddStepParams) (StepDefinition, error) {
+	requiredInputTypeIDs, err := normalizeRequiredInputTypeIDs(p.RequiredInputTypeIDs)
+	if err != nil {
+		return StepDefinition{}, err
+	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		return StepDefinition{}, err
@@ -193,6 +209,8 @@ func (c *Catalog) AddStep(ctx context.Context, workflowDefinitionID uuid.UUID, p
 		WorkflowStatusDefinitionID: p.StatusID,
 		AssigneeID:                 p.AssigneeID,
 		Name:                       p.Name,
+		Instructions:               p.Instructions,
+		RequiredInputTypeIDs:       requiredInputTypeIDs,
 	}
 	if err := insertStepDefinition(ctx, c.pool, step); err != nil {
 		return StepDefinition{}, err
@@ -203,7 +221,8 @@ func (c *Catalog) AddStep(ctx context.Context, workflowDefinitionID uuid.UUID, p
 	return step, nil
 }
 
-// UpdateStep replaces a step's own mutable columns (name, status, assignee) and
+// UpdateStep replaces a step's own mutable columns (name, status, assignee,
+// instructions, required input types) and
 // returns the stored step with its actions re-fetched and populated. It does not
 // read or change the step's actions as an input: actions are managed through
 // AddAction/UpdateAction/DeleteAction.
@@ -219,6 +238,13 @@ func (c *Catalog) AddStep(ctx context.Context, workflowDefinitionID uuid.UUID, p
 // since this method never writes actions, and an action set read a moment later
 // is indistinguishable from one changed a moment after this call returned.
 func (c *Catalog) UpdateStep(ctx context.Context, stepID uuid.UUID, p UpdateStepParams) (StepDefinition, error) {
+	requiredInputTypeIDs, err := normalizeRequiredInputTypeIDs(p.RequiredInputTypeIDs)
+	if err != nil {
+		return StepDefinition{}, err
+	}
+
+	p.RequiredInputTypeIDs = requiredInputTypeIDs
+
 	step, err := updateStepDefinition(ctx, c.pool, stepID, p)
 	if err != nil {
 		return StepDefinition{}, err
@@ -343,6 +369,7 @@ func (def WorkflowDefinition) clone() WorkflowDefinition {
 	for i, step := range def.Steps {
 		cp := step
 		cp.Actions = append([]ActionDefinition(nil), step.Actions...)
+		cp.RequiredInputTypeIDs = append([]string(nil), step.RequiredInputTypeIDs...)
 		out.Steps[i] = cp
 	}
 
@@ -401,4 +428,27 @@ func stepExists(steps []StepDefinition, id uuid.UUID) bool {
 	}
 
 	return false
+}
+
+// normalizeRequiredInputTypeIDs puts a step's required input type ids into the
+// one form the library stores: sorted, without duplicates, and non-nil, so an
+// empty set is written as '{}' rather than NULL. The ids are a set, so the order
+// and repetition a caller supplied carry no meaning, and storing them canonically
+// is what lets a client compare two steps' sets without sorting them itself.
+//
+// Each id must be 1 to 500 characters, the bound every opaque identifier here
+// has. The schema backstops only the empty and null cases; see migration 00006.
+func normalizeRequiredInputTypeIDs(ids []string) ([]string, error) {
+	normalized := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if length := utf8.RuneCountInString(id); length < 1 || length > 500 {
+			return nil, &InvalidIdentifierError{Field: "requiredInputTypeIds"}
+		}
+
+		normalized = append(normalized, id)
+	}
+
+	slices.Sort(normalized)
+
+	return slices.Compact(normalized), nil
 }

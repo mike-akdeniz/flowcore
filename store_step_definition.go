@@ -13,9 +13,23 @@ import (
 // return path.
 func rowToStepDefinition(row pgx.CollectableRow) (StepDefinition, error) {
 	var step StepDefinition
-	err := row.Scan(&step.ID, &step.WorkflowDefinitionID, &step.WorkflowStatusDefinitionID, &step.AssigneeID, &step.Name)
+	err := row.Scan(stepDefinitionScanTargets(&step)...)
 
 	return step, err
+}
+
+// stepDefinitionScanTargets lists the destinations for a step's own columns, in
+// the order every select and returning clause here names them.
+func stepDefinitionScanTargets(step *StepDefinition) []any {
+	return []any{
+		&step.ID,
+		&step.WorkflowDefinitionID,
+		&step.WorkflowStatusDefinitionID,
+		&step.AssigneeID,
+		&step.Name,
+		&step.Instructions,
+		&step.RequiredInputTypeIDs,
+	}
 }
 
 // insertStepDefinition writes a step. A missing parent definition surfaces from
@@ -26,9 +40,16 @@ func rowToStepDefinition(row pgx.CollectableRow) (StepDefinition, error) {
 func insertStepDefinition(ctx context.Context, q querier, step StepDefinition) error {
 	_, err := q.Exec(ctx,
 		`insert into flowcore.step_definition
-		 (id, workflow_definition_id, workflow_status_definition_id, assignee_id, name)
-		 values ($1, $2, $3, $4, $5)`,
-		step.ID, step.WorkflowDefinitionID, step.WorkflowStatusDefinitionID, step.AssigneeID, step.Name)
+		 (id, workflow_definition_id, workflow_status_definition_id, assignee_id, name,
+		  instructions, required_input_type_ids)
+		 values ($1, $2, $3, $4, $5, $6, $7)`,
+		step.ID,
+		step.WorkflowDefinitionID,
+		step.WorkflowStatusDefinitionID,
+		step.AssigneeID,
+		step.Name,
+		step.Instructions,
+		step.RequiredInputTypeIDs)
 
 	return mapInsertErr(err, step.Name, entityWorkflowDefinition, step.WorkflowDefinitionID)
 }
@@ -36,9 +57,10 @@ func insertStepDefinition(ctx context.Context, q querier, step StepDefinition) e
 func getStepDefinitionRow(ctx context.Context, q querier, id uuid.UUID) (StepDefinition, error) {
 	var step StepDefinition
 	err := q.QueryRow(ctx,
-		`select id, workflow_definition_id, workflow_status_definition_id, assignee_id, name
+		`select id, workflow_definition_id, workflow_status_definition_id, assignee_id, name,
+		        instructions, required_input_type_ids
 		 from flowcore.step_definition where id = $1`,
-		id).Scan(&step.ID, &step.WorkflowDefinitionID, &step.WorkflowStatusDefinitionID, &step.AssigneeID, &step.Name)
+		id).Scan(stepDefinitionScanTargets(&step)...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return StepDefinition{}, &NotFoundError{Entity: entityStep, ID: id}
 	}
@@ -52,7 +74,8 @@ func getStepDefinitionRow(ctx context.Context, q querier, id uuid.UUID) (StepDef
 
 func listStepDefinitionsByWorkflowDefinition(ctx context.Context, q querier, definitionID uuid.UUID) ([]StepDefinition, error) {
 	rows, err := q.Query(ctx,
-		`select id, workflow_definition_id, workflow_status_definition_id, assignee_id, name
+		`select id, workflow_definition_id, workflow_status_definition_id, assignee_id, name,
+		        instructions, required_input_type_ids
 		 from flowcore.step_definition where workflow_definition_id = $1 order by name`,
 		definitionID)
 	if err != nil {
@@ -78,11 +101,13 @@ func updateStepDefinition(ctx context.Context, q querier, id uuid.UUID, p Update
 	var step StepDefinition
 	err := q.QueryRow(ctx,
 		`update flowcore.step_definition
-		 set name = $2, workflow_status_definition_id = $3, assignee_id = $4
+		 set name = $2, workflow_status_definition_id = $3, assignee_id = $4,
+		     instructions = $5, required_input_type_ids = $6
 		 where id = $1
-		 returning id, workflow_definition_id, workflow_status_definition_id, assignee_id, name`,
-		id, p.Name, p.StatusID, p.AssigneeID).Scan(
-		&step.ID, &step.WorkflowDefinitionID, &step.WorkflowStatusDefinitionID, &step.AssigneeID, &step.Name)
+		 returning id, workflow_definition_id, workflow_status_definition_id, assignee_id, name,
+		           instructions, required_input_type_ids`,
+		id, p.Name, p.StatusID, p.AssigneeID, p.Instructions, p.RequiredInputTypeIDs).Scan(
+		stepDefinitionScanTargets(&step)...)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return StepDefinition{}, &NotFoundError{Entity: entityStep, ID: id}
 	}

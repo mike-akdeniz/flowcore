@@ -64,6 +64,17 @@ const (
 	ckStepVisitRemarkLen = "ck_step_visit_remark_len"
 	ckStepVisitTokenLen  = "ck_step_visit_subject_version_token_len"
 
+	// A step's instructions, on the definition and on the snapshot. Prose with its
+	// own bound, so its own error, for the reason the remark has one.
+	ckStepDefinitionInstructionsLen = "ck_step_definition_instructions_len"
+	ckStepInstructionsLen           = "ck_step_instructions_len"
+
+	// A step's required input type ids: no null and no empty element. The Catalog
+	// refuses both before writing, so these are backstops, mapped with the other
+	// opaque identifiers so a direct store write still fails as a domain error.
+	ckStepDefinitionRequiredInputTypeIDs = "ck_step_definition_required_input_type_ids"
+	ckStepRequiredInputTypeIDs           = "ck_step_required_input_type_ids"
+
 	// The instance-side name CHECKs, which do cap at 200 and so map to
 	// InvalidNameError alongside the definition-side ones. They are unreachable
 	// through Start, which copies names the definition side already validated at
@@ -262,6 +273,8 @@ func mapConstraintCommon(pg *pgconn.PgError, name string) (error, bool) {
 			return &InvalidNameError{}, true
 		case ckStepVisitRemarkLen:
 			return &InvalidRemarkError{}, true
+		case ckStepDefinitionInstructionsLen, ckStepInstructionsLen:
+			return &InvalidInstructionsError{}, true
 		}
 
 		if field, ok := identifierField(pg.ConstraintName); ok {
@@ -289,6 +302,8 @@ func identifierField(constraint string) (string, bool) {
 		return "subjectVersionToken", true
 	case ckStepVisitCompletedByLen:
 		return "completedBy", true
+	case ckStepDefinitionRequiredInputTypeIDs, ckStepRequiredInputTypeIDs:
+		return "requiredInputTypeIds", true
 	}
 
 	return "", false

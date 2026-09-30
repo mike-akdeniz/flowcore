@@ -1,6 +1,10 @@
 package flowcore
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 // Each mutating operation on Catalog takes a dedicated params struct
 // carrying only the columns that operation may set. Identity and
@@ -8,8 +12,8 @@ import "github.com/google/uuid"
 // they are unrepresentable rather than validated. Update is a full replace of
 // the listed columns; it never means "leave unchanged".
 //
-// Full replace makes an omitted field destructive, and every field is protected
-// from that by a constraint — an empty Name fails a length CHECK, a zero StatusID
+// Full replace makes an omitted field destructive, and every required field is
+// protected from that by a constraint — an empty Name fails a length CHECK, a zero StatusID
 // fails a foreign key, an empty AssigneeID fails its own length CHECK, and an
 // action with neither next step nor terminal status fails the XOR CHECK. So a
 // forgotten field is always a loud failure before anything is written, and no
@@ -19,6 +23,12 @@ import "github.com/google/uuid"
 // AssigneeID, the one settable column that was nullable and so had nothing to
 // catch an accidental zero value. Making the column NOT NULL removed the gap
 // rather than guarding it, and the wrapper went with it.
+//
+// A step's Instructions and RequiredInputTypeIDs are the exception, and knowingly:
+// both are optional, so their zero value is a legitimate "none" that no
+// constraint can tell from a forgotten field. Omitting them from UpdateStepParams
+// clears them. Build the params from StepDefinition.ToUpdate, which carries them
+// forward.
 
 // UpdateWorkflowDefinitionParams are the settable columns on a definition itself.
 // It carries no statuses or steps: those are managed through their own Add/Update/
@@ -55,10 +65,17 @@ type UpdateStatusParams struct {
 // with a value the client chooses — "unassigned", "pool:support" — rather than by
 // omitting one, because the library never interprets the string and a value can be
 // found by the worklist where NULL cannot.
+//
+// Instructions is optional prose, 1 to 10000 characters when present.
+// RequiredInputTypeIDs is an optional set of opaque ids, each 1 to 500
+// characters; it is stored sorted with duplicates removed, so the order and
+// repetition a caller supplies carry no meaning.
 type AddStepParams struct {
-	Name       string
-	StatusID   uuid.UUID
-	AssigneeID string
+	Name                 string
+	StatusID             uuid.UUID
+	AssigneeID           string
+	Instructions         *string
+	RequiredInputTypeIDs []string
 }
 
 // UpdateStepParams are the settable columns when updating a step. It carries no
@@ -68,10 +85,15 @@ type AddStepParams struct {
 // omitted one is destructive, and the empty string fails the column's length CHECK
 // rather than quietly erasing the assignment. Building these params from
 // StepDefinition.ToUpdate carries the stored assignee forward for you.
+//
+// Instructions and RequiredInputTypeIDs are replaced like the rest, so omitting
+// them clears them — see the note at the top of this file.
 type UpdateStepParams struct {
-	Name       string
-	StatusID   uuid.UUID
-	AssigneeID string
+	Name                 string
+	StatusID             uuid.UUID
+	AssigneeID           string
+	Instructions         *string
+	RequiredInputTypeIDs []string
 }
 
 // AddActionParams are the settable columns when adding an action to a step.
@@ -105,10 +127,22 @@ type UpdateActionParams struct {
 // rule. SubjectVersionToken is opaque and optional — supply it to make every
 // decision in the run answerable as "which revision was this", or leave it nil if
 // the subject does not have revisions worth recording.
+//
+// Validate is optional. When set, Start calls it with the definition it has just
+// read, inside its transaction and before anything is written, and a non-nil
+// error aborts the start: nothing is committed, and the error is returned as it
+// came, so the caller can match its own type. It is how a client checks its own
+// policy against exactly the definition the run will freeze, rather than against
+// a separate read that an edit could land between. The library never looks at
+// what it checks.
+//
+// It runs while the start transaction holds a pooled connection, so keep it
+// quick, and do not start another run from inside it.
 type StartParams struct {
 	WorkflowDefinitionID uuid.UUID
 	SubjectReference     string
 	SubjectVersionToken  *string
+	Validate             func(ctx context.Context, definition WorkflowDefinition) error
 }
 
 // CompleteParams are the inputs for completing the step a run is waiting on.

@@ -120,13 +120,18 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 		stepAssigneeID   *string
 		enteredAt        *time.Time
 		stepDefinitionID *uuid.UUID
+		// Nullable here for the same reason, though neither column is. A NULL
+		// array scans to a nil slice, which is never read on a finished run.
+		instructions         *string
+		requiredInputTypeIDs []string
 	)
 
 	err := q.QueryRow(ctx,
 		`select w.id, w.name, w.subject_reference, w.subject_version_token,
 		        w.workflow_status_definition_id, w.workflow_status_name,
 		        w.started_at, w.completed_at,
-		        v.id, s.id, s.step_definition_id, s.name, v.assignee_id, v.entered_at
+		        v.id, s.id, s.step_definition_id, s.name, v.assignee_id, v.entered_at,
+		        s.instructions, s.required_input_type_ids
 		 from flowcore.workflow w
 		 left join flowcore.step_visit v
 		        on v.workflow_id = w.id and v.completed_at is null
@@ -146,7 +151,9 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 		&stepDefinitionID,
 		&stepName,
 		&stepAssigneeID,
-		&enteredAt)
+		&enteredAt,
+		&instructions,
+		&requiredInputTypeIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowState{}, &NotFoundError{Entity: entityWorkflow, ID: workflowID}
 	}
@@ -157,12 +164,14 @@ func getWorkflowState(ctx context.Context, q querier, workflowID uuid.UUID) (Wor
 
 	if visitID != nil {
 		state.CurrentStep = &CurrentStep{
-			ID:               *stepID,
-			StepDefinitionID: *stepDefinitionID,
-			VisitID:          *visitID,
-			Name:             *stepName,
-			AssigneeID:       *stepAssigneeID,
-			EnteredAt:        *enteredAt,
+			ID:                   *stepID,
+			StepDefinitionID:     *stepDefinitionID,
+			VisitID:              *visitID,
+			Name:                 *stepName,
+			AssigneeID:           *stepAssigneeID,
+			EnteredAt:            *enteredAt,
+			Instructions:         instructions,
+			RequiredInputTypeIDs: requiredInputTypeIDs,
 		}
 	}
 

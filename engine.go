@@ -54,6 +54,15 @@ func (e *Engine) Start(ctx context.Context, params StartParams) (WorkflowState, 
 		return WorkflowState{}, ErrDefinitionHasNoInitialStep
 	}
 
+	// The caller's check sees the same read the snapshot is built from, inside
+	// the same transaction, so no edit can land between what it approved and what
+	// the run freezes. Its error is the caller's own and goes back unwrapped.
+	if params.Validate != nil {
+		if err := params.Validate(ctx, definition); err != nil {
+			return WorkflowState{}, err
+		}
+	}
+
 	snapshot := buildSnapshot(definition, params)
 	if err := writeSnapshot(ctx, tx, snapshot); err != nil {
 		return WorkflowState{}, err
@@ -197,6 +206,80 @@ func (e *Engine) ListAssignedSteps(ctx context.Context, assigneeReferences []str
 	return listAssignedSteps(ctx, e.pool, assigneeReferences)
 }
 
+// ListOpenSteps returns every open step visit across every run, oldest first —
+// the worklist without its assignee filter.
+//
+// It exists for a client that has to find running work by what the runs
+// themselves say rather than by what the definitions say now: an agent
+// dispatcher recovering after a restart, say, when a definition's assignee has
+// since been edited and a query keyed on the new one would miss the visit still
+// waiting on the old. The client decides which rows are its own; the library
+// interprets no assignee.
+//
+// It is a separate method rather than ListAssignedSteps(nil) meaning "all",
+// because an empty reference set already means nobody, and a worklist that
+// silently widened to everything on an empty input would be the worse failure.
+//
+// Unbounded: it returns all open work, which is sized by work in flight rather
+// than by history. No transaction, for the worklist's reasons.
+func (e *Engine) ListOpenSteps(ctx context.Context) ([]AssignedStep, error) {
+	return listOpenSteps(ctx, e.pool)
+}
+
+// GetActionTarget returns the step an action on a visit's step would route to,
+// read from the run's snapshot, or nil if the action ends the run.
+//
+// It is for a client that checks its own preconditions on the destination before
+// calling CompleteStep — who the next step will be assigned to, and what it
+// requires. Reading it from the snapshot rather than the definition is the whole
+// of its value: CompleteStep routes by the snapshot, so a definition edited since
+// start would describe a destination the run will never reach.
+//
+// The action must be one of the visit's step's actions (ActionNotAvailableError
+// otherwise), as in CompleteStep. The visit need not be open: a stale visit is
+// caught where it matters, by CompleteStep itself.
+//
+// No transaction. The three reads are a visit's step, that step's action, and the
+// action's target, and none of those can change once a run has started.
+func (e *Engine) GetActionTarget(ctx context.Context, visitID uuid.UUID, actionID uuid.UUID) (*SnapshotStep, error) {
+	visit, err := getStepVisit(ctx, e.pool, visitID)
+	if err != nil {
+		return nil, err
+	}
+
+	action, err := getActionForStep(ctx, e.pool, actionID, visit.StepID)
+	if err != nil {
+		return nil, err
+	}
+
+	if action.IsTerminal() {
+		return nil, nil
+	}
+
+	target, err := getSnapshotStep(ctx, e.pool, *action.NextStepID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &target, nil
+}
+
+// ListOpenRunSteps returns every snapshot step, reached or not, of every open run
+// of the given definitions.
+//
+// It answers a question only the snapshot can: whether any running workflow could
+// still come to a step configured a certain way. A client guarding a change to its
+// own configuration — refusing to retire an input type while a running workflow
+// may yet require it — needs the steps a run has not reached, and those exist
+// nowhere but here once the definition has been edited. The client does the
+// comparison; the library reports what was frozen.
+//
+// An empty set of definitions returns nothing, as the worklist does for an empty
+// set of assignees.
+func (e *Engine) ListOpenRunSteps(ctx context.Context, workflowDefinitionIDs []uuid.UUID) ([]SnapshotStep, error) {
+	return listOpenRunSteps(ctx, e.pool, workflowDefinitionIDs)
+}
+
 // Reassign moves an open step visit to a different assignee and returns where the
 // run now stands, so a caller re-renders from the same shape CompleteStep and
 // GetState return.
@@ -334,6 +417,8 @@ func buildSnapshot(definition WorkflowDefinition, params StartParams) workflowSn
 			WorkflowStatusDefinitionID: step.WorkflowStatusDefinitionID,
 			WorkflowStatusName:         statusNames[step.WorkflowStatusDefinitionID],
 			AssigneeID:                 step.AssigneeID,
+			Instructions:               step.Instructions,
+			RequiredInputTypeIDs:       step.RequiredInputTypeIDs,
 		}
 		if step.ID == *definition.InitialStepDefinitionID {
 			entryStep = row
