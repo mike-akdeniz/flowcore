@@ -35,26 +35,6 @@ func (a *App) Definition(ctx context.Context, sessionID string, definitionID uui
 	return a.Catalog.Get(ctx, definitionID)
 }
 
-// Definitions reads every definition this session owns.
-func (a *App) Definitions(ctx context.Context, sessionID string) ([]flowcore.WorkflowDefinition, error) {
-	registered, err := a.Store.RegisteredWorkflows(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	definitions := make([]flowcore.WorkflowDefinition, 0, len(registered))
-	for _, workflow := range registered {
-		definition, err := a.Catalog.Get(ctx, workflow.FlowcoreDefinitionID)
-		if err != nil {
-			return nil, err
-		}
-
-		definitions = append(definitions, definition)
-	}
-
-	return definitions, nil
-}
-
 // owns reports whether this session registered that definition.
 //
 // Authorization is CaseWork's job and nothing below enforces it: FlowCore will

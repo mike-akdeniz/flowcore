@@ -92,13 +92,6 @@ func (d *ModelDirectory) List(ctx context.Context) []ModelGroup {
 	return groups
 }
 
-// Forget drops the cached listing, so the next List asks the backends again.
-func (d *ModelDirectory) Forget() {
-	d.mutex.Lock()
-	d.listed = nil
-	d.mutex.Unlock()
-}
-
 // Find returns the backend and model a choice names, if it is listed now.
 func (d *ModelDirectory) Find(ctx context.Context, choice ModelChoice) (Backend, Model, bool) {
 	for _, group := range d.List(ctx) {

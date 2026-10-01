@@ -168,6 +168,11 @@ migration.
 
 ### 7 — Configuring workflows
 
+**Complete.**
+
+*Completed 2026-09-30 by owner decision.
+Agent steps can be defined in the editor, which was the work the "Current state" paragraph below lists as remaining; that paragraph is as written before it landed.*
+
 - The editor on the same canvas: click a node to edit its step, and configure its actions in the
   Step panel; add and delete steps and statuses, and set the entry step.
 - Activate a workflow for a submission type.
@@ -188,7 +193,11 @@ cases already running keep the one they started under.
 
 ### 8 — Real agent steps
 
+**Complete.**
+
 *Added 2026-09-29 by owner decision, before the close-out.*
+*Completed 2026-09-30 by owner decision.
+The owner confirmed that a key in `client/.env` works against Anthropic with a live call, which the slice's own checks had only run against a fake server, and that the visual browser check is done.*
 Agent steps have only been exercised in simulated mode.
 How CaseWork runs a real agent step when an API key is configured was never designed, and the path that exists was written for an earlier scenario and has not been revisited since the agent-step design (FlowCore decision 47, client decisions 36–39).
 
@@ -222,12 +231,16 @@ None of it is covered by tests or has been run end to end with a key.
 5. A top-bar dropdown lists local and Anthropic models live, grouped, with the selection stored per session; no default when several are listed, automatic when exactly one is.
 6. Transient failures retry on the sweep; permanent ones park the visit per model, and it unparks on a model change or reassignment.
 7. The finding ends with a line naming the model and is trimmed to fit the 3000-character remark limit.
-8. The case screen shows the right line for each of the five agent states, and the document form names the model that will read it.
+8. The case screen shows the right line for each of the five agent states, and the document form names the model that will read it (the form's line was removed afterwards by owner decision, client decision 49).
 9. The always-on tests and the opt-in local test pass, and the manual checklist has been run against the binary on the local model.
 10. `client/README.md` has its setup section: install llama.cpp, run the `make` target, optionally export a key.
 11. Client decision 40 records the interview.
 
 ### 9 — Close out
+
+**Complete.**
+
+*Completed 2026-09-30 by owner decision.*
 
 - `client/README.md` and the library `README.md`.
 - A polish pass.

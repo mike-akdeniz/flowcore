@@ -584,26 +584,6 @@ func (s *Store) ActivateWorkflow(ctx context.Context, workflow RegisteredWorkflo
 	return tx.Commit(ctx)
 }
 
-// AllRegisteredDefinitionIDs is every workflow any session has registered.
-//
-// Not session-scoped, unlike almost everything else here, and that is the point:
-// its caller is the dispatcher's recovery sweep, which looks for agent work
-// stranded by a restart across every visitor at once.
-func (s *Store) AllRegisteredDefinitionIDs(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := s.pool.Query(ctx,
-		`select distinct flowcore_definition_id from casework.workflow_registry`)
-	if err != nil {
-		return nil, err
-	}
-
-	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (uuid.UUID, error) {
-		var id uuid.UUID
-		err := row.Scan(&id)
-
-		return id, err
-	})
-}
-
 // RunningCases counts the submissions part-way through a workflow.
 func (s *Store) RunningCases(ctx context.Context, sessionID string, definitionID uuid.UUID) (int, error) {
 	var count int

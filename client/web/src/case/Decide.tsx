@@ -85,6 +85,7 @@ export function Decide({
       {canDecide ? (
         <>
           <Select
+            w={320}
             label="Decision"
             placeholder="Choose an action"
             data={step.actions.map((a) => ({ value: a.id, label: a.name }))}
@@ -105,7 +106,7 @@ export function Decide({
             onChange={(event) => setRemark(event.currentTarget.value)}
           />
 
-          <Group justify="flex-end">
+          <Group>
             <Button
               size="sm"
               disabled={!action}
@@ -138,7 +139,7 @@ export function Decide({
 
       <Group align="flex-end" gap="xs" wrap="nowrap">
         <Select
-          flex={1}
+          w={320}
           size="sm"
           label="Reassign to"
           placeholder="a person or a team"

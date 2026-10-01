@@ -32,18 +32,18 @@ export function Workflows() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={3}>Workflows</Title>
-          <Text size="sm" c="dimmed">
-            What happens to a submission after it is sent for assessment. Each kind
-            of submission has one active workflow.
-          </Text>
-        </Stack>
-        <Button size="sm" onClick={open}>
-          New workflow
-        </Button>
-      </Group>
+      <Stack gap={2}>
+        <Title order={3}>Workflows</Title>
+        <Text size="sm" c="dimmed">
+          What happens to a submission after it is sent for assessment. Each kind
+          of submission has one active workflow.
+        </Text>
+        <Group mt="xs">
+          <Button size="sm" onClick={open}>
+            New workflow
+          </Button>
+        </Group>
+      </Stack>
 
       <NewWorkflowModal opened={opened} onClose={close} />
 

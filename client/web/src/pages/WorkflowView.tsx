@@ -35,19 +35,17 @@ export function WorkflowView() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Anchor component={Link} to="/workflows" size="sm">
-            ← Workflows
-          </Anchor>
-          <Title order={3}>{workflow.name}</Title>
-          <Text size="sm" c="dimmed">
-            {workflow.steps.length} steps, {agentSteps.length} of them decided by
-            an agent · applies to{" "}
-            {submissionPlural(workflow.submissionType)}
-          </Text>
-        </Stack>
-        <Group gap="xs">
+      <Stack gap={2}>
+        <Anchor component={Link} to="/workflows" size="sm">
+          ← Workflows
+        </Anchor>
+        <Title order={3}>{workflow.name}</Title>
+        <Text size="sm" c="dimmed">
+          {workflow.steps.length} steps, {agentSteps.length} of them decided by
+          an agent · applies to{" "}
+          {submissionPlural(workflow.submissionType)}
+        </Text>
+        <Group gap="xs" mt="xs">
           {workflow.active && (
             <Badge variant="light" color="green">
               active
@@ -57,7 +55,7 @@ export function WorkflowView() {
             Edit
           </Button>
         </Group>
-      </Group>
+      </Stack>
 
       <Card withBorder padding={0}>
         <WorkflowGraph

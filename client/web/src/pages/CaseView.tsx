@@ -225,7 +225,6 @@ export function CaseView({
       <Documents
         subject={subject}
         canAdd={canAddDocuments}
-        model={model}
         onAdded={receive}
         onOpen={setDocumentId}
       />
@@ -412,7 +411,7 @@ function ActionPanel({
     return (
       <Card withBorder padding="md">
         <Stack gap="xs">
-          <Group justify="space-between">
+          <Group>
             <Text size="sm" c="dimmed">
               Not submitted.
             </Text>
@@ -431,7 +430,7 @@ function ActionPanel({
   if (!subject.currentStep) {
     return (
       <Card withBorder padding="md">
-        <Group justify="space-between">
+        <Group>
           <Group gap="xs">
             <Text fw={500}>Finished</Text>
             <Badge variant="light" color="gray">
@@ -543,13 +542,11 @@ function ActionPanel({
 function Documents({
   subject,
   canAdd,
-  model,
   onAdded,
   onOpen,
 }: {
   subject: Case;
   canAdd: boolean;
-  model: string | null;
   onAdded: (updated: Case) => void;
   onOpen: (documentId: string) => void;
 }) {
@@ -566,7 +563,7 @@ function Documents({
         {/* Offered to whoever may file: anyone on a draft, and afterwards the
             person or team the case is waiting on. Hidden once the run has
             finished, where nobody holds it. */}
-        {canAdd && <AddDocument subject={subject} model={model} onAdded={onAdded} />}
+        {canAdd && <AddDocument subject={subject} onAdded={onAdded} />}
 
         <Tabs defaultValue="current">
           <Tabs.List>

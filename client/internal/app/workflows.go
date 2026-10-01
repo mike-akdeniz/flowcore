@@ -183,11 +183,4 @@ cover, anything undisclosed, or anything that contradicts the disclosures.`),
 	}
 }
 
-// seededDefinitions is every workflow CaseWork seeds, used where it needs to
-// know the assignees it will meet — which agents to dispatch, and which
-// references to offer.
-func seededDefinitions() []flowcore.WorkflowDefinition {
-	return []flowcore.WorkflowDefinition{claimAssessmentDefinition(), underwritingDefinition()}
-}
-
 func stepInstructions(text string) *string { return &text }

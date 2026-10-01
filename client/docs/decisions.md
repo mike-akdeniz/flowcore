@@ -2099,3 +2099,19 @@ It applies to any decision, not only an agent's: a person recording one gets the
   Opening a case within six seconds of a decision highlights it too, which reads as correct.
 
 Nothing in this reached the library.
+
+## 49. The document form no longer says which model will read the document
+
+**Context.**
+Slice 8 had the add-document form say, once a document was chosen, *"<model> will read this document's text and decide for itself."*, or *"No model is chosen. Agent steps wait until one is — choose it in the top bar."* when there was none.
+The owner: *"remove this useless info on the documents card"*, and asked for the Add button to be left-aligned like the buttons in the top panel.
+
+**Decision.**
+Both lines go, with the `model` props that existed only to feed them.
+The model is named in the top bar, every finding is signed with it, and the no-model case already has a warning in the notice area (decision 44), so the form's line repeated what the screen says elsewhere.
+The Add button sits at the left.
+
+**Consequence.**
+Slice 8's Done-when item 8 asked for the line; the plan now says it was removed.
+
+Nothing in this reached the library.

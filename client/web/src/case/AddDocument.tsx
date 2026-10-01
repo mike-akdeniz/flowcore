@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Button,
+  FileButton,
   Group,
   SegmentedControl,
   Select,
@@ -18,30 +18,11 @@ import { Notice } from "./Notice";
 // This replaced a Go literal that had to agree with three other places and a SQL
 // CHECK constraint, none of which failed when they drifted.
 
-// whatHappensNext is the one line this control exists around: say what the next
-// agent step will do, before it does it. One sentence, always present, always
-// true — it names the model the session chose, or says there is none.
-function whatHappensNext(model: string | null): { colour: string; text: string } {
-  if (model) {
-    return {
-      colour: "gray",
-      text: `${model} will read this document's text and decide for itself.`,
-    };
-  }
-
-  return {
-    colour: "yellow",
-    text: "No model is chosen. Agent steps wait until one is — choose it in the top bar.",
-  };
-}
-
 export function AddDocument({
   subject,
-  model,
   onAdded,
 }: {
   subject: Case;
-  model: string | null;
   onAdded: (updated: Case) => void;
 }) {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -75,7 +56,7 @@ export function AddDocument({
   const [uploadKind, setUploadKind] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const resetFile = useRef<() => void>(null);
 
   // Only the samples written for this kind of submission. A proposal has two
   // that can drive its risk screen; offering it the six claim documents as well
@@ -119,7 +100,6 @@ export function AddDocument({
     (document) => !document.superseded && document.kind === kind,
   );
 
-  const note = whatHappensNext(model);
   const ready = mode === "sample" ? Boolean(sample) : Boolean(upload);
 
   async function add() {
@@ -134,7 +114,7 @@ export function AddDocument({
     try {
       onAdded(await api.addDocument(subject.reference, body));
       setUpload(undefined);
-      if (fileInput.current) fileInput.current.value = "";
+      resetFile.current?.();
     } catch (error) {
       setFailure(error instanceof Error ? error.message : "could not add it");
     } finally {
@@ -163,6 +143,7 @@ export function AddDocument({
 
       {mode === "sample" ? (
         <Select
+          w={320}
           data={offered.map((candidate) => ({
             value: candidate.fileName,
             label: candidate.outcome
@@ -175,22 +156,34 @@ export function AddDocument({
           allowDeselect={false}
         />
       ) : (
-        <Group grow align="flex-end">
-          {/* A plain file input: documents are text records, so the file is
-              read in the browser and its text posted. Nothing binary is
-              stored, and nothing needs an upload endpoint. */}
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".txt,text/plain"
-            onChange={async (event) => {
-              const file = event.currentTarget.files?.[0];
-              if (!file) return;
+        <Group align="flex-end">
+          {/* Documents are text records, so the file is read in the browser and
+              its text posted. Nothing binary is stored, and nothing needs an
+              upload endpoint. A button rather than the browser's own file
+              input, whose "Choose File" label cannot be changed and does not
+              say that only text files are taken. */}
+          <Group gap="sm" wrap="nowrap">
+            <FileButton
+              resetRef={resetFile}
+              accept=".txt,text/plain"
+              onChange={async (file) => {
+                if (!file) return;
 
-              setUpload({ fileName: file.name, body: await file.text() });
-            }}
-          />
+                setUpload({ fileName: file.name, body: await file.text() });
+              }}
+            >
+              {(props) => (
+                <Button {...props} size="sm" variant="light">
+                  Choose txt file
+                </Button>
+              )}
+            </FileButton>
+            <Text size="sm" c="dimmed" truncate>
+              {upload ? upload.fileName : "No file chosen"}
+            </Text>
+          </Group>
           <Select
+            w={240}
             label="Kind"
             data={allowedTypes.map((documentType) => ({
               value: documentType.name,
@@ -212,18 +205,9 @@ export function AddDocument({
         </Text>
       )}
 
-      {/* Both of these describe the selected document, so neither appears
-          before there is one. The header badge already says which mode the
-          agent steps are in, so nothing is lost by waiting. */}
-      {ready && (
-        <Alert color={note.colour} variant="light" p="xs">
-          <Text size="sm">{note.text}</Text>
-        </Alert>
-      )}
-
       {failure && <Notice severity="error">{failure}</Notice>}
 
-      <Group justify="flex-end">
+      <Group>
         <Button size="sm" onClick={add} disabled={!ready} loading={busy}>
           Add
         </Button>

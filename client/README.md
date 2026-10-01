@@ -13,6 +13,8 @@ nothing here that wraps it; this is an example of *being* the client.
 
 ## Run it
 
+You need Go, Node, and Docker, which runs CaseWork's own Postgres.
+
 Agent steps are decided by a model, and the default one runs on your machine: Gemma 3 270M, about
 290 MB, served by llama.cpp. Once:
 
@@ -41,8 +43,7 @@ Paste the key after `ANTHROPIC_API_KEY=` in that file, then `make fresh`. CaseWo
 startup, so restart it after changing the key. Keys come from the Claude Console, billed separately
 from a Claude.ai subscription; set a spend limit and an expiry there.
 
-With exactly one model on offer it is used without asking; with several, agent steps wait until you
-pick one. Every finding ends with the name of the model that wrote it, so switching models and
+Every finding ends with the name of the model that wrote it, so switching models and
 running the same case again compares them. Choosing a Claude model spends from that key.
 
 **Without a model, CaseWork still runs.** If llama.cpp is not installed, `make fresh` says so and
@@ -84,69 +85,75 @@ Three things worth knowing:
 
 ## Why it exists
 
-A boundary is invisible from one side. FlowCore's central claims — that references are
-opaque, that the library never calls a model, that the caller owns dispatch, that subjects
-live elsewhere — cannot be read from the API alone. Each becomes legible only when
-something is shown doing the other half.
+FlowCore's claims — that references are opaque, that the library never calls a model, that the
+caller owns dispatch, that subjects live elsewhere — are easy to assert and hard to believe from
+an API alone. A working application is the argument: CaseWork does the other half.
 
-So the point of this application is the **call log** at the bottom of every page. It shows
-the work this client did beside the one line where FlowCore was involved:
+So it is a real application, not a harness. It has two goals, in this order:
 
-```
-  resolve Priya Raman → [user:priya group:qa]   (this person, plus their groups)
-→ engine.ListAssignedSteps([user:priya group:qa])
-← 1 open step, across every run in the database
-  filter to this session's own definitions → 1
-```
+1. A workflow application that shows what FlowCore makes possible, especially its AI steps.
+2. Configuring a workflow is part of the product, not a settings page: build one easily, and
+   understand one easily.
 
-That ratio is the argument. Identity, subjects, dispatch, tenancy and policy all live on
-this side of the line, which is why one engine carries a software release and an insurance
-claim without knowing what either one is.
+FlowCore knows where the work is. CaseWork knows what the work is about — identity and groups,
+claims and applications, documents and their types, which model decides, and who may do what.
+That is why one engine carries two workflows with nothing in common without knowing what either is.
 
 ## What to try
 
-- **Switch who you are** (top right). The worklist changes because this application expands
-  a person into their groups before asking — FlowCore does not know what a group is.
-- **Open a claim or a release.** The subject is labelled as stored here; beneath it is the
-  opaque reference and version token that are all FlowCore holds.
-- **Act on a step that is not in your queue.** The buttons still work. FlowCore records who
-  acted and never decides whether they were allowed to, which is exactly how a person
-  overrides an agent.
-- **Build your own workflow** under *workflows*. The assignee field is free text with no
-  validation — type `anything:at-all` and the workflow still runs. Anything beginning
-  `agent:` gets dispatched automatically, which is this application's convention and not the
-  library's.
-- **Delete a status a step is using**, or reuse a name. The errors are sentences because the
-  library returns typed errors rather than one opaque failure.
+Sign in as anyone; the cast is seeded: Inés (intake), Dana (adjusters), Marek (fraud
+investigators), Priya (underwriters) and Tom (senior underwriters).
+
+- **Submit a seeded draft.** `C-1042` and `P-2087` arrive as drafts with no run. Submitting one
+  starts a FlowCore run, and its first step is decided by an agent. The finding appears in the
+  History, signed with the model that wrote it, beside the documents it was decided against.
+- **Choose a model in the top bar**, and run the same case again to compare. A small local model
+  decides in under a second and is often wrong; a Claude model reads the case properly.
+- **Change the outcome with a document.** Add a sample from the picker — each is labelled
+  `demo-pass` or `demo-fail` for what it argues — and watch the next agent step read it.
+  [sample-documents/README.md](sample-documents/README.md) says what each one does.
+- **Follow a case from person to person.** With the demo user switcher on, which is the default,
+  opening a case signs you in as someone who holds its step. Turn it off to stay as yourself;
+  Reassign hands a step to a person or a team.
+- **Build a workflow** under *Workflows*: add steps and actions, give a step instructions and
+  required document types, define an agent step, and activate it for a kind of submission. Cases
+  already running keep the workflow they started under — a run is a snapshot of its definition.
+- **All work and My work.** *All work* is every submission, whoever holds it. *My work* is the
+  FlowCore worklist for you and your groups.
 
 ## How it is built
 
-Server-rendered Go templates with [HTMX](https://htmx.org) available for the places that
-need it, [mermaid](https://mermaid.js.org) for the workflow diagram, and a classless
-stylesheet from a CDN. No build step, no `node_modules`, no second toolchain — `go run .`
-is the whole setup.
+A Go server and a React front end, in one binary. The server is `net/http` with
+[pgx](https://github.com/jackc/pgx), against Postgres in its own `casework` schema, whose
+migrations [goose](https://github.com/pressly/goose) applies at start. The front end is React and
+TypeScript on [Mantine](https://mantine.dev) and Vite, with
+[React Flow](https://reactflow.dev) and dagre drawing the workflow graph. `make build` bakes the
+built front end into the binary.
 
-That is a deliberate choice rather than an absent one. A JSON API with a client-side store
-would put two layers of indirection between the click and the `flowcore` call this
-application exists to make visible. The reasoning, and the alternatives that lost, are in
-[docs/decisions.md](docs/decisions.md).
+Agent steps are decided by a model behind one reply contract: a local OpenAI-compatible server
+(llama.cpp or Ollama) by default, and Anthropic's models when `ANTHROPIC_API_KEY` is set.
 
 ```
 main.go                 wiring
 internal/app/           the client half of the boundary:
-                        identity, subjects, sessions, seeding, the agent dispatcher,
-                        error translation, the call log
-internal/web/           handlers, routes, templates
+                        identity, submissions, sessions, seeding, document requirements,
+                        the agent dispatcher and its model backends
+internal/api/           HTTP handlers and routes
+internal/store/         CaseWork's own tables and migrations
+internal/samples/       the embedded sample documents (the files are in sample-documents/)
+web/                    the React front end
+docs/                   system-design.md says what it is; decisions.md says why
 ```
 
-`internal/app` is where to look first. Everything in it exists because FlowCore
-deliberately does not do it.
+`internal/app` is where to look first. Everything in it exists because FlowCore deliberately does
+not do it.
 
 ## What this is not
 
-Authentication is faked and there is no user management, because neither demonstrates
-anything about the library and both would be the largest code here. Sessions live in
-memory. The subject store is a map.
+Authentication is faked and there is no user management: sign-in is a choice from the seeded cast,
+because neither demonstrates anything about the library and both would be the largest code here.
+Sessions are a cookie naming one of the cast. Documents are text records: an upload is a text
+file read in the browser, and nothing binary is stored.
 
-Fork it and those are the first things you would replace — the shape of what reaches
-FlowCore would not change at all.
+Fork it and those are the first things you would replace — the shape of what reaches FlowCore
+would not change at all.
