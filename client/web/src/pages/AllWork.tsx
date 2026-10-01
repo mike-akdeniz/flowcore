@@ -22,7 +22,7 @@ export function AllWork() {
   }, []);
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" maw={1140} mx="auto">
       <Stack gap={2}>
         <Title order={3}>All work</Title>
         <Text size="sm" c="dimmed">

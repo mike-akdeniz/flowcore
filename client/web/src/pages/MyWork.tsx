@@ -26,7 +26,7 @@ export function MyWork() {
   }, []);
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" maw={1140} mx="auto">
       <Title order={3}>My work</Title>
 
       {items === null ? (

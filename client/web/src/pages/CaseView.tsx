@@ -172,7 +172,7 @@ export function CaseView({
   }
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" maw={960} mx="auto">
       <Stack gap={2}>
         <Anchor component={Link} to="/" size="sm">
           ← All work

@@ -39,7 +39,7 @@ export function NewCase() {
   );
 
   return (
-    <Stack gap="md" maw={640}>
+    <Stack gap="md" maw={640} mx="auto">
       <Stack gap={2}>
         <Anchor component={Link} to="/" size="sm">
           ← All work
