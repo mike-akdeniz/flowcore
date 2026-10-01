@@ -47,7 +47,7 @@ A cloud-init file under `client/deploy/` that turns a blank Ubuntu LTS instance 
 - Postgres and Caddy from Ubuntu's and Caddy's packages (decision 52).
 - A pinned llama.cpp release and Gemma 3 270M, the model file checked against a pinned hash; `llama-server` with one slot and about 4,000 tokens of context (decision 50).
 - systemd units for `llama-server` and CaseWork, CaseWork's environment file with `CLIENT_SESSION_TTL=24h` and `CLIENT_SECURE_COOKIES=true`, and CaseWork listening on localhost only.
-- Caddy terminating TLS for `casework.happensbefore.com`, its access log rolled and kept 30 days, full addresses (decision 57).
+- Caddy terminating TLS for `casework.happensbefore.com`, its access log rolled and kept 60 days, full addresses (decision 57).
 - Unattended security upgrades with `Automatic-Reboot` at 07:00 UTC (decision 60); journald capped in size.
 
 Done when the script, run on a fresh local Ubuntu VM, gives a host where a copied binary serves the demo and `/healthz` answers 200 — TLS aside, which needs the real name.

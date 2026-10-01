@@ -2328,7 +2328,7 @@ Nothing in this reached the library.
 ## 57. The access log keeps full addresses, and the UI says nothing about logging
 
 **Context.**
-Visits are measured on the server: the Caddy access log, kept about 30 days, with a `?from=` query tag readable in it and no third-party trackers.
+Visits are measured on the server: the Caddy access log, kept 60 days, with a `?from=` query tag readable in it and no third-party trackers.
 CaseWork itself never reads or logs a client's address, so the access log is the only place one is stored.
 Caddy logs the full address by default and has an `ip_mask` log filter that blanks the end of each address before it is written.
 The agreed scope also had *"one plain line in the UI saying what is logged, and that the model's accuracy is not the point of the demo."*
@@ -2344,7 +2344,7 @@ Asked whether the other half went too, Claude recommended keeping it, since a 27
 The owner: *"keep it"*.
 
 **Decision.**
-The access log keeps full addresses for about 30 days, unmasked.
+The access log keeps full addresses for 60 days, unmasked; the owner changed it from the 30 first written while the setup script was built: *"make the logs rolled over 60 days"*.
 The UI says nothing about logging.
 It carried one plain line that the model's accuracy is not the point of the demo, until the owner removed it while phase 1 was built: *"remove the ui line this is a demo completely, add a link to the flowcore repo with this text: casework is built with flowcore, add a license link that goes to the flowcore license"*.
 The foot of the navigation bar now says "Built with FlowCore", linking to the repository, and "License", linking to `LICENSE` on `main`.
@@ -2419,5 +2419,32 @@ That is 3 a.m. Eastern and midnight Pacific, an hour earlier each in winter, and
 
 **Decision.**
 `Automatic-Reboot` on, at 07:00 UTC.
+
+Nothing in this reached the library.
+
+## 61. The setup script is a launch script, and what it was tested on
+
+*Local implementation decisions made while building phase 2 of the hosting plan; no interview.*
+
+**Form.**
+The plan said a cloud-init file.
+`client/deploy/setup.sh` is a shell script instead, which cloud-init and Lightsail's launch-script field both run as the instance's first-boot script, and which also runs by hand as `sudo bash setup.sh`.
+The YAML would have held the same commands in `runcmd` with the configuration files in `write_files`, and could not be run or checked outside a cloud-init instance.
+Lightsail caps a launch script at 16 KB; the script is about 7 KB.
+
+**Choices.**
+The deploy key's public half is a placeholder the infrastructure code replaces in phase 3, and the script refuses to run with it unfilled.
+`llama-server` and CaseWork run as systemd `DynamicUser` services, so there are no system accounts to create, and `/etc/casework.env`, which holds the generated database password, is readable by root alone.
+The `deploy` user owns `/opt/casework`, so a deploy is a copy, and may run one command as root, `systemctl restart casework`.
+CaseWork's unit has `ConditionPathExists` on the binary, so first boot enables it without failing before the first deploy.
+Caddy comes from its own repository, because Ubuntu's package is several releases behind, and that repository's origin is added to unattended-upgrades' allowed origins; by default only Ubuntu's own are patched, which decision 52's "unattended upgrades patch Postgres and Caddy" needs.
+llama.cpp is pinned to build b11146, the build the model was run against locally, and the model to the Hugging Face commit and file the tests used; both are checked against their SHA-256.
+
+**What it was tested on.**
+No VM tool is installed, so the script ran start to finish in a systemd-booted Ubuntu 24.04 container on an arm64 Mac, with `ufw` and `timedatectl` stubbed because a container has neither a firewall nor a clock to set, and with llama.cpp's arm64 build, because systemd under amd64 emulation could not start services.
+There it built the host; a Linux arm64 CaseWork binary copied in and restarted by the `deploy` user served `/healthz` with 200 and Secure cookies; Postgres, `llama-server` and CaseWork listened on localhost only, with Caddy on 80 and 443; Caddy's access log held the full client address and the `?from=` tag; and the SSH settings, the sudo rule and the upgrade origins and reboot time read back as intended.
+The x64 tarball the script uses was downloaded and its hash matches the one pinned.
+What has not run: the firewall, the clock, the x64 `llama-server` binary, the `deploy` user's SSH login, and a real boot as a launch script.
+Those are first exercised when the instance is created.
 
 Nothing in this reached the library.
