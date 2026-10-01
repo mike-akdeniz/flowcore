@@ -79,9 +79,9 @@ Three things worth knowing:
   embedded front end from the last build — the same application, older code, and nothing says so.
 - **Neither reloads Go.** A change to a `.go` file means stopping and starting again. Only the front
   end hot-reloads.
-- **`make fresh` wipes the database**, which is the point of it: migrations are edited in place
-  rather than added while this has no users and no data, so a schema change is applied by throwing
-  the database away. Cases you created are gone; the seeded examples come back.
+- **`make fresh` wipes the database**, which is the point of it: cases you created are gone and the
+  seeded examples come back. A schema change does not need it; migrations are append-only, so the
+  next start applies a new one.
 
 ## Why it exists
 

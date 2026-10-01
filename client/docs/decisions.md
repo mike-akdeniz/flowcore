@@ -2115,3 +2115,308 @@ The Add button sits at the left.
 Slice 8's Done-when item 8 asked for the line; the plan now says it was removed.
 
 Nothing in this reached the library.
+
+## 50. CaseWork is hosted publicly, and decision 40's model holds there
+
+*Settled by interview, 2026-10-01, the first of the hosting decisions (50 to 60).*
+Reverses the assumption decision 40 was made under; keeps what decision 40 chose.
+
+**Context.**
+Decision 40 chose a local model of about 300 MB under the owner's instruction *"Forget about the public host, that's probably not gonna happen and shouldn't constrain our decisions now."*
+That no longer holds: CaseWork is to be hosted at `https://casework.happensbefore.com`, so anyone can try it in a browser without installing Go, Node, Docker and llama.cpp.
+
+The owner settled the provider outside this repository, and the choices are recorded here so the decisions after this one can rest on them:
+
+- **AWS Lightsail**, the 4 GB plan at $24 a month with IPv4, disk and transfer included, in us-east-2 (Ohio).
+  The owner's reason is reliability: a link that is slow or down when someone opens it is a failure.
+  Lightsail over EC2 for the fixed price and fewer pieces to declare; Hetzner was out of stock and OVHcloud was rejected.
+- The AWS account is on the **Free plan**, paid by credits, and stays there until the owner decides otherwise: no AWS Organizations, no Control Tower, no Savings Plans or Reserved Instances.
+  Whether the Free plan allows Lightsail is confirmed when the instance is created.
+- **`happensbefore.com` at Cloudflare**, DNSSEC on, the `casework` record DNS-only so the server sees real client addresses and depends on the smallest part of Cloudflare.
+- **No Anthropic key on the host.**
+  It would bill the owner for strangers' calls; the hosted demo runs the local model only.
+- **Portable:** no provider-only features, so moving is a rewrite of the provisioning file and a DNS change.
+
+**The question.**
+Does hosting change the model or the runtime decision 40 chose, or only add constraints on top of them?
+
+**Facts found.**
+The $24 plan has 2 vCPUs, 4 GB and 80 GB, and is burstable at a **20% baseline per vCPU**: once its burst credits are spent it runs at about 0.4 of a core.
+Memory is not the constraint; the model and a 4k context are a few hundred megabytes beside Postgres and Caddy.
+The CPU is.
+
+**Decision.**
+Gemma 3 270M and one `llama-server` stay.
+A bigger model would make the CPU problem worse, and the problem is how many requests arrive, not how capable the model is.
+The owner: *"agree"*.
+
+**Corrected during the interview.**
+Claude first proposed two `llama-server` slots with about 8k of context between them.
+Looking into the rate limit (decision 53) found that the dispatcher runs one worker (`internal/app/dispatcher.go`, *"One worker, not a pool"*), so agent calls are already serial across every visitor.
+The host runs one slot with a context of about 4,000 tokens; the server's default reserves about 600 MB for 32,000.
+
+Nothing in this reached the library.
+
+## 51. The owner applies the infrastructure; the pipeline only deploys the application
+
+**Context.**
+The agreed scope puts the infrastructure in code: the Lightsail instance, its static IP and firewall, and the Cloudflare DNS record, declared in OpenTofu.
+OpenTofu keeps a state file recording what it created, and where that file lives depends on who runs it.
+
+**Options.**
+A, the owner applies OpenTofu from their own machine with the state local and gitignored, and GitHub Actions only tests, builds, copies the binary over SSH and restarts it.
+B, the pipeline applies the infrastructure too, which needs the state in a remote store such as an S3 bucket, and AWS and Cloudflare credentials in GitHub able to create and destroy resources.
+
+**Interview.**
+Claude recommended A.
+The owner asked for more context: *"which one looks better as portfoli detail? (intrastructure x, deployed using ...) Also explain both options with an example and simler terms"*.
+Claude's answer was that B reads as more impressive at a glance, and that a reviewer who knows the field may read it as over-engineering: a state bucket and powerful credentials in CI to automate four resources applied perhaps twice a year.
+A, with its reason, reads as judgment: *infrastructure defined in OpenTofu; CI tests and deploys on every push and holds only a deploy key, so a leaked CI secret cannot create resources on the account.*
+The owner: *"Do I even have to say "by hand", I don't think so... option A then"*.
+It does not: "defined in OpenTofu" is accurate, and the only line not to write is one implying CI applies it.
+Decision 59 later made deploys manual, so the CI half now reads that CI tests every push and deploys on request.
+
+**Decision.**
+A.
+GitHub holds the deploy SSH key and the host's address, and no cloud credentials.
+The OpenTofu files lie in the repository, and their state stays on the owner's machine.
+
+**What it costs.**
+The state exists only on the owner's machine; losing it is a `tofu import` from the real resources, a nuisance rather than data loss.
+Moving to B later adds a state bucket and two secrets, and leaves the OpenTofu files unchanged.
+
+Nothing in this reached the library.
+
+## 52. Plain system services on the host, not Docker
+
+**Context.**
+CaseWork already builds to one binary with its front end embedded, which the Makefile calls the deployment shape.
+Locally, Postgres runs in Docker Compose; decision 40 ruled Docker out for the model because of the image's size.
+
+**Options.**
+A, Postgres and Caddy from Ubuntu's packages, `llama-server` from llama.cpp's prebuilt Linux release, CaseWork as the binary the pipeline copies in, each a systemd unit; a deploy copies the binary and restarts it.
+B, Docker Compose on the server, with an image registry, images rebuilt for security patches, and Docker's own memory on a 4 GB machine.
+
+**Interview.**
+Claude recommended A.
+The owner: *"You tell me, what could be the legit reason to use docker inside AWS? Is it if we had multiple unrelated stack deployed to the same server like: c# sql server in one, go postgre node on another?"*
+Claude agreed that is one, and gave the others: a runtime that is messy to install, which a Go binary is not; a platform that runs containers, which a plain VM is not; many services or teams sharing the image as a contract; rollback by image tag, which here is keeping the previous binary.
+None applies to one stack on one VM.
+Docker becomes legitimate here if a second, unrelated project shares the server, or if CaseWork moves to a container platform; either is its own decision then.
+The owner: *"A"*.
+
+**Decision.**
+A.
+Unattended upgrades patch Postgres and Caddy with the rest of the operating system, which is most of the upkeep the scope asks to automate.
+
+**What it costs.**
+Postgres runs differently locally and on the host.
+The tests run against a real Postgres either way, so the difference is small in practice.
+
+Nothing in this reached the library.
+
+## 53. Agent calls take turns across sessions, with no cap
+
+Replaces the scope's *"a basic rate limit on agent steps"*.
+
+**Context.**
+With no key on the host there is no bill, and Lightsail throttles a machine that has spent its burst credits rather than charging more.
+The dispatcher's single worker already bounds the CPU to one model call at a time.
+What is left is fairness: one visitor who files twenty cases puts sixty-odd agent calls ahead of everyone else, first come first served, and the next visitor's case sits waiting for minutes.
+
+**Options.**
+A, a cap per session counted in the dispatcher, about thirty agent calls an hour; over it the visit waits and the notice area says why.
+B, a cap per IP address at the HTTP layer, harder to evade, but spread over four routes, counting requests rather than agent calls, refusing with a 429 rather than waiting, and shared by everyone behind one office's address.
+
+**Interview.**
+Claude recommended A.
+The owner: *"I'm ok with A but can we make the limit tied to a pool. I want to let an ethusiastic visitor play with the demo as long as others are not waiting. I don't want to kick out a "customer" in store when nobody is waiting outside."*
+Claude proposed turns instead of a cap, because a cap that applies only when others wait needs a threshold, a window and a message, and turns give the same behaviour with none of them.
+The owner: *"yes, take turns, no cap"*.
+
+**Decision.**
+Each session has its own queue of agent work, and the one worker serves the sessions in rotation, one call each.
+A visitor alone has every call as fast as the model runs; a newcomer's call is next once the call in flight finishes; nobody is refused, so there is no limit message and no number to tune.
+The guard against dispatching a visit twice, the fifteen-second sweep and the parking of permanent failures are unchanged.
+
+**What it costs.**
+It does not stop someone scripting many sessions.
+With no bill at stake the worst that does is slow the demo, and the single worker still bounds the CPU.
+
+Nothing in this reached the library.
+
+## 54. CaseWork's migrations are append-only from now on
+
+*Surfaced by Claude during the hosting interview; the owner had not raised it.*
+Supersedes the rule in the Makefile and README that CaseWork's migrations are edited in place.
+
+**Context.**
+The library's migrations are append-only, `00001` to `00006`.
+CaseWork's are one file, `00001_casework_schema.sql`, edited in place, with a schema change applied by throwing the database away.
+The rule was written only in a Makefile comment and the README, and its stated reason was *"while the client has no users and no data"*.
+The hosted demo has both.
+
+**Options.**
+A, migrations become append-only: today's `00001` is the baseline, a change is a new file, and a deploy starts the new binary, which applies what it has not run.
+B, keep editing in place, and have the deploy wipe the hosted database when the migration file's checksum changes.
+
+**Decision.**
+A, which Claude recommended.
+The reason for editing in place ends when the host goes live, the library already shows the other way, and a deploy that wipes nothing can run without regard to who is online.
+B would lose work mid-demo, and would put a destructive step in the pipeline whose failure is quiet: the half-reset trap the Makefile comment warns about.
+The owner: *"A"*.
+
+**What it costs.**
+`00001` can no longer be tidied; a misnamed column is fixed by a new migration.
+`make reset` and `make fresh` still throw the local database away when that is wanted.
+
+Nothing in this reached the library.
+
+## 55. The host is disposable: no backups
+
+*Surfaced by Claude during the hosting interview.*
+
+**Context.**
+The host holds visitors' cases, which expire with their sessions (decisions 6 and 56); the Caddy access log, which is the visit measurement (decision 57); and everything else, which is the setup script's output or a binary the pipeline can deploy again.
+
+**Options.**
+A, no backups: the setup script builds a working server from a blank Ubuntu instance with no manual steps, and recovery is `tofu destroy`, `tofu apply` and a deploy.
+B, Lightsail's automatic daily snapshots: billed storage against the credits, a Lightsail-only feature against the portability scope, and a way for drift to hide, since a server fixed by hand and then snapshotted no longer matches its script.
+
+**Decision.**
+A, which Claude recommended.
+The data was made to expire, and a script that rebuilds from zero is what makes moving a rewrite of the provisioning file and a DNS change; recovery and moving are the same path, so it is exercised.
+The owner: *"A"*.
+
+**What it costs.**
+A rebuild loses the access log collected so far, and every visitor's session.
+If the numbers come to matter more, copying the log off the host is a small addition then.
+
+Nothing in this reached the library.
+
+## 56. On the host, sessions expire after 24 idle hours and cookies are Secure
+
+**Context.**
+Decision 6 built `CLIENT_SESSION_TTL` for hosting, defaulting to `0`, never expire.
+The TTL is idle time: the janitor deletes sessions whose `last_seen_at` is older than it.
+The two cookies, `casework_session` and `casework_identity`, have no `Max-Age`, so in most browsers they end when the browser closes; the TTL decides only when the server cleans up after them.
+Neither cookie has the `Secure` flag.
+
+**The TTL.**
+A, 24 hours: a visitor who opens the demo in the morning and comes back after lunch, or the next morning, still has their cases.
+B, 2 hours: someone who opens the link, goes to a meeting and comes back finds an empty, freshly seeded demo with nothing to say why.
+Claude recommended A, because a recruiter or reviewer is likely to open the link, get pulled away and come back, and a session is a few dozen rows.
+The owner: *"A"*.
+
+**Secure.**
+Caddy terminates TLS and forwards plain HTTP, so CaseWork cannot see from the connection that the visitor is on HTTPS, and locally there is no HTTPS at all.
+A, a setting, `CLIENT_SECURE_COOKIES`, off by default and set on the host.
+B, read Caddy's `X-Forwarded-Proto`, which is safe only while CaseWork listens on localhost alone, a security property that would depend silently on the setup script.
+C, always `Secure`, which Chrome and Firefox accept on `http://localhost` and Safari has a history of refusing; not confirmed either way.
+Claude recommended A, because it matches how `CLIENT_SESSION_TTL` already works and depends on no firewall and no browser.
+The owner: *"A"*.
+
+**Decision.**
+The host sets `CLIENT_SESSION_TTL=24h` and `CLIENT_SECURE_COOKIES=true`.
+Both default off, so running locally is unchanged.
+
+**What it costs.**
+A host that forgets `CLIENT_SECURE_COOKIES` serves working cookies without the flag, failing open in the same direction decision 6 chose for the TTL.
+
+Nothing in this reached the library.
+
+## 57. The access log keeps full addresses, and the UI says nothing about logging
+
+**Context.**
+Visits are measured on the server: the Caddy access log, kept about 30 days, with a `?from=` query tag readable in it and no third-party trackers.
+CaseWork itself never reads or logs a client's address, so the access log is the only place one is stored.
+Caddy logs the full address by default and has an `ip_mask` log filter that blanks the end of each address before it is written.
+The agreed scope also had *"one plain line in the UI saying what is logged, and that the model's accuracy is not the point of the demo."*
+
+**Interview.**
+Claude recommended masking, so the line could say no full address is kept, and gave the scope's line and GDPR's transparency rules as the reasons a full address would have to be disclosed.
+The owner: *"Why the UI line has to say the full eddresses are kept for 30 days?"*
+Claude separated the two: the first is the owner's own scope item, which says to state what is logged; the second applies only if GDPR does, a legal question Claude could not settle.
+Claude conceded that "has to say it in the UI line" was too strong, since a disclosure could be a linked note.
+The owner: *"Don't mask the address, don't put anything in the UI, remove anything in the repo which makes you think that we should do that... We ware not on EU and this is a demo, I'm not on EU..."*
+The only text in the repository calling for it was the scope line in the handover, and its logging half was removed.
+Asked whether the other half went too, Claude recommended keeping it, since a 270M model will sometimes give odd verdicts and the line stops a reviewer judging the project by them.
+The owner: *"keep it"*.
+
+**Decision.**
+The access log keeps full addresses for about 30 days, unmasked.
+The UI says nothing about logging.
+It carries one plain line that the model's accuracy is not the point of the demo.
+
+Nothing in this reached the library.
+
+## 58. `GET /healthz` is what the uptime monitor probes
+
+*Surfaced by Claude during the hosting interview.*
+
+**Context.**
+The scope asks for a free uptime monitor that emails the owner.
+CaseWork has no health endpoint.
+Any request without a cookie, except for a path containing a `.`, creates and seeds a session, `GET /` included.
+A monitor probing `/` every five minutes would seed about 288 sessions a day, each building two workflow definitions and living 24 hours, and would prove only that Caddy and the binary answer: the shell is embedded, so it needs neither Postgres nor the model.
+
+**Decision.**
+`GET /healthz`, outside the session handling so it seeds nothing, answers 200 when Postgres answers a ping and `llama-server` answers `GET /v1/models`, and 503 naming the one that failed.
+The monitor probes it over HTTPS, so a lapsed certificate is caught too.
+Claude recommended it from the owner's own reason for choosing Lightsail: a demo whose model has died fails a visitor as surely as one that does not load, since their agent steps wait forever.
+The owner: *"A"*.
+
+The monitor defaults to UptimeRobot's free plan, checking every five minutes and alerting by email, with its current terms checked against a portfolio demo when it is set up.
+
+**Not done.**
+Scanners probing `/` will seed sessions too.
+Each is a handful of inserts that expires within a day, so how sessions start is left as it is.
+
+Nothing in this reached the library.
+
+## 59. Deploys are manual; tests run on every push
+
+**Context.**
+The scope has a GitHub Actions pipeline that runs the FlowCore and CaseWork tests against Postgres and deploys only if they pass.
+Open was which pushes deploy.
+
+**Interview.**
+Claude recommended deploying every push to `main` that passes: nothing reaches `main` without the owner's review, a restart costs a second or two, an agent call in flight is retried by the sweep, and decision 54 makes the migrations safe to apply unattended.
+The owner: *"I'm against A: with AI assisted dev, we commit many changes during the day. I don't want to change that cadence. If main goes to prod automatically, I'll stop comitting frequently and  I don't want invent branching, environments machinery for this personal project. For me, commit, test locally and then deploy when you are sure is the best workflow."*
+Claude's recommendation did not survive: it had not weighed that automatic deploys would cost the habit of committing often, and that protecting the habit would need the branches and environments the owner refused.
+
+Then the shape of a manual deploy.
+A, tests on every push as a warning that deploys nothing, and a deploy started by hand that tests again and deploys the current `main`.
+B, tests only as part of a deploy, which leaves a broken commit unnoticed until the day it is wanted.
+C, a deploy started by pushing a tag, which records in git what went out but is one more thing to type, and the Actions history already shows each deploy and its commit.
+Claude recommended A.
+The owner: *"A"*.
+
+**Decision.**
+Every push runs the tests and nothing else.
+A deploy is a `workflow_dispatch` workflow, run from the Actions tab or with `gh workflow run deploy`; it runs the full tests, then deploys `main`.
+
+**What it costs.**
+The demo can fall behind `main` until the owner deploys, which is the point.
+Actions minutes are free for public repositories and 2,000 a month for private ones; a Postgres-backed run is a few minutes.
+
+Nothing in this reached the library.
+
+## 60. Security reboots happen at 07:00 UTC, only when needed
+
+**Context.**
+The scope has unattended security upgrades with a night reboot window.
+With `Automatic-Reboot`, Ubuntu reboots only when an update requires it, usually a kernel patch, a few times a month.
+A reboot is about a minute down; every service is a systemd unit and comes back, and agent work waiting resumes from the database.
+A monitor check landing in that minute sends a down email and an up email.
+The server's clock runs on UTC, and the likely viewers are mostly in the US.
+
+**Interview.**
+Claude recommended 09:00 UTC, 5 a.m. Eastern and 2 a.m. Pacific, over 04:00 UTC.
+The owner: *"what about 07:00 UTC ?"*
+That is 3 a.m. Eastern and midnight Pacific, an hour earlier each in winter, and early morning in Europe; either serves, and the owner's choice stands.
+
+**Decision.**
+`Automatic-Reboot` on, at 07:00 UTC.
+
+Nothing in this reached the library.

@@ -129,9 +129,9 @@ dev: build
 # tables too, and resetting half of a pair that migrate together is the same trap
 # one level up.
 #
-# Safe to reach for, because nothing here is worth keeping. Migrations are edited
-# in place rather than added while the client has no users and no data, so a
-# schema change is applied by throwing the database away.
+# Safe to reach for, because nothing here is worth keeping locally. It is not how
+# a schema change is applied: migrations are append-only (client decision 54),
+# so a change is a new file the next start applies, here and on the host alike.
 reset: up
 	docker exec flowcore-client-postgres psql -U flowcore -d flowcore_client \
 		-c "drop schema if exists casework cascade" \
