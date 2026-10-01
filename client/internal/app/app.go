@@ -66,6 +66,21 @@ func backends(config Config) []Backend {
 	return available
 }
 
+// Health reports the first thing CaseWork cannot work without that is not
+// working: its database, or the local model server. Anthropic's models are not
+// checked; they are optional and only present when a key is set.
+func (a *App) Health(ctx context.Context) error {
+	if err := a.Store.Pool().Ping(ctx); err != nil {
+		return fmt.Errorf("postgres: %w", err)
+	}
+
+	if _, err := a.Models.backend("local").Models(ctx); err != nil {
+		return fmt.Errorf("llama-server: %w", err)
+	}
+
+	return nil
+}
+
 // ReportModels says at startup what agent steps can use, and how to fix it when
 // the answer is nothing. It is advice, not a gate: CaseWork runs without a
 // model, and agent steps wait for one.

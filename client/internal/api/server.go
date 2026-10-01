@@ -14,6 +14,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -39,6 +40,7 @@ func NewServer(application *app.App, logger *slog.Logger, assets http.Handler) *
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /api/session", s.showSession)
 	mux.HandleFunc("POST /api/session", s.signIn)
 	mux.HandleFunc("GET /api/models", s.listModels)
@@ -83,7 +85,31 @@ func (s *Server) Routes() http.Handler {
 	// paths, so any unmatched GET returns the shell.
 	mux.Handle("/", s.assets)
 
-	return s.withSession(mux)
+	sessioned := s.withSession(mux)
+
+	// The uptime monitor's probe creates no session: it would seed one every
+	// time it asked (client decision 58).
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			mux.ServeHTTP(w, r)
+
+			return
+		}
+
+		sessioned.ServeHTTP(w, r)
+	})
+}
+
+// health answers 200 when Postgres and the model server both answer, and 503
+// naming the one that did not.
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if err := s.app.Health(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+
+		return
+	}
+
+	_, _ = io.WriteString(w, "ok\n")
 }
 
 // withSession resolves the cookie into a session, creating and seeding one on a
@@ -115,6 +141,7 @@ func (s *Server) withSession(next http.Handler) http.Handler {
 				Value:    sessionID,
 				Path:     "/",
 				HttpOnly: true,
+				Secure:   s.app.Config.SecureCookies,
 				SameSite: http.SameSiteLaxMode,
 			})
 		}
@@ -222,6 +249,7 @@ func (s *Server) signIn(w http.ResponseWriter, r *http.Request) {
 		Value:    member.Reference,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.app.Config.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 

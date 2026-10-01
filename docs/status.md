@@ -25,3 +25,6 @@ Claude can propose a change and say why; it never makes one unilaterally.
   Slices 1 to 9 are complete.
   Remaining: nothing.
   Detail in [pending-tasks/client-ui-rebuild.md](pending-tasks/client-ui-rebuild.md).
+- **CaseWork hosting** — *In progress*.
+  Host CaseWork publicly at casework.happensbefore.com.
+  Detail in [pending-tasks/casework-hosting.md](pending-tasks/casework-hosting.md).

@@ -9,6 +9,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -25,6 +26,10 @@ type Config struct {
 	// deploy grows the database slowly, where the reverse deletes a local user's
 	// workflows overnight.
 	SessionTTL time.Duration
+	// SecureCookies sets the Secure flag on both cookies. Off by default because
+	// locally there is no HTTPS; set it where a proxy terminates TLS in front of
+	// CaseWork, which cannot tell from the connection that the visitor is on it.
+	SecureCookies bool
 	// LocalModelURL is the local model server's address. The default is where
 	// `make model` starts llama-server: port 8081, because 8080 is CaseWork's.
 	LocalModelURL string
@@ -53,6 +58,15 @@ func LoadConfig() (Config, error) {
 
 		config.SessionTTL = ttl
 	}
+
+	secure := environmentOr("CLIENT_SECURE_COOKIES", "false")
+
+	flag, err := strconv.ParseBool(secure)
+	if err != nil {
+		return Config{}, fmt.Errorf("CLIENT_SECURE_COOKIES: %w", err)
+	}
+
+	config.SecureCookies = flag
 
 	return config, nil
 }

@@ -169,8 +169,10 @@ func submitSeeded(
 func runOnce(t *testing.T, application *App, sessionID string, submission store.Submission, visitID uuid.UUID) {
 	t.Helper()
 
-	for len(application.Dispatcher.work) > 0 {
-		<-application.Dispatcher.work
+	for {
+		if _, found := application.Dispatcher.next(); !found {
+			break
+		}
 	}
 
 	application.Dispatcher.run(context.Background(), workItem{
@@ -254,8 +256,12 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 	// Other packages' tests share the database and may have agent work open, so
 	// the sweep's queue is searched for this session's visit rather than counted.
 	var found *workItem
-	for len(restarted.work) > 0 {
-		item := <-restarted.work
+	for {
+		item, more := restarted.next()
+		if !more {
+			break
+		}
+
 		if item.SessionID == sessionID {
 			found = &item
 		}
@@ -418,5 +424,47 @@ func TestFailedCallsRetryOrPark(t *testing.T) {
 
 	if name := stepName(t, application, submission); name != "fast-track review" {
 		t.Errorf("case is at %q, want fast-track review", name)
+	}
+}
+
+// A session with many calls waiting does not hold up one with a single call:
+// the worker takes one from each session in turn, and a session that arrives
+// late is served after the call in flight, not after everyone else's backlog.
+func TestWorkerTakesTurnsAcrossSessions(t *testing.T) {
+	dispatcher := NewDispatcher(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	for range 3 {
+		dispatcher.enqueue(workItem{SessionID: "busy", VisitID: uuid.New()})
+	}
+
+	dispatcher.enqueue(workItem{SessionID: "newcomer", VisitID: uuid.New()})
+
+	var order []string
+	for {
+		item, found := dispatcher.next()
+		if !found {
+			break
+		}
+
+		order = append(order, item.SessionID)
+	}
+
+	if got, want := strings.Join(order, ","), "busy,newcomer,busy,busy"; got != want {
+		t.Errorf("served %s, want %s", got, want)
+	}
+}
+
+// Dispatching a visit that is already waiting does not queue it twice.
+func TestEnqueueIgnoresAVisitAlreadyWaiting(t *testing.T) {
+	dispatcher := NewDispatcher(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	item := workItem{SessionID: "one", VisitID: uuid.New()}
+
+	dispatcher.enqueue(item)
+	dispatcher.enqueue(item)
+
+	dispatcher.next()
+
+	if _, found := dispatcher.next(); found {
+		t.Error("the visit was queued twice")
 	}
 }

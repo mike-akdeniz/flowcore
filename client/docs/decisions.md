@@ -2346,7 +2346,8 @@ The owner: *"keep it"*.
 **Decision.**
 The access log keeps full addresses for about 30 days, unmasked.
 The UI says nothing about logging.
-It carries one plain line that the model's accuracy is not the point of the demo.
+It carried one plain line that the model's accuracy is not the point of the demo, until the owner removed it while phase 1 was built: *"remove the ui line this is a demo completely, add a link to the flowcore repo with this text: casework is built with flowcore, add a license link that goes to the flowcore license"*.
+The foot of the navigation bar now says "Built with FlowCore", linking to the repository, and "License", linking to `LICENSE` on `main`.
 
 Nothing in this reached the library.
 

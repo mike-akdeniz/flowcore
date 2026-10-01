@@ -4,10 +4,10 @@ Host CaseWork at `https://casework.happensbefore.com`, so anyone can try it in a
 
 ## What this file is
 
-The plan for hosting CaseWork, proposed after the hosting interview of 2026-10-01.
+The agreed plan for hosting CaseWork, settled by the hosting interview of 2026-10-01.
 
-**Proposed — not yet [agreed].**
-Once the owner marks it agreed, the phases are binding: follow them in order, and stop and say so if the work suggests a different sequence or a phase turns out unnecessary.
+**The phases below are [agreed] and binding.**
+Follow them in order; if the work suggests a different sequence, or a phase turns out unnecessary, stop and say so rather than re-sequencing quietly.
 
 This file holds the plan only.
 Why each choice is what it is lives in [`client/docs/decisions.md`](../../client/docs/decisions.md), entries 50 to 60; it is not restated here.
@@ -33,8 +33,7 @@ Local, tested, no cloud.
   The guard against double dispatch, the sweep and parking unchanged.
 - `CLIENT_SECURE_COOKIES`, off by default, sets `Secure` on both cookies (decision 56).
 - `GET /healthz`, outside the session handling: 200 when Postgres pings and `llama-server` answers `GET /v1/models`, else 503 naming the failure (decision 58).
-- One plain line in the UI that the model's accuracy is not the point of the demo (decision 57).
-  Where it goes is a local call, shown to the owner.
+- At the foot of the navigation bar, a link to the FlowCore repository reading "Built with FlowCore" and a link to its license (decision 57; the owner replaced the earlier "accuracy is not the point" line).
 - The append-only migration rule is already written into the Makefile and README (decision 54); nothing further unless a migration is needed.
 
 Done when the tests cover turn-taking, the cookie flag and both health failures, and `make run` behaves as before with neither setting.

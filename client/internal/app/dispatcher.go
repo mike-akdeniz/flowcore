@@ -48,7 +48,9 @@ type workItem struct {
 type Dispatcher struct {
 	app    *App
 	logger *slog.Logger
-	work   chan workItem
+	// wake tells the worker there is something in the queues. One pending wake is
+	// as good as several: the worker drains until nothing is left.
+	wake chan struct{}
 	// nudge asks the sweep to run now rather than at its next tick — after a
 	// session chooses a model, say, so work waiting for one does not sit for
 	// another fifteen seconds.
@@ -58,6 +60,12 @@ type Dispatcher struct {
 	// response that opened it and once from the sweep below.
 	mutex  sync.Mutex
 	queued map[uuid.UUID]bool
+	// lanes holds each session's waiting work, and rotation the sessions that
+	// have any, in the order the worker will reach them (client decision 53).
+	// A session joins the back of the rotation when its lane first has work and
+	// leaves it when the lane empties.
+	lanes    map[string][]workItem
+	rotation []string
 	// attempts is what the dispatcher knows about each visit it has tried: a call
 	// in flight, or the last one's failure and the model it failed under. In
 	// memory, so a restart forgets it; that costs at most one repeated call.
@@ -74,9 +82,10 @@ func NewDispatcher(application *App, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
 		app:      application,
 		logger:   logger,
-		work:     make(chan workItem, 64),
+		wake:     make(chan struct{}, 1),
 		nudge:    make(chan struct{}, 1),
 		queued:   make(map[uuid.UUID]bool),
+		lanes:    make(map[string][]workItem),
 		attempts: make(map[uuid.UUID]attempt),
 	}
 }
@@ -84,7 +93,9 @@ func NewDispatcher(application *App, logger *slog.Logger) *Dispatcher {
 // Start runs one worker and a periodic sweep.
 //
 // One worker, not a pool: the demonstration gains nothing from throughput, and a
-// single consumer keeps the log readable.
+// single consumer keeps the log readable. It takes one call from each session in
+// turn, so a visitor with twenty cases waiting does not hold up one with a single
+// case.
 func (d *Dispatcher) Start(ctx context.Context) {
 	go d.consume(ctx)
 	go d.sweep(ctx)
@@ -117,16 +128,44 @@ func (d *Dispatcher) enqueue(item workItem) {
 	}
 
 	d.queued[item.VisitID] = true
+
+	if len(d.lanes[item.SessionID]) == 0 {
+		d.rotation = append(d.rotation, item.SessionID)
+	}
+
+	d.lanes[item.SessionID] = append(d.lanes[item.SessionID], item)
 	d.mutex.Unlock()
 
 	select {
-	case d.work <- item:
+	case d.wake <- struct{}{}:
 	default:
-		// A full queue means the worker is behind. Drop it rather than block a web
-		// request; the sweep will find it again.
-		d.forget(item.VisitID)
-		d.logger.Warn("dispatch queue full", "visit", item.VisitID)
 	}
+}
+
+// next takes the front call of the session whose turn it is, and sends that
+// session to the back of the rotation if it has more waiting.
+func (d *Dispatcher) next() (workItem, bool) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if len(d.rotation) == 0 {
+		return workItem{}, false
+	}
+
+	sessionID := d.rotation[0]
+	d.rotation = d.rotation[1:]
+
+	lane := d.lanes[sessionID]
+	item := lane[0]
+
+	if len(lane) == 1 {
+		delete(d.lanes, sessionID)
+	} else {
+		d.lanes[sessionID] = lane[1:]
+		d.rotation = append(d.rotation, sessionID)
+	}
+
+	return item, true
 }
 
 func (d *Dispatcher) forget(visitID uuid.UUID) {
@@ -137,12 +176,22 @@ func (d *Dispatcher) forget(visitID uuid.UUID) {
 
 func (d *Dispatcher) consume(ctx context.Context) {
 	for {
-		select {
-		case <-ctx.Done():
+		item, found := d.next()
+		if !found {
+			select {
+			case <-ctx.Done():
+				return
+			case <-d.wake:
+			}
+
+			continue
+		}
+
+		d.run(ctx, item)
+		d.forget(item.VisitID)
+
+		if ctx.Err() != nil {
 			return
-		case item := <-d.work:
-			d.run(ctx, item)
-			d.forget(item.VisitID)
 		}
 	}
 }

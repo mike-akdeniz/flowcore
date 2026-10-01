@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
+  Anchor,
   AppShell,
   Burger,
   Button,
@@ -134,6 +135,23 @@ export function Shell({
             {item.label}
           </Button>
         ))}
+
+        {/* Where the library behind the demo lives, and the terms it is under.
+            mt="auto" keeps it at the foot of the bar, out of the way of the work. */}
+        <Text size="xs" c="dimmed" mt="auto" p="xs">
+          <Anchor href="https://github.com/mike-akdeniz/flowcore" target="_blank" rel="noreferrer" inherit>
+            Built with FlowCore
+          </Anchor>
+          <br />
+          <Anchor
+            href="https://github.com/mike-akdeniz/flowcore/blob/main/LICENSE"
+            target="_blank"
+            rel="noreferrer"
+            inherit
+          >
+            License
+          </Anchor>
+        </Text>
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>
