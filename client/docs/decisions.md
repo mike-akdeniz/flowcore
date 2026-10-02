@@ -2446,6 +2446,12 @@ There it built the host; a Linux arm64 CaseWork binary copied in and restarted b
 The x64 tarball the script uses was downloaded and its hash matches the one pinned.
 What has not run: the firewall, the clock, the x64 `llama-server` binary, the `deploy` user's SSH login, and a real boot as a launch script.
 Those are first exercised when the instance is created.
+The first real boot failed at once: Lightsail runs a launch script with `sh`, which is dash on Ubuntu and has no `pipefail`, whatever the first line says, and the container test had called `bash` explicitly.
+The script now re-runs itself under bash when it is not in it, and the guard was checked under dash.
+The second boot failed at `sshd -t` with `Missing privilege separation directory: /run/sshd`: sshd starts on demand on Ubuntu 24.04, so its runtime directory does not exist until the first connection.
+The container test had hit the same error and been given a `mkdir -p /run/sshd` in its harness, which hid a bug in the script as a quirk of the container.
+The script now creates the directory itself, and the container test, with that workaround removed, runs the script with `sh` as Lightsail does.
+Anything a test harness had to be given to make the script pass is a defect in the script until shown otherwise.
 
 Nothing in this reached the library.
 
@@ -2462,8 +2468,13 @@ Editing `setup.sh` replaces the instance, which is what decision 55 means by a h
 **What was checked.**
 `tofu fmt` and `tofu validate` pass.
 No plan or apply has run: they need the owner's credentials, and creating a resource is the owner's call.
-`medium_3_0` is from memory of Lightsail's bundle names, not confirmed; `aws lightsail get-bundles` lists the real ones, and a wrong id fails the first plan or apply, not silently.
+`medium_3_0` was written from memory and then confirmed with `aws lightsail get-bundles` on 2026-10-01: Linux, $24, 2 vCPUs, 80 GB, 4,096 GB of transfer.
+`ubuntu_24_04` is an active blueprint and `us-east-2a` exists.
 The "done when" of phase 3, a `tofu apply` from nothing and a destroy-and-apply again, is the owner's to run.
+The first apply failed because the static IP and the instance were both named `casework`: Lightsail names are unique across resource types, which `validate` cannot see.
+The static IP is now `casework-ip`.
+Replacing the instance, to rerun a failed setup script, detached the static IP, and OpenTofu did not recreate the attachment, because the instance kept its name.
+The attachment now has `replace_triggered_by` the instance, so a replaced instance always gets its address back.
 
 Nothing in this reached the library.
 

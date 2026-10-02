@@ -7,6 +7,12 @@
 # the deploy pipeline, and the unit starts as soon as one is there. Lightsail
 # caps a launch script at 16 KB, so comments here are short and the reasons live
 # in client/docs/decisions.md, entries 50 to 60.
+# Lightsail runs a launch script with sh, which is dash on Ubuntu and has no
+# pipefail, whatever the first line says. Run again under bash if this is not it.
+if [ -z "${BASH_VERSION:-}" ]; then
+	exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
@@ -67,6 +73,9 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
 EOF
+# sshd starts on demand on Ubuntu 24.04, so its runtime directory may not exist
+# yet, and the syntax check needs it.
+install -d /run/sshd
 sshd -t
 systemctl try-reload-or-restart ssh
 

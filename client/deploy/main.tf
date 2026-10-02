@@ -50,12 +50,20 @@ resource "aws_lightsail_instance" "casework" {
 
 # A static address, so the name keeps pointing at the host across a restart.
 resource "aws_lightsail_static_ip" "casework" {
-  name = "casework"
+  # Not "casework": Lightsail names are unique across resource types, so the
+  # instance's name would collide with it.
+  name = "casework-ip"
 }
 
 resource "aws_lightsail_static_ip_attachment" "casework" {
   static_ip_name = aws_lightsail_static_ip.casework.name
   instance_name  = aws_lightsail_instance.casework.name
+
+  # The instance keeps its name when it is replaced, so nothing else tells
+  # OpenTofu the attachment went with the old one.
+  lifecycle {
+    replace_triggered_by = [aws_lightsail_instance.casework]
+  }
 }
 
 # Lightsail's own firewall, in front of the host's: 22, 80 and 443.
