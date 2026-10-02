@@ -148,6 +148,57 @@ docs/                   system-design.md says what it is; decisions.md says why
 `internal/app` is where to look first. Everything in it exists because FlowCore deliberately does
 not do it.
 
+## Hosting
+
+CaseWork runs at <https://casework.happensbefore.com>: one AWS Lightsail instance (4 GB, Ubuntu
+24.04, us-east-2) running Postgres, `llama-server` with Gemma 3 270M, CaseWork itself, and Caddy
+in front for TLS. There is no Anthropic key on it, so the hosted demo uses the local model only.
+Why each choice was made is in [docs/decisions.md](docs/decisions.md), entries 50 to 63.
+
+The host is disposable: it keeps no backups, and visitors' cases expire after 24 idle hours.
+Everything on it comes from [deploy/setup.sh](deploy/setup.sh), which Lightsail runs once at first
+boot, and from the pipeline's deploys.
+
+**Rebuild it.** [deploy/main.tf](deploy/main.tf) declares the instance, its static address, the
+firewall and the DNS record. You apply it from your own machine; the state stays there, and
+nothing in GitHub can create cloud resources. It needs credentials in the environment, and two
+variables in a `deploy/terraform.tfvars` that git ignores:
+
+```
+deploy_public_key  = "ssh-ed25519 AAAA… casework-deploy"
+cloudflare_zone_id = "<the zone id of happensbefore.com>"
+```
+
+```sh
+export AWS_PROFILE=<a profile that can use Lightsail>
+export CLOUDFLARE_API_TOKEN=<a token with DNS edit on that zone>
+cd deploy
+tofu init
+tofu apply
+tofu apply -replace=aws_lightsail_instance.casework   # to start again from a blank instance
+```
+
+A new instance has no CaseWork binary yet, so deploy straight after. Setup takes a few minutes;
+`/healthz` answers once the first deploy is done. If setup fails, the log is
+`/var/log/cloud-init-output.log`, readable by the `ubuntu` user through the Lightsail console's
+browser SSH button.
+
+**Deploy.** The `deploy` workflow tests `main`, builds a Linux binary, copies it to the host, and
+restarts the service, then checks `/healthz`. It runs by hand only: `gh workflow run deploy`. It
+needs two repository secrets, `DEPLOY_SSH_KEY` (the private half of the deploy key) and
+`DEPLOY_HOST` (the host's address). The tests alone run on every push.
+
+**Roll back.** Each deploy keeps the binary it replaced. On the host, as the `deploy` user:
+
+```sh
+cd /opt/casework && mv -f casework.previous casework && sudo systemctl restart casework
+```
+
+CaseWork's migrations only ever add, so the previous binary runs against the newer schema.
+
+**Look at it.** `/healthz` is what the uptime monitor probes. The Caddy access log, with full
+client addresses and any `?from=` tag, is `/var/log/caddy/access.log`, kept 60 days.
+
 ## What this is not
 
 Authentication is faked and there is no user management: sign-in is a choice from the seeded cast,

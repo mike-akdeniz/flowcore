@@ -2369,6 +2369,10 @@ The owner: *"A"*.
 
 The monitor defaults to UptimeRobot's free plan, checking every five minutes and alerting by email, with its current terms checked against a portfolio demo when it is set up.
 
+It was set up on 2026-10-01 and shows green.
+The terms checked then: *"UptimeRobot is available for any use, including commercial and business use"*, and the Free plan, 50 monitors at a five-minute interval with email alerts, is described as *"good for hobby and non-profit projects"*; the terms let UptimeRobot end access at any time without notice, which costs nothing here beyond replacing the monitor.
+The probe adds about 288 lines a day to the access log under an `UptimeRobot` user agent, to be filtered out when counting visits.
+
 **Not done.**
 Scanners probing `/` will seed sessions too.
 Each is a handful of inserts that expires within a day, so how sessions start is left as it is.
@@ -2497,5 +2501,20 @@ Pinning the host key as a third secret closes it, at the cost of updating the se
 **What was checked.**
 Both files parse as YAML, and the test steps were run by hand against a blank database in the same order: both goose migrations, `go vet`, the CaseWork tests and the FlowCore tests all pass.
 Neither workflow has run on GitHub; the first push runs `test`, and `deploy` needs the host and the two secrets.
+
+Nothing in this reached the library.
+
+## 64. The hosted agent step, measured
+
+*Recorded while going live; no interview.*
+
+The plan asked for the agent step's speed on the instance, to confirm one slot and one worker hold up (decision 50).
+The owner, working a case on the live site: *"Two agent steps stacked took around 12 seconds, it didn't feel slow to me."*
+A second run of the same two steps took 8 seconds in total, so four seconds a step once the model was warm.
+That is four to six seconds a step with Gemma 3 270M on the 2 vCPU instance, for one visitor.
+The first deploy used about 650 MB of the 3.8 GB with the model loaded.
+
+This does not test two visitors at once, or a burst after the instance's CPU credits are spent, which is where the 20% baseline of decision 50 would show.
+Turn-taking across sessions (decision 53) is covered by a test and has not been seen on the live host.
 
 Nothing in this reached the library.
