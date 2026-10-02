@@ -2448,3 +2448,21 @@ What has not run: the firewall, the clock, the x64 `llama-server` binary, the `d
 Those are first exercised when the instance is created.
 
 Nothing in this reached the library.
+
+## 62. The infrastructure files, and what was checked
+
+*Local implementation decisions made while building phase 3 of the hosting plan; no interview.*
+
+**Choices.**
+`client/deploy/main.tf` declares the Lightsail instance (Ubuntu 24.04, bundle `medium_3_0`, us-east-2a) with `setup.sh` as its launch script, a static address and its attachment, Lightsail's firewall on 22, 80 and 443, and the DNS-only Cloudflare `A` record, 300 seconds.
+The deploy public key and the Cloudflare zone id are variables, the owner's to supply at apply time; credentials come from the environment.
+The providers are pinned to major versions, and the lock file is committed; `.terraform/`, state and `*.tfvars` are gitignored.
+Editing `setup.sh` replaces the instance, which is what decision 55 means by a host that is rebuilt rather than mended.
+
+**What was checked.**
+`tofu fmt` and `tofu validate` pass.
+No plan or apply has run: they need the owner's credentials, and creating a resource is the owner's call.
+`medium_3_0` is from memory of Lightsail's bundle names, not confirmed; `aws lightsail get-bundles` lists the real ones, and a wrong id fails the first plan or apply, not silently.
+The "done when" of phase 3, a `tofu apply` from nothing and a destroy-and-apply again, is the owner's to run.
+
+Nothing in this reached the library.

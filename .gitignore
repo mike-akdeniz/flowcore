@@ -21,3 +21,10 @@ coverage.*
 # Editor
 .vscode/*
 !.vscode/settings.json
+
+# OpenTofu state and plugins stay on the owner's machine (client decision 51);
+# the lock file does not, so providers are pinned.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
