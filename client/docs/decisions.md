@@ -2466,3 +2466,25 @@ No plan or apply has run: they need the owner's credentials, and creating a reso
 The "done when" of phase 3, a `tofu apply` from nothing and a destroy-and-apply again, is the owner's to run.
 
 Nothing in this reached the library.
+
+## 63. The pipeline, and what was checked
+
+*Local implementation decisions made while building phase 4 of the hosting plan; no interview.*
+
+**Choices.**
+`.github/workflows/test.yml` runs on every push and as a reusable workflow: the FlowCore tests with `make test`, and the CaseWork tests after goose applies both schemas to a blank Postgres, since the binary does that at start and the tests expect it done.
+`deploy.yml` is `workflow_dispatch` only, refuses to run from any ref but `main`, calls `test.yml`, then builds a Linux amd64 binary, copies it to `casework.new`, keeps the old one as `casework.previous`, renames the new one into place, restarts the service and checks `https://casework.happensbefore.com/healthz`, retrying for about a minute.
+The rename makes the swap atomic, so the service never starts a half-copied file.
+There is no automatic rollback; a failed health check fails the run, and rolling back is renaming `casework.previous` back and restarting.
+The secrets are `DEPLOY_SSH_KEY` and `DEPLOY_HOST`.
+
+**A weakness, accepted.**
+The host's key is fetched with `ssh-keyscan` on each deploy rather than pinned, because a rebuilt host has a new key and the plan allows only the two secrets.
+An attacker able to intercept the runner's connection to the host could present their own key and receive the binary; that is a network position GitHub's runners are not normally exposed to, and the key authorises only the `deploy` user.
+Pinning the host key as a third secret closes it, at the cost of updating the secret after each rebuild.
+
+**What was checked.**
+Both files parse as YAML, and the test steps were run by hand against a blank database in the same order: both goose migrations, `go vet`, the CaseWork tests and the FlowCore tests all pass.
+Neither workflow has run on GitHub; the first push runs `test`, and `deploy` needs the host and the two secrets.
+
+Nothing in this reached the library.

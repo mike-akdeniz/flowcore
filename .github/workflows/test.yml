@@ -1,0 +1,82 @@
+# Runs the FlowCore and CaseWork tests against real Postgres. On every push it is
+# a warning and deploys nothing; the deploy workflow calls it too, so a deploy
+# tests again first (client decision 59).
+name: test
+
+on:
+  push:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  GOOSE: github.com/pressly/goose/v3/cmd/goose@v3.27.3
+  DSN: postgres://flowcore:flowcore@localhost:5432/flowcore_test?sslmode=disable
+
+jobs:
+  library:
+    name: FlowCore
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: flowcore
+          POSTGRES_PASSWORD: flowcore
+          POSTGRES_DB: flowcore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowcore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go install "$GOOSE"
+      - run: make test FLOWCORE_TEST_DSN="$DSN"
+
+  casework:
+    name: CaseWork
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: flowcore
+          POSTGRES_PASSWORD: flowcore
+          POSTGRES_DB: flowcore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowcore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: client/go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/web/package-lock.json
+      - run: go install "$GOOSE"
+      # CaseWork's tests want both schemas already applied, as the binary
+      # applies them at start; goose does it here, with each one's own table.
+      - run: |
+          goose -dir migrations -table public.flowcore_goose_db_version postgres "$DSN" up
+          goose -dir client/internal/store/migrations -table public.casework_goose_db_version postgres "$DSN" up
+      # The binary embeds web/dist, so the package does not compile without it.
+      - run: npm ci && npm run build
+        working-directory: client/web
+      - run: go vet ./... && go test ./... -count=1
+        working-directory: client
+        env:
+          CASEWORK_TEST_DSN: ${{ env.DSN }}

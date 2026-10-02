@@ -1,0 +1,67 @@
+# Deploys main to the CaseWork host, by hand: from the Actions tab, or
+# `gh workflow run deploy` (client decision 59). It tests again first, builds
+# the binary, copies it beside the running one, restarts the service and checks
+# /healthz. The secrets are the deploy key and the host's address, and nothing
+# that could create cloud resources (decision 51).
+name: deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: deploy
+
+jobs:
+  test:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/test.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: client/go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/web/package-lock.json
+
+      - run: npm ci && npm run build
+        working-directory: client/web
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o casework .
+        working-directory: client
+
+      - name: Trust the host and load the key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -t ed25519 "$HOST" >> ~/.ssh/known_hosts
+
+      # The old binary stays as casework.previous: rolling back is a rename and
+      # a restart. Copying beside the running one and renaming means the swap is
+      # atomic, so the service never starts a half-copied file.
+      - name: Copy and restart
+        run: |
+          scp -i ~/.ssh/id_deploy client/casework "deploy@$HOST:/opt/casework/casework.new"
+          ssh -i ~/.ssh/id_deploy "deploy@$HOST" '
+            set -e
+            cd /opt/casework
+            chmod +x casework.new
+            if [ -f casework ]; then cp -p casework casework.previous; fi
+            mv casework.new casework
+            sudo systemctl restart casework
+          '
+
+      - name: Check it came up
+        run: curl -fsS --retry 15 --retry-delay 4 --retry-connrefused https://casework.happensbefore.com/healthz
