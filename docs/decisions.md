@@ -1962,3 +1962,26 @@ The recommendation was an optional `StartParams.Validate func(ctx context.Contex
 Its costs are an additive field on `StartParams` and client code running while the transaction holds a pooled connection.
 The alternative was optimistic: pass a definition version to `Start` and refuse when it changed, avoiding client code inside the transaction at the price of a single-purpose token and a client retry.
 The owner took the recommendation: *"your recommendation"*.
+
+## 48. A running step's actions say which definition action they came from
+
+*Settled by interview, 2026-10-02.*
+
+**The caller.**
+CaseWork's replay (client decision 69) plays a recorded agent answer on a seeded step, and has to find the recorded action among the step's actions.
+`CurrentStep` already returns its `StepDefinitionID` (decision 45), so the step is found by id; `Action` returns only the snapshot action's `ID`, fresh in every run, and its frozen `Name`.
+Matching by name breaks when an editor renames the action, which CaseWork's editor already does.
+
+**The question the owner asked first.**
+*"Does the change make sense for the library? I mean does that look like a hack in the library because we needed for this special case for the demo or is it really something that many clients can need from the library and doesn't look odd?"*
+Claude's answer: it is the other half of a pattern already settled.
+Decision 24 records `action_definition_id` on every snapshot action for the reason that rename is the lossy event, and decision 45 exposed the step's equivalent once a caller hung metadata on steps, after first keying by name until the editor was about to ship renames — the condition already present here.
+Clients hang behaviour on actions as often as on steps: a side effect on `settle`, a role allowed to `decline`, a remark required on `refer`, a destructive action drawn in red, a count of declines across a rename.
+A replay-shaped field or hook would be the hack; a definition id beside the snapshot id, as on `CurrentStep`, is not.
+The caveat said plainly: the first caller is a demo feature, and the library's test is that a caller exists, not how important it is.
+The owner: *"your recommendation"*.
+
+**The change.**
+`Action` gains `ActionDefinitionID`, filled from `flowcore.action.action_definition_id`, which every snapshot action has carried since 00003.
+Additive to the public API; no migration.
+Only the actions on `CurrentStep` carry it, following decision 45: history and worklist reads gain it when something reads it there.

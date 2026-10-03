@@ -205,6 +205,7 @@ _Step Visit_
 
 The snapshot step, not the definition step, answers what instruction and input types applied to a run.
 `CurrentStep` exposes both, and historical visit reads expose the frozen required input type IDs needed to explain a completed decision.
+`CurrentStep` also says which definition step it was copied from, and each of its actions which definition action, so a client can hang its own configuration on either and keep it through a rename; history and worklist reads do not carry these until a caller needs them there.
 An action's selected immediate destination can be read from the instance snapshot before completion, including that destination's assignee and required input type IDs.
 The library does not decide which references name agents or which inputs exist: the client makes those decisions.
 

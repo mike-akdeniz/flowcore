@@ -2700,9 +2700,19 @@ The owner: *"your recommendation"*.
 Claude recommended that changing a seeded case's documents take it out of the replay, so a replayed finding could never describe a superseded document.
 The owner: *"I'm leaning on 3. What you are missing is that we are transparent compared to previous local model failure: this is a replay. A person just playing with documents shouldn't just lose the replay. Replay is always there, unless you delete the agent step from the seeded workflow."*
 Settled: a seeded case's agent step replays for as long as that step exists in the seeded workflow, whatever is on file and however its instructions are edited.
-Claude added that each replayed finding be signed "— Claude Sonnet 5.5 (replay)", carrying the disclosure to wherever the finding is read; it is in the plan for the owner's review.
+Claude added that each replayed finding be signed "— Claude Sonnet 5.5 (replay)", carrying the disclosure to wherever the finding is read.
+The owner kept the signature and dropped the version: *"let's drop "Sonnet 5.5" because models become obsolete and forgottne in months"*; it reads "— Claude (replay)".
+The random path's wording Claude drafted, "This step is not part of the replay, so *action* was chosen at random. Set ANTHROPIC_API_KEY and choose a model to run it live.", replaced the owner's "Anthropic key not set", which would be false locally with a key set and Replay chosen; the owner: *"Your random path's wording is ok."*
 
 **Not settled here.**
 A smaller Lightsail instance, now that the host runs no model, is a separate cost decision.
 
-Nothing in this reached the library: FlowCore already returns the `StepDefinitionID` a run's current step was copied from, which is what identifies a seeded step.
+**Matching the recorded action by id.**
+The plan first matched a recorded action by name, falling back to a random draw when none matched.
+The owner: *"A small fallback: you said we could match by id, if so we shouldn't need that."*
+Claude found that FlowCore returns a step's definition id but not an action's: `Action` carries only its per-run snapshot `ID` and `Name`.
+Claude recommended FlowCore return it, and the owner, having asked whether that would be a demo hack in the library, took the recommendation; the reasoning is FlowCore decision 48.
+The fallback narrows to a recorded action deleted from its step.
+
+This reached the library once: FlowCore decision 48, `Action.ActionDefinitionID`.
+FlowCore already returned the `StepDefinitionID` a run's current step was copied from, which is what identifies a seeded step.

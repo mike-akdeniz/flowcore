@@ -28,3 +28,6 @@ Claude can propose a change and say why; it never makes one unilaterally.
 - **CaseWork hosting** — *Complete*.
   Host CaseWork publicly at casework.happensbefore.com.
   Detail in [pending-tasks/casework-hosting.md](pending-tasks/casework-hosting.md).
+- **CaseWork replay** — *Not started*.
+  Replace the local model with replays of recorded Sonnet calls on the seeded cases.
+  Detail in [pending-tasks/casework-replay.md](pending-tasks/casework-replay.md).

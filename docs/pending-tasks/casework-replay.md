@@ -19,7 +19,7 @@ State lives in [status](../status.md).
   On the host, Replay is preselected and the picker cannot be changed.
 - While Replay is the session's model, a banner after "CaseWork" in the header reads: "Agents in this demo are replays of previous model calls. To test with real-time calls, clone FlowCore and use your own API key."
 - On the seeded cases, C-1042 and P-2087, each agent step of the seeded workflow plays its recorded Sonnet answer: the same action and finding every time, whatever is on file, for as long as that step exists in the seeded workflow.
-  The finding is signed "— Claude Sonnet 5.5 (replay)".
+  The finding is signed "— Claude (replay)".
 - Any other agent step under Replay — another case, a step added in the editor, a workflow a visitor built — chooses one of its actions at random, and its finding says so.
 - The recorded paths: C-1042 through triage to `full assessment`, narrative consistency to `inconsistent`, and the fraud referral; P-2087 through risk screen to `refer` and the senior underwriter.
 - No local model anywhere: not in the code, the Makefile, or on the host.
@@ -56,13 +56,15 @@ Done when CaseWork builds, runs and passes its tests with no model server on the
 
 ### 3 — The replay
 
-- At seeding, CaseWork records which step definitions are the seeded workflows' agent steps, against the name of the recording each one plays — a small CaseWork table, added by an append-only migration.
+- First, in FlowCore: `Action` gains `ActionDefinitionID` (FlowCore decision 48), with a test that a running step's actions carry their definition ids.
+- At seeding, CaseWork records which step definitions are the seeded workflows' agent steps, against the recording each one plays and the definition id of its recorded action — a small CaseWork table, added by an append-only migration.
 - A replay backend named `replay` with one model, labelled **Replay**.
   It decides a visit from the case and the run's `CurrentStep.StepDefinitionID`: a seeded case on a recorded step plays its recording; anything else draws an action at random.
 - The recordings live in a JSON file embedded in the binary: per case and step, the action, the finding, and the model that gave it.
-- A recorded action is matched by name to the step's actions, as a live answer is; a recording naming an action the step no longer offers falls back to a random draw, said so in the finding.
-- The random path's finding: "This step is not part of the replay, so *action* was chosen at random. Set ANTHROPIC_API_KEY and choose a model to run it live." — final wording for the owner to review.
-- Tests with a fake recordings file: the seeded path replays, a visitor's own claim and an added agent step draw at random, and editing a seeded step's instructions keeps its replay.
+- At seeding, the recorded action is noted by its definition id too, and matched by that id among the running step's actions, so a renamed action keeps its replay.
+  A recorded action deleted from the seeded step leaves nothing to play, and the step draws at random, said so in the finding.
+- The random path's finding: "This step is not part of the replay, so *action* was chosen at random. Set ANTHROPIC_API_KEY and choose a model to run it live."
+- Tests with a fake recordings file: the seeded path replays, a visitor's own claim and an added agent step draw at random, and editing a seeded step's instructions or renaming its recorded action keeps its replay.
 
 Done when both seeded cases run their recorded paths end to end from a fake recordings file.
 
