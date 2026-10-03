@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Select } from "@mantine/core";
-import { api, type Models } from "./api";
+import { Select, type ComboboxItem, type ComboboxItemGroup } from "@mantine/core";
+import { api, type ModelOption, type Models } from "./api";
 
 // Which model decides agent steps, for this session.
 //
-// It lists whatever the backends offer right now — the local server's models,
-// and Anthropic's when a key is set — so there is no model id in the application
-// to go stale, and a retired model simply stops being offered (client decision
-// 40). The list is asked for again each time it opens, so starting the local
-// server shows up without a reload.
+// Replay first, on its own, then Anthropic's models under their own heading when
+// a key is set — whatever the API offers right now, so there is no model id in
+// the application to go stale, and a retired model simply stops being offered
+// (client decisions 40 and 69). Locally it starts empty; where the demo replays
+// only, Replay is chosen and the picker cannot change.
 export function ModelPicker({
   models,
   onChanged,
@@ -18,10 +18,13 @@ export function ModelPicker({
 }) {
   const [failure, setFailure] = useState<string>();
 
-  const data = (models?.groups ?? []).map((group) => ({
-    group: group.label,
-    items: group.models,
-  }));
+  const replayLabel = (option: ModelOption) => ({ ...option, label: `Model: ${option.label}` });
+
+  const data = (models?.groups ?? []).flatMap<ComboboxItem | ComboboxItemGroup<ComboboxItem>>((group) =>
+    group.backend === "replay"
+      ? group.models.map(replayLabel)
+      : [{ group: group.label, items: group.models }],
+  );
 
   // A chosen model that is not being offered still shows, marked, so the top
   // bar says what agent steps are waiting for.
@@ -54,6 +57,7 @@ export function ModelPicker({
       placeholder={nothingOffered ? "No model available" : "Choose a model"}
       data={data}
       value={models?.chosen?.value ?? null}
+      disabled={models?.locked}
       onChange={(value) => void choose(value)}
       onDropdownOpen={() => void api.models().then(onChanged)}
       allowDeselect={false}

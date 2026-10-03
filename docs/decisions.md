@@ -1985,3 +1985,28 @@ The owner: *"your recommendation"*.
 `Action` gains `ActionDefinitionID`, filled from `flowcore.action.action_definition_id`, which every snapshot action has carried since 00003.
 Additive to the public API; no migration.
 Only the actions on `CurrentStep` carry it, following decision 45: history and worklist reads gain it when something reads it there.
+
+## 49. A definition can be deleted together with its runs
+
+*Settled by interview, 2026-10-02.*
+
+**What was found.**
+Building the replay recorder, CaseWork needed to delete a scratch session as its janitor deletes an expired one, and the janitor's comment said deleting a session's definitions took their runs with them.
+It does not: decision 24 records a run's definition id with no foreign key, precisely so a run outlives its definition, and FlowCore offers no call that deletes a run.
+So every expired visitor session on the hosted demo leaves its runs, steps, actions and visits in `flowcore` for good.
+
+**The owner's call.**
+*"flowcore needs to offer a way to delete a workflow with all it's instances. That's a good library functionality. You think about the shape of the API."*
+
+**The shape.**
+Claude recommended one new call, `Catalog.DeleteWorkflowDefinitionWithInstances(ctx, id) error`, deleting the definition and every run started from it, open or finished, in one transaction.
+Open runs are included without refusal: the caller is asking to discard the work, and an expired session has open runs, so a refusal would make the janitor's job impossible without first completing everything.
+`DeleteWorkflowDefinition` is unchanged — the definition alone, its runs kept as history — so decision 24's default stands and destruction is opted into by a separately named call, never reached by accident.
+It sits on the `Catalog` beside the existing delete, because the definition is what is being deleted and the runs go because of it.
+The owner: *"your recommendation for both"*.
+
+**Cost and limits.**
+An additive public call; no migration, since every instance table already cascades from `flowcore.workflow`.
+It returns `NotFoundError` for an unknown definition, as `DeleteWorkflowDefinition` does, and deletes nothing in that case.
+A run started concurrently with the delete can survive it: `Start` takes no lock on the definition it copies, and adding one is the locking this library defers until something needs it (CLAUDE.md).
+The caller in view deletes sessions nobody is using, where no run can be starting.

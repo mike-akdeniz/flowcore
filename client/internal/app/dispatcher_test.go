@@ -105,12 +105,7 @@ func seededTestApp(t *testing.T, recordings Recordings, backends ...Backend) (*A
 		}
 
 		for _, workflow := range registered {
-			if _, err := pool.Exec(ctx, `delete from flowcore.workflow where workflow_definition_id = $1`,
-				workflow.FlowcoreDefinitionID); err != nil {
-				t.Error(err)
-			}
-
-			if err := application.Catalog.DeleteWorkflowDefinition(ctx, workflow.FlowcoreDefinitionID); err != nil {
+			if err := application.Catalog.DeleteWorkflowDefinitionWithInstances(ctx, workflow.FlowcoreDefinitionID); err != nil {
 				t.Error(err)
 			}
 		}
@@ -231,6 +226,10 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 	application, sessionID := dispatcherTestApp(t, backend)
 	ctx := context.Background()
 
+	if err := application.ChooseModel(ctx, sessionID, ModelChoice{Backend: "fake", Model: "only"}); err != nil {
+		t.Fatal(err)
+	}
+
 	submission, _ := submitSeededClaim(t, application, sessionID)
 
 	definition, err := application.Catalog.Get(ctx, *submission.FlowcoreDefinitionID)
@@ -290,8 +289,7 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 		t.Errorf("the model was told %q, want the frozen instructions %q", backend.questions[0].System, original)
 	}
 
-	// The only model offered is used without being chosen, and the finding is
-	// signed with it.
+	// The chosen model decided, and the finding is signed with it.
 	if name := stepName(t, application, submission); name != "narrative consistency" {
 		t.Errorf("after the agent decided, the case is at %q, want narrative consistency", name)
 	}

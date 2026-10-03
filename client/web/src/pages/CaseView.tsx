@@ -32,6 +32,7 @@ import { DocumentDrawer } from "../case/DocumentDrawer";
 // screen in slice 4 and discarding this one.
 export function CaseView({
   model,
+  replaying,
   identity,
   roster,
   demoSwitcher,
@@ -41,6 +42,8 @@ export function CaseView({
   // The model that will decide this session's agent steps, if one is chosen and
   // available.
   model: string | null;
+  // Whether that model is Replay, which the History says beside its findings.
+  replaying: boolean;
   identity: Staff;
   roster: Staff[];
   demoSwitcher: boolean;
@@ -79,17 +82,17 @@ export function CaseView({
   //
   // Submitting returns as soon as the run reaches its first step, because the
   // dispatcher works off the request — so the response is already stale by
-  // design. Quickly while the agent is working, which on a local model is about
-  // a second; slowly while it waits on something a person has to do — choose a
-  // model, start the model server — since nothing will change until they do. A
-  // case waiting on a person polls nothing at all.
+  // design. Quickly while the agent is working, which under Replay is at once
+  // and on a live model a few seconds; slowly while it waits on something a
+  // person has to do — choose a model — since nothing will change until they
+  // do. A case waiting on a person polls nothing at all.
   const agent = subject?.currentStep?.agent ?? null;
   const pollEvery = agent ? (agentIsWorking(agent) ? 1500 : 5000) : null;
   const loadRef = useRef(load);
   loadRef.current = load;
 
-  // Choosing a model puts the waiting step to work at once on the server, and a
-  // local model decides in about a second. Waiting for the slow poll used to
+  // Choosing a model puts the waiting step to work at once on the server, and
+  // Replay decides immediately. Waiting for the slow poll used to
   // miss all of it: the screen showed "choose a model" and then, a few seconds
   // later, the finished step, with no spinner between. Show the step as running
   // from the moment the model changes, hold that for the minimum the spinner is
@@ -220,7 +223,7 @@ export function CaseView({
 
       {/* History before the documents: the agent's finding is what a person
           reads before deciding, so it sits next to the decision. */}
-      <History subject={subject} onOpenDocument={setDocumentId} />
+      <History subject={subject} replaying={replaying} onOpenDocument={setDocumentId} />
 
       <Documents
         subject={subject}
@@ -281,7 +284,7 @@ function canActAs(identity: Staff, assignee: string) {
 
 // What an agent step is waiting on, and what would move it (client decision 40).
 // One line per state, because each has a different answer to "what do I do":
-// wait, choose a model, start the server, or choose another model or reassign.
+// wait, choose a model, or choose another model or reassign.
 function agentLine(
   agent: AgentStatus,
   missingDocuments: boolean,
@@ -311,8 +314,8 @@ function agentLine(
     case "unavailable":
       return {
         text: agent.detail
-          ? `${agent.detail} is not available. Start the local model server with make model, or choose another model in the top bar.`
-          : "No model is available. Start the local model server with make model, or set ANTHROPIC_API_KEY and restart.",
+          ? `${agent.detail} is not available. Choose another model in the top bar.`
+          : "No model is available. Choose Replay in the top bar, or set ANTHROPIC_API_KEY and restart.",
         severity: "warning",
       };
     case "parked":

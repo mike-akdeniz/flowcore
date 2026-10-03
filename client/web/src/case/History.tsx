@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Anchor, Badge, Card, Group, Stack, Text, Timeline } from "@mantine/core";
+import { Anchor, Badge, Card, Code, Group, Stack, Text, Timeline } from "@mantine/core";
 import type { Case, Visit } from "../api";
 
 // How long a decision that has just been recorded stays highlighted.
@@ -26,8 +26,11 @@ function ageOf(visit: Visit) {
 // visit stamped. The server derives them, so the rule lives in one place rather
 // than being reimplemented here in TypeScript. They are what a decision depended
 // on, not a claim about what anyone opened.
-export function History({ subject, onOpenDocument }: {
+export function History({ subject, replaying, onOpenDocument }: {
   subject: Case;
+  // Whether the session's model is Replay. Said here, beside the findings it
+  // explains, rather than on every page (client decision 69).
+  replaying: boolean;
   onOpenDocument: (documentId: string) => void;
 }) {
   // Re-render once the freshest decision has aged out, so the highlight fades
@@ -52,7 +55,23 @@ export function History({ subject, onOpenDocument }: {
   return (
     <Card withBorder padding="md">
       <Stack gap="sm">
-        <Text fw={500}>History</Text>
+        <Group gap="md" wrap="nowrap" align="baseline">
+          <Text fw={500}>History</Text>
+          {replaying && (
+            <Text size="xs" c="dimmed">
+              <Code>Model:Replay</Code> returns pre-recorded model outputs. For live calls run{" "}
+              <Anchor
+                href="https://github.com/mike-akdeniz/flowcore"
+                target="_blank"
+                rel="noreferrer"
+                inherit
+              >
+                FlowCore
+              </Anchor>{" "}
+              locally.
+            </Text>
+          )}
+        </Group>
 
         <Timeline
           active={subject.history.length}

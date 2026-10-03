@@ -30,6 +30,10 @@ type Config struct {
 	// locally there is no HTTPS; set it where a proxy terminates TLS in front of
 	// CaseWork, which cannot tell from the connection that the visitor is on it.
 	SecureCookies bool
+	// ReplayOnly is the hosted demo's setting: Replay is the only model, chosen
+	// for every session, and the picker cannot change it — even with a key set
+	// (client decision 69).
+	ReplayOnly bool
 	// AnthropicAPIKey, when set, adds Anthropic's models to the ones a session
 	// can choose from.
 	AnthropicAPIKey string
@@ -63,6 +67,13 @@ func LoadConfig() (Config, error) {
 	}
 
 	config.SecureCookies = flag
+
+	replayOnly, err := strconv.ParseBool(environmentOr("CLIENT_REPLAY_ONLY", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("CLIENT_REPLAY_ONLY: %w", err)
+	}
+
+	config.ReplayOnly = replayOnly
 
 	return config, nil
 }

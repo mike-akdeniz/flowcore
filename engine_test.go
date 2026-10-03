@@ -848,3 +848,96 @@ func TestCompleteIsSafeUnderConcurrency(t *testing.T) {
 		t.Errorf("history has %d visits, want 2 — the loser must not have advanced the run", len(history))
 	}
 }
+
+// Deleting a definition with its instances takes every run started from it,
+// open or finished, and nothing else; the plain delete still keeps runs as
+// history (decision 49).
+func TestDeleteWorkflowDefinitionWithInstances(t *testing.T) {
+	engine, catalog := newEngine(t)
+	ctx := context.Background()
+
+	runsOf := func(definitionID uuid.UUID) int {
+		t.Helper()
+
+		var count int
+		if err := testPool.QueryRow(ctx,
+			`select count(*) from flowcore.workflow where workflow_definition_id = $1`, definitionID).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+
+		return count
+	}
+
+	doomed, _ := twoStepDefinition("expense approval")
+	mustCreate(t, catalog, doomed)
+
+	var finished WorkflowState
+	for _, subject := range []string{"doc-open", "doc-finished"} {
+		state, err := engine.Start(ctx, StartParams{WorkflowDefinitionID: doomed.ID, SubjectReference: subject})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		finished = state
+	}
+
+	var reject uuid.UUID
+	for _, action := range finished.CurrentStep.Actions {
+		if action.Name == "reject" {
+			reject = action.ID
+		}
+	}
+
+	if _, err := engine.CompleteStep(ctx, CompleteParams{
+		VisitID: finished.CurrentStep.VisitID, ActionID: reject, CompletedBy: "user:test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	bystander, _ := twoStepDefinition("leave request")
+	bystanderRun := startRun(t, engine, catalog, bystander, "doc-other")
+
+	kept, _ := twoStepDefinition("travel request")
+	startRun(t, engine, catalog, kept, "doc-kept")
+
+	if err := catalog.DeleteWorkflowDefinitionWithInstances(ctx, doomed.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	var notFound *NotFoundError
+	if _, err := catalog.Get(ctx, doomed.ID); !errors.As(err, &notFound) {
+		t.Errorf("Get after delete: %v, want NotFoundError", err)
+	}
+
+	if runs := runsOf(doomed.ID); runs != 0 {
+		t.Errorf("%d runs of the deleted definition remain, want none", runs)
+	}
+
+	var visits int
+	if err := testPool.QueryRow(ctx,
+		`select count(*) from flowcore.step_visit v join flowcore.workflow w on w.id = v.workflow_id
+		 where w.subject_reference in ('doc-open', 'doc-finished')`).Scan(&visits); err != nil {
+		t.Fatal(err)
+	}
+
+	if visits != 0 {
+		t.Errorf("%d visits of the deleted runs remain", visits)
+	}
+
+	if _, err := engine.GetState(ctx, bystanderRun.SubjectReference, bystander.ID); err != nil {
+		t.Errorf("another definition's run was touched: %v", err)
+	}
+
+	// The plain delete is unchanged: the definition goes, its run stays.
+	if err := catalog.DeleteWorkflowDefinition(ctx, kept.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if runs := runsOf(kept.ID); runs != 1 {
+		t.Errorf("DeleteWorkflowDefinition left %d runs, want its one run kept", runs)
+	}
+
+	if err := catalog.DeleteWorkflowDefinitionWithInstances(ctx, uuid.Must(uuid.NewV7())); !errors.As(err, &notFound) {
+		t.Errorf("unknown definition: %v, want NotFoundError", err)
+	}
+}

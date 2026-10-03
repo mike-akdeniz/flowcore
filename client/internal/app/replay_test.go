@@ -22,10 +22,16 @@ var testRecordings = Recordings{
 	},
 }
 
+// replayTestApp is a session seeded with testRecordings that has chosen Replay.
 func replayTestApp(t *testing.T) (*App, string) {
 	t.Helper()
 
-	return seededTestApp(t, testRecordings, ReplayBackend{})
+	application, sessionID := seededTestApp(t, testRecordings, ReplayBackend{})
+	if err := application.ChooseModel(context.Background(), sessionID, ReplayChoice); err != nil {
+		t.Fatal(err)
+	}
+
+	return application, sessionID
 }
 
 // decideAgentStep runs the open agent step once and returns how it was decided.
@@ -288,6 +294,55 @@ func TestRecordingsMustMatchTheSeededWorkflow(t *testing.T) {
 	} {
 		if _, _, err := recordedIDs(definition, recording); err == nil {
 			t.Errorf("%+v resolved against the seeded claim workflow", recording)
+		}
+	}
+}
+
+// The recordings shipped in the binary cover the story's agreed paths (client
+// decision 69). A change to what an agent step reads, or a recording on a route
+// the story does not take, fails here rather than on the live site; the fix is
+// `make record`, and, if the model chose another route, a change to the story's
+// documents — never an edit to its answer.
+func TestRecordingsCoverTheAgreedPaths(t *testing.T) {
+	recordings := embeddedRecordings()
+
+	agreed := []Recording{
+		{Case: "C-1042", Step: "triage", Action: "full assessment"},
+		{Case: "C-1042", Step: "narrative consistency", Action: "inconsistent"},
+		{Case: "P-2087", Step: "risk screen", Action: "refer"},
+	}
+
+	if len(recordings.Steps) != len(agreed) {
+		t.Fatalf("replays.json records %d steps, want the %d on the agreed paths; run make record",
+			len(recordings.Steps), len(agreed))
+	}
+
+	for i, want := range agreed {
+		got := recordings.Steps[i]
+		if got.Case != want.Case || got.Step != want.Step || got.Action != want.Action {
+			t.Errorf("recording %d is %s %s → %s, want %s %s → %s",
+				i, got.Case, got.Step, got.Action, want.Case, want.Step, want.Action)
+		}
+
+		if strings.TrimSpace(got.Finding) == "" {
+			t.Errorf("%s %s has no finding", got.Case, got.Step)
+		}
+	}
+
+	for _, reference := range []string{"C-1042", "P-2087"} {
+		definition := claimAssessmentDefinition()
+		if reference == "P-2087" {
+			definition = underwritingDefinition()
+		}
+
+		for _, recording := range recordings.Steps {
+			if recording.Case != reference {
+				continue
+			}
+
+			if _, _, err := recordedIDs(definition, recording); err != nil {
+				t.Error(err)
+			}
 		}
 	}
 }

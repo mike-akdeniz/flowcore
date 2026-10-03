@@ -26,13 +26,17 @@ export type Session = {
 export type ModelOption = { value: string; label: string };
 
 export type Models = {
-  // One group per backend that is answering: the local server, and Anthropic
-  // when a key is set.
-  groups: { label: string; models: ModelOption[] }[];
-  // The session's model — chosen, or the only one offered. Null when there is none.
+  // One group per backend that is answering: Replay always, and Anthropic when
+  // a key is set. Backend says which, so Replay can be listed on its own.
+  groups: { backend: string; label: string; models: ModelOption[] }[];
+  // The session's model. Null until one is chosen.
   chosen: ModelOption | null;
   // False when the chosen model is not being offered right now.
   available: boolean;
+  // True where the demo replays only: Replay is chosen and cannot be changed.
+  locked: boolean;
+  // True while the session's model is Replay.
+  replaying: boolean;
 };
 
 // Where an agent step stands, and the one detail that explains it: the model's

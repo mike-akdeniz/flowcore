@@ -108,26 +108,6 @@ func (d *ModelDirectory) Find(ctx context.Context, choice ModelChoice) (Backend,
 	return nil, Model{}, false
 }
 
-// Only returns the single model listed across every backend, if there is
-// exactly one. That is the one case where CaseWork chooses for the visitor: with
-// several there is no neutral default, and any default would be a model id
-// written into the code again.
-func (d *ModelDirectory) Only(ctx context.Context) (ModelChoice, bool) {
-	var (
-		only  ModelChoice
-		count int
-	)
-
-	for _, group := range d.List(ctx) {
-		for _, model := range group.Models {
-			only = ModelChoice{Backend: group.Backend, Model: model.ID}
-			count++
-		}
-	}
-
-	return only, count == 1
-}
-
 func (d *ModelDirectory) backend(name string) Backend {
 	for _, backend := range d.backends {
 		if backend.Name() == name {
@@ -139,7 +119,12 @@ func (d *ModelDirectory) backend(name string) Backend {
 }
 
 // Signature is how a finding names the model that wrote it: the model's label
-// and its backend's.
+// and its backend's, or the one word when they are the same — "Replay", not
+// "Replay (Replay)".
 func Signature(backend Backend, model Model) string {
+	if model.Label == backend.Label() {
+		return model.Label
+	}
+
 	return model.Label + " (" + backend.Label() + ")"
 }

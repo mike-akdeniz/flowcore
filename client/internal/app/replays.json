@@ -1,4 +1,23 @@
 {
-  "model": "",
-  "steps": []
+  "model": "claude-sonnet-5-5",
+  "steps": [
+    {
+      "case": "C-1042",
+      "step": "triage",
+      "action": "full assessment",
+      "finding": "The police report conflicts with the claimant's account. She says the car was hit while parked overnight outside her house and that she found the damage at 07:00 on the 14th. The attending officer stopped the car at 23:40 on Canal Street, about two miles from her address, with the registered keeper driving. The front left quarter was already damaged then, with paint transfer consistent with a painted metal post, and the driver said the damage was old. That points to damage that predates the reported incident, or to a different cause. Nobody reported an overnight incident at her address. The intake note says the claimant did not see the incident, so her account is inference, and it says the damage must be checked against what the officer recorded. That check shows a mismatch. The £11,200 bodyshop quote only describes front left damage and says nothing about cause or timing. The photographs carry no description. Fast track is not appropriate, and full assessment should look at when and how the damage happened."
+    },
+    {
+      "case": "C-1042",
+      "step": "narrative consistency",
+      "action": "inconsistent",
+      "finding": "The police report contradicts the claimant's account on where and when the damage happened. The claimant says the car was hit while parked overnight outside her house and found at 07:00 on the 14th. The attending officer stopped the vehicle at 23:40 on Canal Street, about two miles from her address, with the registered keeper driving. The front left quarter was already damaged then, with paint transfer consistent with a painted metal post. The driver said the damage was old. The report also notes no overnight incident was reported at the residential address. The damage predates the claimed overnight parking event and points to a collision with a post, not a parked-car hit. The intake note and repair estimate add nothing independent, since the claimant was not present and the estimate only describes the damage."
+    },
+    {
+      "case": "P-2087",
+      "step": "risk screen",
+      "action": "refer",
+      "finding": "The application should be referred, not passed as standard. The disclosures admit two speeding convictions and a 2023 decline of cover, and either of those alone requires referral. The previous insurer's letter also contradicts the disclosures. It says the proposer's comprehensive policy was not offered for renewal in March of this year, but the disclosures place the decline in 2023. It records a settled accidental damage claim that the disclosures never mention. It says the vehicle was declared as garaged but was found kept on the public highway overnight, a misstatement to the prior insurer. It also says the insurer will not offer terms now. The risk is therefore not ordinary and the two accounts do not agree."
+    }
+  ]
 }

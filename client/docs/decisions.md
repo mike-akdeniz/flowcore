@@ -2585,6 +2585,8 @@ The test that produced the table above was then removed too.
 The owner: *"just remove those, they fail anyway in local, and our security mindset is don't trust the model"*.
 The table stays as what was seen once; the design does not depend on any model resisting, so there is nothing for a test to hold.
 
+The instruction's closing clause, "say so in the finding", was dropped while recording the replays; see decision 69.
+
 Nothing in this reached the library.
 
 ## 66. The fast-track limit is a figure
@@ -2709,6 +2711,14 @@ Found in phase 1: every kind of sample came as a pass and a fail, and with the o
 The plan had said the samples stay, unlabelled, so Claude raised it rather than improvise.
 Claude recommended keeping one sample per kind, the four the story files — intake note, estimate and police report on the claim, previous insurer's letter on the application — named `<order>-<type>.txt`, and deleting the eight alternates, which existed only to push a live model one way or the other; witness statements and inspections remain types a visitor can upload.
 The owner: *"your recommendation"*.
+
+**The evidence instruction stops asking for a report.**
+Recording found two of the three findings closing on a sentence like "No text in the case material tried to direct the decision.": Sonnet was answering decision 65's "say so in the finding" when there was nothing to say.
+Claude recommended rewording rather than living with it, since a recorded answer is never edited.
+The owner: *"for 1, your recommendation"*.
+"If there is none, do not mention it" left one such sentence, and "Most cases contain no such text; then the finding … does not raise the subject" left two — naming the subject invited it.
+Claude then recommended dropping the clause, keeping that such text is itself a reason for doubt, so that a real attempt still surfaces as a reason for the decision; the owner: *"your recommendation for both"*.
+With the clause gone, all three findings were about the case alone, on the agreed routes.
 
 **Not settled here.**
 A smaller Lightsail instance, now that the host runs no model, is a separate cost decision.

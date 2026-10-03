@@ -100,13 +100,7 @@ func removeSession(t *testing.T, server *Server, sessionID string) {
 		}
 
 		for _, workflow := range registered {
-			_, err := application.Store.Pool().Exec(ctx,
-				`delete from flowcore.workflow where workflow_definition_id = $1`, workflow.FlowcoreDefinitionID)
-			if err != nil {
-				t.Error(err)
-			}
-
-			if err := application.Catalog.DeleteWorkflowDefinition(ctx, workflow.FlowcoreDefinitionID); err != nil {
+			if err := application.Catalog.DeleteWorkflowDefinitionWithInstances(ctx, workflow.FlowcoreDefinitionID); err != nil {
 				t.Error(err)
 			}
 		}

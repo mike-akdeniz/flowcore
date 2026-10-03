@@ -58,6 +58,12 @@ func embeddedRecordings() Recordings {
 	return recordings
 }
 
+// ReplayChoice is Replay as a session's model choice.
+var ReplayChoice = ModelChoice{Backend: replayName, Model: replayName}
+
+// IsReplay reports whether a choice is Replay.
+func (c ModelChoice) IsReplay() bool { return c.Backend == replayName }
+
 const (
 	replayName      = "replay"
 	replaySignature = "Claude (replay)"

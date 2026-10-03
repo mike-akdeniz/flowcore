@@ -87,6 +87,7 @@ export function App() {
           element={
             <CaseView
               model={models?.chosen && models.available ? models.chosen.label : null}
+              replaying={models?.replaying ?? false}
               identity={session.signedInAs}
               roster={session.roster}
               demoSwitcher={demoSwitcher}

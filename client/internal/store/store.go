@@ -677,3 +677,12 @@ func (s *Store) ReplayStepFor(
 
 	return step, err
 }
+
+// DeleteSession removes a session and, by cascade, everything CaseWork holds for
+// it. The FlowCore definitions it registered are the caller's to delete first,
+// since the registry that names them goes with it.
+func (s *Store) DeleteSession(ctx context.Context, id string) error {
+	_, err := s.pool.Exec(ctx, `delete from casework.session where id = $1`, id)
+
+	return err
+}

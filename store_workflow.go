@@ -216,3 +216,12 @@ func completeWorkflow(ctx context.Context, q querier, workflowID uuid.UUID, stat
 
 	return nil
 }
+
+// deleteWorkflowsByDefinition removes every run started from a definition, open
+// or finished; the instance schema's cascades clear their steps, actions and
+// visits.
+func deleteWorkflowsByDefinition(ctx context.Context, q querier, definitionID uuid.UUID) error {
+	_, err := q.Exec(ctx, `delete from flowcore.workflow where workflow_definition_id = $1`, definitionID)
+
+	return err
+}

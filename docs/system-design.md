@@ -124,6 +124,7 @@ A step entered twice by a loop therefore has two visit rows, and both are preser
 
 Every instance row also records the id of the definition row it was copied from.
 Those ids are recorded, never enforced by a foreign key: they are the rename-stable handle for cross-run queries, and they keep working after the definition row they name has been edited or deleted.
+Deleting a definition therefore leaves its runs as history; a caller discarding the work as well as the template asks for that explicitly, with a separate call that deletes the definition and every run started from it in one transaction.
 
 _Workflow Definition_
 

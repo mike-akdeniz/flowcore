@@ -18,8 +18,11 @@ type modelJSON struct {
 }
 
 type modelGroupJSON struct {
-	Label  string      `json:"label"`
-	Models []modelJSON `json:"models"`
+	// Backend says which group this is. Replay's model is listed on its own,
+	// above the backends' groups, so the browser needs to tell it apart.
+	Backend string      `json:"backend"`
+	Label   string      `json:"label"`
+	Models  []modelJSON `json:"models"`
 }
 
 type modelsJSON struct {
@@ -28,16 +31,22 @@ type modelsJSON struct {
 	// when there is none.
 	Chosen *modelJSON `json:"chosen"`
 	// Available is false when the chosen model is not being offered right now —
-	// the local server stopped, or the key was removed.
+	// the key was removed, say.
 	Available bool `json:"available"`
+	// Locked is true where the demo replays only (CLIENT_REPLAY_ONLY): the
+	// picker shows Replay and cannot change it.
+	Locked bool `json:"locked"`
+	// Replaying is true while the session's model is Replay, which is when the
+	// header says agent steps are replays.
+	Replaying bool `json:"replaying"`
 }
 
 func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 	groups := s.app.Models.List(r.Context())
 
-	payload := modelsJSON{Groups: make([]modelGroupJSON, 0, len(groups))}
+	payload := modelsJSON{Groups: make([]modelGroupJSON, 0, len(groups)), Locked: s.app.Config.ReplayOnly}
 	for _, group := range groups {
-		entry := modelGroupJSON{Label: group.Label, Models: make([]modelJSON, 0, len(group.Models))}
+		entry := modelGroupJSON{Backend: group.Backend, Label: group.Label, Models: make([]modelJSON, 0, len(group.Models))}
 		for _, model := range group.Models {
 			choice := app.ModelChoice{Backend: group.Backend, Model: model.ID}
 			entry.Models = append(entry.Models, modelJSON{Value: choice.String(), Label: model.Label})
@@ -55,6 +64,7 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 
 	if chosen {
 		payload.Chosen = &modelJSON{Value: choice.String(), Label: choice.Model}
+		payload.Replaying = choice.IsReplay()
 
 		if backend, model, available := s.app.Models.Find(r.Context(), choice); available {
 			payload.Chosen.Label = app.Signature(backend, model)

@@ -55,11 +55,12 @@ func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *sl
 }
 
 // backends are what agent steps can be decided by: Replay always, and
-// Anthropic when a key is set (client decision 69).
+// Anthropic when a key is set and the demo is not locked to Replay (client
+// decision 69).
 func backends(config Config) []Backend {
 	available := []Backend{ReplayBackend{}}
 
-	if config.AnthropicAPIKey != "" {
+	if config.AnthropicAPIKey != "" && !config.ReplayOnly {
 		available = append(available, NewAnthropicBackend(option.WithAPIKey(config.AnthropicAPIKey)))
 	}
 
@@ -85,24 +86,31 @@ func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
-// AgentChoice is the model that decides this session's agent steps: the one it
-// chose, or, if it has not chosen and exactly one model is offered, that one.
-// Chosen is false when there is nothing to use.
+// AgentChoice is the model that decides this session's agent steps: Replay
+// where the demo is locked to it, and otherwise the one the session chose.
+// Chosen is false until it has chosen.
+//
+// CaseWork no longer chooses for a visitor who has not. Decision 40 did when
+// exactly one model was offered; with Replay always offered, that rule would
+// preselect it on every run without a key, and the picker is meant to start
+// empty there (client decision 69).
 func (a *App) AgentChoice(ctx context.Context, sessionID string) (ModelChoice, bool, error) {
+	if a.Config.ReplayOnly {
+		return ReplayChoice, true, nil
+	}
+
 	stored, err := a.Store.SessionAgentModel(ctx, sessionID)
 	if err != nil {
 		return ModelChoice{}, false, err
 	}
 
-	if stored != nil {
-		choice, ok := ParseModelChoice(*stored)
-
-		return choice, ok, nil
+	if stored == nil {
+		return ModelChoice{}, false, nil
 	}
 
-	choice, only := a.Models.Only(ctx)
+	choice, ok := ParseModelChoice(*stored)
 
-	return choice, only, nil
+	return choice, ok, nil
 }
 
 // ChooseModel records a session's choice, if it names a model that is offered
@@ -146,9 +154,10 @@ func (a *App) StartJanitor(ctx context.Context, logger *slog.Logger) {
 	}()
 }
 
-// sweep deletes the definitions of expired sessions. FlowCore's cascades remove
-// each definition's statuses, steps and actions; the runs started from it are
-// instance-side and go with them.
+// sweep deletes the definitions of expired sessions, and the runs started from
+// them. Deleting a definition alone would keep its runs as history (FlowCore
+// decision 24), and an expired visitor's runs are nobody's history, so the
+// janitor asks for both (FlowCore decision 49).
 func (a *App) sweep(ctx context.Context, logger *slog.Logger) {
 	// Read the registry before the session row goes: deleting it cascades through
 	// CaseWork's tables, and the definition ids would go with them.
@@ -161,7 +170,7 @@ func (a *App) sweep(ctx context.Context, logger *slog.Logger) {
 
 	for sessionID, definitionIDs := range expiring {
 		for _, definitionID := range definitionIDs {
-			if err := a.Catalog.DeleteWorkflowDefinition(ctx, definitionID); err != nil {
+			if err := a.Catalog.DeleteWorkflowDefinitionWithInstances(ctx, definitionID); err != nil {
 				logger.Warn("expiring session", "session", sessionID, "definition", definitionID, "err", err)
 			}
 		}

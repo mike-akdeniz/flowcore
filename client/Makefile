@@ -4,7 +4,7 @@
 # one binary. Development runs Vite separately for hot reload, proxying /api to
 # this process.
 
-.PHONY: up down install build run dev fresh reset
+.PHONY: up down install build run dev fresh reset record
 
 # Settings and secrets for CaseWork live in a gitignored .env (copy .env.example).
 # Included when present, so a clone without one still runs.
@@ -68,6 +68,13 @@ dev: build
 	@./bin/casework & api=$$!; \
 	trap "kill $$api 2>/dev/null" EXIT INT TERM; \
 	cd web && npm run dev
+
+# Record what the seeded cases' agent steps answer on Claude, into
+# internal/app/replays.json, which the demo replays (client decision 69). Needs
+# ANTHROPIC_API_KEY in .env and the development database; spends a few cents.
+# Run it again whenever a change reaches what an agent step reads.
+record: up
+	go run ./cmd/record
 
 # Throw away everything in the development database and start over.
 #

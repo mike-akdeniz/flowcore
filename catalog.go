@@ -157,6 +157,33 @@ func (c *Catalog) DeleteWorkflowDefinition(ctx context.Context, id uuid.UUID) er
 	return deleteWorkflowDefinition(ctx, c.pool, id)
 }
 
+// DeleteWorkflowDefinitionWithInstances removes a definition and every run
+// started from it, open or finished, in one transaction (decision 49). It is the
+// explicit alternative to DeleteWorkflowDefinition, which keeps the runs as
+// history. Returns NotFoundError, deleting nothing, if no such definition.
+//
+// A run started while this is deleting can survive it: Start takes no lock on
+// the definition it copies.
+func (c *Catalog) DeleteWorkflowDefinitionWithInstances(ctx context.Context, id uuid.UUID) error {
+	tx, err := c.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// The definition first, so an unknown id fails before any run is touched.
+	if err := deleteWorkflowDefinition(ctx, tx, id); err != nil {
+		return err
+	}
+
+	if err := deleteWorkflowsByDefinition(ctx, tx, id); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 // AddStatus adds a status to a definition. The definition must exist
 // (NotFoundError otherwise), enforced by the parent foreign key at insert rather
 // than by a pre-flight read: a read cannot establish that the definition still
