@@ -2467,6 +2467,8 @@ Anything a test harness had to be given to make the script pass is a defect in t
 
 Nothing in this reached the library.
 
+Superseded in part by decision 69: the script installs no model and no `llama-server`, and sets `CLIENT_REPLAY_ONLY=true`.
+
 ## 62. The infrastructure files, and what was checked
 
 *Local implementation decisions made while building phase 3 of the hosting plan; no interview.*

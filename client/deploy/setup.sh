@@ -6,7 +6,7 @@
 # It leaves everything running except CaseWork itself: the binary arrives from
 # the deploy pipeline, and the unit starts as soon as one is there. Lightsail
 # caps a launch script at 16 KB, so comments here are short and the reasons live
-# in client/docs/decisions.md, entries 50 to 60.
+# in client/docs/decisions.md, entries 50 to 60 and 69.
 # Lightsail runs a launch script with sh, which is dash on Ubuntu and has no
 # pipefail, whatever the first line says. Run again under bash if this is not it.
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -22,13 +22,6 @@ export DEBIAN_FRONTEND=noninteractive
 deploy_public_key='__DEPLOY_PUBLIC_KEY__'
 
 domain=casework.happensbefore.com
-
-# llama.cpp's prebuilt Linux x64 release, and Gemma 3 270M at the commit and
-# file the tests were run against. Both are checked against their hashes.
-llama_release=b11146
-llama_sha256=c150306eb16b5ab696f76a8bdf810c35fd98a24e82158742e6fa28f420ff8410
-model_commit=e7647be17ae1108f2f605ed061ca0608b171afff
-model_sha256=0ef57d2c838458a1952664260dcba38e5bdda37494f3af732f06e4add24068e3
 
 if [[ "$deploy_public_key" == __* ]]; then
 	echo "setup.sh: deploy_public_key was not filled in" >&2
@@ -49,7 +42,7 @@ echo "deb [signed-by=/usr/share/keyrings/caddy-stable.gpg] https://dl.cloudsmith
 	>/etc/apt/sources.list.d/caddy-stable.list
 
 apt-get update
-apt-get install -y caddy libgomp1 postgresql ufw unattended-upgrades
+apt-get install -y caddy postgresql ufw unattended-upgrades
 
 # --- who can log in -----------------------------------------------------------
 
@@ -94,58 +87,26 @@ create database casework owner casework;
 EOF
 
 # CaseWork's whole configuration. 24 idle hours and Secure cookies are decision
-# 56; it listens on localhost, and Caddy is the only way in.
+# 56; it listens on localhost, and Caddy is the only way in. Agent steps replay
+# recorded answers, and no model runs here (decision 69).
 umask 077
 cat >/etc/casework.env <<EOF
 CLIENT_DATABASE_URL=postgres://casework:$database_password@127.0.0.1:5432/casework?sslmode=disable
 CLIENT_ADDR=127.0.0.1:8080
-CLIENT_LOCAL_MODEL_URL=http://127.0.0.1:8081
 CLIENT_SESSION_TTL=24h
 CLIENT_SECURE_COOKIES=true
+CLIENT_REPLAY_ONLY=true
 EOF
 umask 022
 
-# --- the model server ---------------------------------------------------------
-
-install -d /opt/llama
-cd /opt/llama
-
-llama_archive="llama-$llama_release-bin-ubuntu-x64.tar.gz"
-curl -fsSL -o "$llama_archive" "https://github.com/ggml-org/llama.cpp/releases/download/$llama_release/$llama_archive"
-echo "$llama_sha256  $llama_archive" | sha256sum -c -
-tar -xzf "$llama_archive" --strip-components=1
-rm "$llama_archive"
-
-curl -fsSL -o model.gguf \
-	"https://huggingface.co/ggml-org/gemma-3-270m-it-GGUF/resolve/$model_commit/gemma-3-270m-it-Q8_0.gguf"
-echo "$model_sha256  model.gguf" | sha256sum -c -
-
-cd /
-
 # --- services -----------------------------------------------------------------
-
-# One slot and about 4,000 tokens of context: the dispatcher's one worker never
-# asks for two calls at once, and the server's default would reserve 600 MB.
-cat >/etc/systemd/system/llama-server.service <<'EOF'
-[Unit]
-Description=llama-server, the model that decides agent steps
-After=network.target
-
-[Service]
-DynamicUser=yes
-ExecStart=/opt/llama/llama-server -m /opt/llama/model.gguf --alias gemma-3-270m --host 127.0.0.1 --port 8081 --parallel 1 --ctx-size 4000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
 
 # Skipped, not failed, until the pipeline has copied a binary in.
 cat >/etc/systemd/system/casework.service <<'EOF'
 [Unit]
 Description=CaseWork
-After=network.target postgresql.service llama-server.service
-Wants=postgresql.service llama-server.service
+After=network.target postgresql.service
+Wants=postgresql.service
 ConditionPathExists=/opt/casework/casework
 
 [Service]
@@ -176,7 +137,7 @@ $domain {
 EOF
 
 systemctl daemon-reload
-systemctl enable --now llama-server casework
+systemctl enable --now casework
 systemctl restart caddy
 
 # --- upkeep -------------------------------------------------------------------
