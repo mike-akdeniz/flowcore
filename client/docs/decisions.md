@@ -1894,6 +1894,8 @@ An agent step missing a required document now says so on the case screen, in pla
 The interview had it as a separate `make model` in a second terminal; the owner, having skipped it and met an empty picker, asked instead that *"make fresh should start the model too"*.
 It is skipped when something already answers on 8081, and when llama.cpp is not installed, in which case CaseWork starts anyway.
 
+Its local model, and the rule that CaseWork chooses the only model offered, are superseded by decisions 69 and 70; the picker, the Anthropic backend and the reply contract stand.
+
 ## 41. The API key lives in a gitignored `.env`, loaded by the Makefile
 
 **Context.**
@@ -2032,6 +2034,8 @@ The owner: *"Show fail - pass text in the entries in the Documents panel in Curr
 
 Nothing in this reached the library.
 
+Superseded by decision 69: sample documents carry no outcome.
+
 ## 46. Sample outcomes are `demo-pass` and `demo-fail`, shown as `Title / outcome`
 
 **Context.**
@@ -2052,6 +2056,8 @@ The point, as with decision 45, is that a bare `fail` beside a document reads as
 A `pass` or `fail` file dropped into `sample-documents/` is no longer recognised as carrying an outcome; it loads as a sample with none, as an uploaded file does.
 
 Nothing in this reached the library.
+
+Superseded by decision 69: sample documents carry no outcome.
 
 ## 47. An agent step's spinner has a minimum time on screen
 
@@ -2156,6 +2162,8 @@ Looking into the rate limit (decision 53) found that the dispatcher runs one wor
 The host runs one slot with a context of about 4,000 tokens; the server's default reserves about 600 MB for 32,000.
 
 Nothing in this reached the library.
+
+Superseded in part by decision 69: the host runs no model.
 
 ## 51. The owner applies the infrastructure; the pipeline only deploys the application
 
@@ -2519,6 +2527,8 @@ Turn-taking across sessions (decision 53) is covered by a test and has not been 
 
 Nothing in this reached the library.
 
+Superseded in part by decision 69: the host runs no model, so this timing describes a model it no longer has.
+
 ## 65. Outside text and the agent prompt
 
 *Settled by interview; the implementation choices under it are local.*
@@ -2732,3 +2742,52 @@ The fallback narrows to a recorded action deleted from its step.
 
 This reached the library once: FlowCore decision 48, `Action.ActionDefinitionID`.
 FlowCore already returned the `StepDefinitionID` a run's current step was copied from, which is what identifies a seeded step.
+
+## 70. Building the replay, and what was checked
+
+*Local implementation decisions made while building phases 1 to 5 of the replay plan, with the owner's changes to the replay notice; the plan is decision 69.*
+
+**The story.**
+With `estimate check` and `estimate follow-up` gone, triage's `full assessment` and fast-track review's `escalate` both lead to `narrative consistency`, where full assessment now begins.
+Triage requires the intake note and the police report: it had required the estimate only so it could hand an agent after it what that agent needed (decision 38).
+Seven tests that described the old workflow were adapted rather than weakened — the agent handoff rule is now tested from `narrative consistency`, the retitle test on the police report.
+Comments that explained the loop were made general, since a workflow a visitor builds can still loop.
+
+**No local model.**
+`/healthz` checks Postgres alone, and `make run` is build-then-serve.
+The reply parser moved into the Anthropic backend, its only remaining caller.
+
+**The replay.**
+Recordings are kept by case, step name and action name in `internal/app/replays.json`, embedded in the binary, and resolved at seeding into a `casework.replay_step` row per step: the session's own step and action definition ids and the finding.
+A session therefore keeps the answers it was seeded with, as a run keeps its definition, and a step keeps its replay through renames because nothing reads the names after seeding.
+A recording naming a step or action the seeded workflow lacks fails seeding, so a mismatch fails any test that seeds a session.
+Replay is listed as a backend so the picker and the stored choice work unchanged, but it is never asked a question: a replay answers for a case and a step, not a prompt, so the dispatcher takes its verdict from the session's rows.
+Signing and trimming a finding moved out of `NewVerdict` into `signed`, shared by both paths; a random draw is signed "— Replay".
+Tested against the database: both seeded paths end to end, a visitor's own claim drawing at random, a renamed recorded action and an edited, renamed step keeping their replay, a deleted recorded action drawing at random, and mismatched recordings refused.
+
+**The picker.**
+CaseWork no longer chooses a model for a visitor who has not: decision 40's rule picked the only model offered, and with Replay always offered it would have preselected Replay on every run without a key, where the owner wanted the picker empty.
+Two tests that relied on it now choose their model, as a visitor does.
+`Signature` says one word when a model's label is its backend's, so the status line reads "Replay is reading the case", not "Replay (Replay)".
+The models payload says which group is which backend, and whether the picker is locked and the session replaying, so the browser never parses a model value.
+
+**Where the replay is said.**
+The plan put a banner after "CaseWork" in the header.
+Built there, in the info colour, the owner asked for it on the right, then without its background and on one line; one line needs about 1,400 pixels of header beside the picker, so it would have shown only on wide screens.
+The owner: *"That looks very ugly no matter what, what about this idea: In the fist login screen, show this text appropriately. We remove that from the case page."*
+Built on the sign-in screen, it moved again: *"Put the replay text just on the history in the right of "History" header. "`Model:Replay` returns pre-recorded model outputs. For live calls run FlowCore locally.""*, then *"Align the text to left so that it becomes "History" a little bit of space and then "Model:Replay..." also make FlowCore text a link to the repo"*.
+It now follows the History heading, small and dimmed, with `Model:Replay` as code and "FlowCore" linking to the repository, while the session's model is Replay — beside the findings it explains.
+
+**Recording.**
+`make record` runs `cmd/record`, a separate command so the deployed binary carries no development tool.
+It seeds a scratch session without recordings, since the ones on file may be the stale ones being replaced, decides each seeded agent step through the pieces the dispatcher uses, writes `replays.json`, and deletes the session.
+`TestRecordingsCoverTheAgreedPaths` fails when the file stops matching the agreed steps and actions or names something the seeded workflows lack.
+Recorded on `claude-sonnet-5-5`, four runs in all while settling the evidence instruction (decision 69); every run took the agreed route.
+The findings run to 100 or 200 words, longer than the "two or three sentences" the question asks for.
+
+**Found on the way.**
+The session janitor's comment said deleting a session's definitions removed their runs; they stay, by FlowCore decision 24, so every expired session on the host left its runs behind.
+FlowCore decision 49 added the call that deletes a definition with its runs, and the janitor, the recorder and the test cleanups use it; the test cleanups no longer write raw SQL against FlowCore's tables.
+The janitor's sweep itself is not tested, since a test would expire every idle session in the development database.
+
+This reached the library twice: `Action.ActionDefinitionID` (FlowCore decision 48) and `DeleteWorkflowDefinitionWithInstances` (FlowCore decision 49).

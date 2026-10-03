@@ -139,9 +139,11 @@ It does not walk beyond that destination or require documents for branches the r
 The editor refuses an action from one agent step to another unless every type the destination requires is also required by the source.
 The source cannot be decided until its own required types are present, and no one can file a document while an agent holds the step, so the subset rule guarantees the destination is never stuck.
 An editor stacking agent steps satisfies it by requiring the later documents on the earlier agent step too, or by inserting a human step between the agents to collect or verify more documents.
-The seeded claim's second agent step is `estimate check`, which judges whether an estimate on the case is itemised enough to assess and sends it to `estimate follow-up` when it needs detail; presence is the gate, adequacy is the agent's judgment.
-Agent steps are decided by the model the session has chosen in the top bar, from a list of a local server's models and, when a key is set, Anthropic's.
-The reply is constrained to a schema naming the step's actions, and the finding ends with a line naming the model.
+Agent steps are decided by the model the session has chosen in the top bar: Replay, always offered, and Anthropic's models when a key is set.
+Nothing is chosen for a visitor locally; where `CLIENT_REPLAY_ONLY` is set, as on the hosted demo, every session's model is Replay and cannot be changed.
+A live model's reply is constrained to a schema naming the step's actions, and the finding ends with a line naming the model.
+Replay asks no model: on a seeded case, each seeded agent step plays the answer Claude gave when the case was recorded, matched to the step and its recorded action by definition id, and signed as a replay; any other agent step under Replay chooses an action at random and says so in its finding.
+The History says, beside its findings, when the session's model is Replay.
 Until a model is chosen and available the step waits open, and the case screen says which of queued, running, waiting for a model, retrying, or parked it is.
 
 While a case is draft, any visitor in its session may add an allowed document.
@@ -257,6 +259,9 @@ What belongs to a visitor is the work, not the people.
 
 The session row also holds the visitor's chosen agent model, backend and model id together, empty until one is chosen.
 
+Seeding also copies the recorded answers into the session, as replay steps: one per seeded agent step on its seeded case, holding the ids of the step and its recorded action in the session's own workflow, and the finding.
+They are a snapshot like a run is, so a session keeps the answers it was seeded with.
+
 This is the same principle the previous version used — the client owns tenancy because FlowCore has none — expressed in rows rather than in memory.
 
 # Screens
@@ -318,8 +323,6 @@ It interprets nothing it is given.
       |
       +--> FlowCore           Catalog (configure) · Engine (start, complete,
                               worklist, reassign)
-      |
-      +--> local model server only from the agent worker, OpenAI-compatible API
       |
       +--> Anthropic API      only from the agent worker, only when a key is set
 ```

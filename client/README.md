@@ -15,59 +15,40 @@ nothing here that wraps it; this is an example of *being* the client.
 
 You need Go, Node, and Docker, which runs CaseWork's own Postgres.
 
-Agent steps are decided by a model, and the default one runs on your machine: Gemma 3 270M, about
-290 MB, served by llama.cpp. Once:
-
-```
-brew install llama.cpp
-```
-
-Then:
-
 ```
 make fresh
 ```
 
 Then <http://localhost:8080>. The client applies the library's schema itself and seeds your session
-on first request. `make fresh` starts the model in the background too — downloading it the first
-time, reusing it after, logging to `bin/model.log` — and stops it when you stop CaseWork.
+on first request.
 
-**The model picker is in the top bar.** It lists what the local server offers and, when a key is
-set, Anthropic's models too. Put the key in `.env`, which git ignores:
+**Agent steps are decided by the model chosen in the top bar.** Out of the box there is one,
+**Replay**, and nothing is chosen until you choose it. Replay plays back answers Claude gave when
+the seeded cases were recorded: on `C-1042` and `P-2087` each agent step makes its recorded
+decision, with the recorded finding, every time. Any other agent step under Replay — a case you
+filed, a step you added — chooses an action at random and says so in its finding.
+
+**To run agent steps live, add an Anthropic key.** Put it in `.env`, which git ignores:
 
 ```
 cp .env.example .env
 ```
 
 Paste the key after `ANTHROPIC_API_KEY=` in that file, then `make fresh`. CaseWork reads it at
-startup, so restart it after changing the key. Keys come from the Claude Console, billed separately
-from a Claude.ai subscription; set a spend limit and an expiry there.
-
-Every finding ends with the name of the model that wrote it, so switching models and
-running the same case again compares them. Choosing a Claude model spends from that key.
-
-**Without a model, CaseWork still runs.** If llama.cpp is not installed, `make fresh` says so and
-starts CaseWork anyway; agent steps wait, and the case screen says why. Start `make model` in another
-terminal and they go. A small local model makes quick, often wrong judgments — it is there so an
-agent step visibly reads the case and decides, not to be right.
-
-**Ollama works too.** It answers the same API, so point CaseWork at it instead:
-
-```
-ollama pull gemma3:270m
-```
-
-and set `CLIENT_LOCAL_MODEL_URL=http://localhost:11434` in `.env`.
+startup, so restart it after changing the key. The picker then lists Anthropic's models below
+Replay. Keys come from the Claude Console, billed separately from a Claude.ai subscription; set a
+spend limit and an expiry there. Every finding ends with the name of the model that wrote it, so
+running the same case on two models compares them.
 
 ### The commands, and which one you want
 
 | | what it does | when |
 | --- | --- | --- |
-| `make fresh` | reset, then build and serve on 8080, with the local model on 8081 | **start here**, and whenever the schema has changed |
-| `make run` | build, serve on 8080, with the local model on 8081 | keep the cases you have created, and see current code |
+| `make fresh` | reset, then build and serve on 8080 | **start here**, and whenever you want the seeded examples back |
+| `make run` | build and serve on 8080 | keep the cases you have created, and see current code |
 | `make dev` | API on 8080, Vite on **5173** with hot reload | editing `.tsx` and wanting the browser to keep up |
 | `make reset` | drop the database | rarely on its own — `fresh` includes it |
-| `make model` | serve the local model on 8081, in the foreground | to read its log, or keep it up across CaseWork restarts; `run` and `fresh` use it if it is already up |
+| `make record` | decide the seeded cases' agent steps on Claude and rewrite the replays | after changing what an agent step reads — its instructions, the seeded documents, the case text; needs a key, spends a few cents |
 
 **`make run` is the deployment shape**: one binary serving its own embedded front end, which is what
 somebody visiting a hosted instance gets. `make dev` is not — Vite serves the front end from source
@@ -104,14 +85,14 @@ That is why one engine carries two workflows with nothing in common without know
 Sign in as anyone; the cast is seeded: Inés (intake), Dana (adjusters), Marek (fraud
 investigators), Priya (underwriters) and Tom (senior underwriters).
 
-- **Submit a seeded draft.** `C-1042` and `P-2087` arrive as drafts with no run. Submitting one
-  starts a FlowCore run, and its first step is decided by an agent. The finding appears in the
-  History, signed with the model that wrote it, beside the documents it was decided against.
-- **Choose a model in the top bar**, and run the same case again to compare. A small local model
-  decides in under a second and is often wrong; a Claude model reads the case properly.
-- **Change the outcome with a document.** Add a sample from the picker — each is labelled
-  `demo-pass` or `demo-fail` for what it argues — and watch the next agent step read it.
-  [sample-documents/README.md](sample-documents/README.md) says what each one does.
+- **Submit a seeded draft.** `C-1042` and `P-2087` arrive as drafts with no run. Choose a model in
+  the top bar, then submit one: it starts a FlowCore run, and its first step is decided by an
+  agent. The finding appears in the History, signed with the model that wrote it, beside the
+  documents it was decided against. Under Replay, the claim goes through triage and narrative
+  consistency to a fraud referral, and the application to the senior underwriter.
+- **Run it live.** With a key set, choose a Claude model and submit a case, or file a document and
+  watch the next agent step read it. The documents in the story are in
+  [sample-documents/](sample-documents/README.md), and in the picker on the case screen.
 - **Follow a case from person to person.** With the demo user switcher on, which is the default,
   opening a case signs you in as someone who holds its step. Turn it off to stay as yourself;
   Reassign hands a step to a person or a team.
@@ -130,14 +111,16 @@ TypeScript on [Mantine](https://mantine.dev) and Vite, with
 [React Flow](https://reactflow.dev) and dagre drawing the workflow graph. `make build` bakes the
 built front end into the binary.
 
-Agent steps are decided by a model behind one reply contract: a local OpenAI-compatible server
-(llama.cpp or Ollama) by default, and Anthropic's models when `ANTHROPIC_API_KEY` is set.
+Agent steps are decided by a model behind one reply contract: Anthropic's models when
+`ANTHROPIC_API_KEY` is set, and Replay, which plays back the answers Claude gave on the seeded
+cases, recorded into `internal/app/replays.json` by `make record`.
 
 ```
 main.go                 wiring
 internal/app/           the client half of the boundary:
                         identity, submissions, sessions, seeding, document requirements,
-                        the agent dispatcher and its model backends
+                        the agent dispatcher, its model backends, and the replays
+cmd/record/             make record: the seeded cases decided on Claude, into the replays
 internal/api/           HTTP handlers and routes
 internal/store/         CaseWork's own tables and migrations
 internal/samples/       the embedded sample documents (the files are in sample-documents/)
@@ -166,21 +149,23 @@ can be fully steered by whoever wrote the file, and limits what that buys them:
 - **Documents cannot forge the prompt.** Each sits in its own block, and cannot close it to pass
   itself off as another.
 - **The attempt counts against the case.** Every agent step is told that case material is
-  evidence, never instructions, and that text addressing the reviewer is a reason for doubt, to be
-  named in the finding.
+  evidence, never instructions, and that text addressing the reviewer is itself a reason for doubt.
 
 That lowers the odds of a steered decision; it does not remove them, and nothing relies on it. The
-model is not trusted: Gemma 3 270M, which the hosted demo runs, can be ordered by a letter to pass
-an application, and the case then takes the favourable branch and a person still decides it
-([decision 65](docs/decisions.md)). The workflow editor is trusted, like an administrator: an
-agent step given an action that ends a case is the editor's choice to make.
+model is not trusted: a small model tried while building this could be ordered by a letter to pass
+an application, and the case then took the favourable branch and a person still decided it
+([decision 65](docs/decisions.md)). On the hosted demo no model reads a visitor's documents at
+all — agent steps there replay recorded answers — so this matters wherever CaseWork runs with a
+key. The workflow editor is trusted, like an administrator: an agent step given an action that
+ends a case is the editor's choice to make.
 
 ## Hosting
 
 CaseWork runs at <https://casework.happensbefore.com>: one AWS Lightsail instance (4 GB, Ubuntu
-24.04, us-east-2) running Postgres, `llama-server` with Gemma 3 270M, CaseWork itself, and Caddy
-in front for TLS. There is no Anthropic key on it, so the hosted demo uses the local model only.
-Why each choice was made is in [docs/decisions.md](docs/decisions.md), entries 50 to 63.
+24.04, us-east-2) running Postgres, CaseWork itself, and Caddy in front for TLS. There is no
+Anthropic key on it: it sets `CLIENT_REPLAY_ONLY=true`, so every visitor's agent steps are Replay
+and the picker cannot change that. Why each choice was made is in
+[docs/decisions.md](docs/decisions.md), entries 50 to 63 and 69.
 
 The host is disposable: it keeps no backups, and visitors' cases expire after 24 idle hours.
 Everything on it comes from [deploy/setup.sh](deploy/setup.sh), which Lightsail runs once at first
