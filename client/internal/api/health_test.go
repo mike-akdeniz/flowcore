@@ -15,24 +15,6 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/samples"
 )
 
-// modelServer answers /v1/models the way llama-server does, or is down.
-func modelServer(t *testing.T, up bool) string {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if !up {
-			http.Error(w, "down", http.StatusServiceUnavailable)
-
-			return
-		}
-
-		_, _ = io.WriteString(w, `{"data":[{"id":"gemma"}]}`)
-	}))
-	t.Cleanup(server.Close)
-
-	return server.URL
-}
-
 func configuredServer(t *testing.T, databaseURL string, config app.Config) *Server {
 	t.Helper()
 
@@ -71,22 +53,20 @@ func TestHealthzNamesWhatIsDown(t *testing.T) {
 	tests := []struct {
 		name        string
 		databaseURL string
-		modelUp     bool
 		status      int
 		mentions    string
 	}{
-		{"both up", databaseURL, true, http.StatusOK, "ok"},
-		{"model down", databaseURL, false, http.StatusServiceUnavailable, "llama-server"},
+		{"postgres up", databaseURL, http.StatusOK, "ok"},
 		{
 			"postgres down",
 			"postgres://nobody:nothing@127.0.0.1:1/none?sslmode=disable&connect_timeout=1",
-			true, http.StatusServiceUnavailable, "postgres",
+			http.StatusServiceUnavailable, "postgres",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			server := configuredServer(t, test.databaseURL, app.Config{LocalModelURL: modelServer(t, test.modelUp)})
+			server := configuredServer(t, test.databaseURL, app.Config{})
 			response := httptest.NewRecorder()
 			server.Routes().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 
@@ -141,7 +121,7 @@ func TestSecureCookiesFlag(t *testing.T) {
 	databaseURL := testDatabase(t)
 
 	for _, secure := range []bool{false, true} {
-		server := configuredServer(t, databaseURL, app.Config{LocalModelURL: modelServer(t, true), SecureCookies: secure})
+		server := configuredServer(t, databaseURL, app.Config{SecureCookies: secure})
 		response := httptest.NewRecorder()
 		server.Routes().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/session", nil))
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,11 +15,10 @@ import (
 
 // AnthropicBackend asks Claude. It is offered only when a key is set.
 //
-// This file and the local backend are the only places in the application that
-// know a model exists. FlowCore never calls one, and structurally cannot: it
-// holds an opaque subject reference and not the subject, so it could not build
-// the question without storing cases itself or calling back into this
-// application. Both would invert the relationship between a library and its
+// This file is the only place in the application that calls a model. FlowCore
+// never calls one, and structurally cannot: it holds an opaque subject reference
+// and not the subject, so it could not build the question without storing cases
+// itself or calling back into this application. Both would invert the relationship between a library and its
 // caller. What crosses back into the library is the same thing a person's click
 // produces — an action id, a completer, and a remark.
 type AnthropicBackend struct {
@@ -120,4 +120,27 @@ func classifyAnthropic(model string, err error) error {
 	}
 
 	return permanent(failure)
+}
+
+// parseAnswer reads a reply the schema constrained. Failing to parse it means the
+// model did not hold to the schema, which asking again will not change.
+func parseAnswer(model, content string) (Answer, error) {
+	var answer Answer
+	if err := json.Unmarshal([]byte(content), &answer); err != nil {
+		return Answer{}, permanent(fmt.Errorf("%s's reply did not match the schema: %q", model, truncate(content, 200)))
+	}
+
+	if answer.Action == "" {
+		return Answer{}, permanent(errors.New(model + "'s reply chose no action"))
+	}
+
+	return answer, nil
+}
+
+func truncate(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+
+	return text[:limit] + "…"
 }

@@ -12,7 +12,7 @@ import (
 // model id of its own (client decision 40).
 
 type modelJSON struct {
-	// Value is the choice as the API takes it back — "local/gemma-3-270m".
+	// Value is the choice as the API takes it back — "anthropic/claude-sonnet-5-5".
 	Value string `json:"value"`
 	Label string `json:"label"`
 }

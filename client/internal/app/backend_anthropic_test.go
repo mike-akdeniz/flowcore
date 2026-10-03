@@ -13,6 +13,24 @@ import (
 // anthropicServer stands in for the Messages and Models APIs, so the backend is
 // tested without a key and without spending anything: nothing in this
 // application's verification calls Anthropic (client decision 40).
+
+// testQuestion is an ordinary question for a backend to answer.
+func testQuestion(t *testing.T) Question {
+	t.Helper()
+
+	question, err := NewQuestion(CheckRequest{
+		StepName:     "narrative consistency",
+		Instructions: stepInstructions("Compare the claimant's account with the police report."),
+		SubjectText:  "Claim: C-1042",
+		Actions:      testActions("consistent", "inconsistent"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return question
+}
+
 func anthropicServer(t *testing.T, status int, reply string) (*AnthropicBackend, *map[string]any) {
 	t.Helper()
 
@@ -84,14 +102,14 @@ func TestAnthropicBackendListsModelsThatCanFollowASchema(t *testing.T) {
 
 func TestAnthropicBackendSendsTheSchemaAndReadsTheReply(t *testing.T) {
 	backend, received := anthropicServer(t, http.StatusOK,
-		message("end_turn", `{"action":"adequate","finding":"Itemised throughout."}`))
+		message("end_turn", `{"action":"inconsistent","finding":"The report places the car elsewhere."}`))
 
 	answer, err := backend.Decide(context.Background(), "claude-opus-5-5", testQuestion(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if answer != (Answer{Action: "adequate", Finding: "Itemised throughout."}) {
+	if answer != (Answer{Action: "inconsistent", Finding: "The report places the car elsewhere."}) {
 		t.Errorf("answer %+v", answer)
 	}
 

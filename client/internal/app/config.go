@@ -30,9 +30,6 @@ type Config struct {
 	// locally there is no HTTPS; set it where a proxy terminates TLS in front of
 	// CaseWork, which cannot tell from the connection that the visitor is on it.
 	SecureCookies bool
-	// LocalModelURL is the local model server's address. The default is where
-	// `make model` starts llama-server: port 8081, because 8080 is CaseWork's.
-	LocalModelURL string
 	// AnthropicAPIKey, when set, adds Anthropic's models to the ones a session
 	// can choose from.
 	AnthropicAPIKey string
@@ -45,7 +42,6 @@ func LoadConfig() (Config, error) {
 		DatabaseURL: environmentOr("CLIENT_DATABASE_URL",
 			"postgres://flowcore:flowcore@localhost:5433/flowcore_client?sslmode=disable"),
 		Addr:            environmentOr("CLIENT_ADDR", ":8080"),
-		LocalModelURL:   environmentOr("CLIENT_LOCAL_MODEL_URL", "http://localhost:8081"),
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 	}
 

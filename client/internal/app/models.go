@@ -15,9 +15,9 @@ type Model struct {
 }
 
 // ModelChoice is a session's choice of model: which backend, and which of its
-// models. Stored on the session as one string, "local/gemma-3-270m", and read
-// back only here — the backend's name never contains the separator, a model id
-// may.
+// models. Stored on the session as one string, "anthropic/claude-sonnet-5-5",
+// and read back only here — the backend's name never contains the separator, a
+// model id may.
 type ModelChoice struct {
 	Backend string
 	Model   string
@@ -45,9 +45,8 @@ type ModelGroup struct {
 // modelListTTL is how long a listing is reused.
 //
 // The case screen asks whether its agent's model is available on every poll, and
-// Anthropic's listing is a network call; twenty seconds is short enough that
-// starting the local server, or a model being retired, shows up while someone is
-// still looking.
+// Anthropic's listing is a network call; twenty seconds is short enough that a
+// model being retired shows up while someone is still looking.
 const modelListTTL = 20 * time.Second
 
 // ModelDirectory lists what every configured backend offers right now.

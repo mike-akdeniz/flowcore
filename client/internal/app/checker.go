@@ -41,9 +41,8 @@ type Verdict struct {
 	Remark   string
 }
 
-// Question is one agent step put to a model: the same for every backend, which
-// is what makes a finding from a local model and one from Claude comparable
-// (client decision 40).
+// Question is one agent step put to a model: the same for every model, which is
+// what makes their findings comparable (client decision 40).
 type Question struct {
 	System string
 	User   string
@@ -58,10 +57,10 @@ type Answer struct {
 	Finding string `json:"finding"`
 }
 
-// Backend is somewhere an agent step can be decided: a local model server, or
-// Anthropic. Which one decides is the session's choice of model, not a setting.
+// Backend is somewhere an agent step can be decided. Which one decides is the
+// session's choice of model, not a setting.
 type Backend interface {
-	// Name is the backend's half of a stored model choice — "local", "anthropic".
+	// Name is the backend's half of a stored model choice — "anthropic".
 	Name() string
 	// Label is how the model picker titles this backend's group.
 	Label() string
@@ -100,8 +99,7 @@ func isPermanent(err error) bool {
 }
 
 // findingInstruction is what every question asks the finding to be. Short,
-// because it is read on the case screen and in the history, and because the
-// smallest local models wander when given room.
+// because it is read on the case screen and in the history.
 const findingInstruction = "Choose one action. In the finding, explain the choice in your own words: " +
 	"name the document or detail in the case that decided it, and what it says."
 

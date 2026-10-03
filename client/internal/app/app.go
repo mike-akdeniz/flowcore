@@ -50,14 +50,13 @@ func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *sl
 	return application
 }
 
-// backends are what agent steps can be decided by: always the local model
-// server, which may or may not be running, and Anthropic when a key is set.
+// backends are what agent steps can be decided by: Anthropic, when a key is set.
 //
-// There is no mode to choose between them. Both are listed, a session picks a
-// model from whichever answers, and there is no simulated fallback: without a
-// model an agent step waits (client decision 40, superseding decision 5).
+// There is no local model (client decision 69, superseding decision 40's): a
+// session picks from whatever is offered, and without a model an agent step
+// waits.
 func backends(config Config) []Backend {
-	available := []Backend{NewLocalBackend(config.LocalModelURL)}
+	var available []Backend
 
 	if config.AnthropicAPIKey != "" {
 		available = append(available, NewAnthropicBackend(option.WithAPIKey(config.AnthropicAPIKey)))
@@ -66,42 +65,30 @@ func backends(config Config) []Backend {
 	return available
 }
 
-// Health reports the first thing CaseWork cannot work without that is not
-// working: its database, or the local model server. Anthropic's models are not
-// checked; they are optional and only present when a key is set.
+// Health reports whether CaseWork's database answers. Anthropic's models are not
+// checked: they are optional, and only present when a key is set.
 func (a *App) Health(ctx context.Context) error {
 	if err := a.Store.Pool().Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
 
-	if _, err := a.Models.backend("local").Models(ctx); err != nil {
-		return fmt.Errorf("llama-server: %w", err)
-	}
-
 	return nil
 }
 
-// ReportModels says at startup what agent steps can use, and how to fix it when
-// the answer is nothing. It is advice, not a gate: CaseWork runs without a
-// model, and agent steps wait for one.
+// ReportModels says at startup what agent steps can use. It is advice, not a
+// gate: CaseWork runs without a model, and agent steps wait for one.
 func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
-	groups := a.Models.List(ctx)
-
 	listed := false
-	for _, group := range groups {
-		if group.Backend == "local" {
-			listed = true
-		}
-
+	for _, group := range a.Models.List(ctx) {
 		for _, model := range group.Models {
+			listed = true
 			logger.Info("agent model available", "backend", group.Backend, "model", model.ID)
 		}
 	}
 
 	if !listed {
-		logger.Warn("no local model server is answering; agent steps wait until a model is available",
-			"url", a.Config.LocalModelURL,
-			"how", "run `make model` in another terminal")
+		logger.Warn("no model is available; agent steps wait until one is",
+			"how", "set ANTHROPIC_API_KEY in .env")
 	}
 }
 

@@ -4,10 +4,10 @@
 # one binary. Development runs Vite separately for hot reload, proxying /api to
 # this process.
 
-.PHONY: up down install build run dev fresh reset model
+.PHONY: up down install build run dev fresh reset
 
 # Settings and secrets for CaseWork live in a gitignored .env (copy .env.example).
-# Included when present, so a clone without one still runs on the local model.
+# Included when present, so a clone without one still runs.
 # The file wins over the shell's environment, because a Makefile assignment does.
 #
 # Only the variables named here reach CaseWork through make. The binary reads its
@@ -15,7 +15,6 @@
 -include .env
 
 export ANTHROPIC_API_KEY
-export CLIENT_LOCAL_MODEL_URL
 
 # Start CaseWork's Postgres and wait for it to accept connections.
 up:
@@ -23,26 +22,6 @@ up:
 
 down:
 	docker compose down
-
-# Serve the local model that decides agent steps when nothing else is chosen:
-# Gemma 3 270M, about 290 MB, downloaded into llama.cpp's cache on the first run
-# and reused after. Runs in the foreground; start it in its own terminal.
-#
-# Port 8081 because CaseWork has 8080, and 8081 is where CaseWork looks unless
-# CLIENT_LOCAL_MODEL_URL says otherwise. The alias is the id CaseWork shows in
-# the model picker and signs findings with.
-#
-# Gemma rather than SmolLM2-360M, the other model that fits in 300 MB: run on the
-# seeded cases, SmolLM2's findings were fragments — "appl", "p-2087" — where
-# Gemma's quoted the case (client decision 40).
-#
-# `make run`, and so `make fresh`, start this themselves; this target is for
-# running it on its own, to read its log or to keep it up across CaseWork restarts.
-model:
-	@command -v llama-server >/dev/null || { echo "llama-server not found: brew install llama.cpp"; exit 1; }
-	llama-server $(MODEL_ARGS)
-
-MODEL_ARGS = -hf ggml-org/gemma-3-270m-it-GGUF --alias gemma-3-270m --port 8081
 
 # Install the front end's dependencies. Idempotent and quick once satisfied, so
 # both build and dev depend on it rather than asking you to remember.
@@ -63,36 +42,9 @@ build: install
 # loading fine and silently out of date. Three seconds of rebuild is a better
 # trade than a footgun whose symptom is "nothing happened".
 #
-# It also starts the local model, so a clone needs one command, not two
-# terminals: without it CaseWork runs with an empty model picker, and agent
-# steps wait for a model nobody told you to start. The model runs in the
-# background, logging to bin/model.log, and stops when CaseWork does. It is
-# skipped when something already answers on 8081 — `make model` in another
-# terminal, or Ollama pointed there — and when llama.cpp is not installed, in
-# which case CaseWork starts anyway and the case screen says why agent steps wait.
-#
-# Waits up to two minutes for the model to answer before starting CaseWork,
-# which otherwise reports at startup that no model is running. The first run
-# downloads it, which can take longer; CaseWork finds it whenever it arrives.
-#
 # Runs the built binary rather than `go run`, for the reason `dev` gives: `go
 # run` leaves the server orphaned when the recipe is interrupted.
 run: build
-	@model=; \
-	if curl -sf -m 1 http://localhost:8081/v1/models >/dev/null 2>&1; then \
-		echo "A model server is already answering on 8081; using it."; \
-	elif ! command -v llama-server >/dev/null; then \
-		echo "llama-server not found, so agent steps will wait for a model: brew install llama.cpp"; \
-	else \
-		llama-server $(MODEL_ARGS) > bin/model.log 2>&1 & model=$$!; \
-		echo "Starting the local model (log: bin/model.log)…"; \
-		for i in $$(seq 1 120); do \
-			curl -sf -m 1 http://localhost:8081/v1/models >/dev/null 2>&1 && break; \
-			kill -0 $$model 2>/dev/null || { echo "The model server stopped; see bin/model.log."; break; }; \
-			sleep 1; \
-		done; \
-	fi; \
-	trap '[ -n "$$model" ] && kill $$model 2>/dev/null' EXIT INT TERM; \
 	./bin/casework
 
 # Development: the API on 8080 and Vite on 5173 with hot reload, which proxies
