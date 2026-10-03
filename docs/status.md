@@ -19,15 +19,15 @@ Claude can propose a change and say why; it never makes one unilaterally.
   Detail in [pending-tasks/iteration-2-ai-review-steps.md](pending-tasks/iteration-2-ai-review-steps.md).
 - **CaseWork, the reference client** — *In progress*.
   An insurer's case console built on the library: run it, read it, or fork it as a starting point.
-  Slices 1 to 6 are complete: a case can be filed, submitted, worked and decided, of either kind,
-  with agent decisions, document types, and a history that says what each decision read.
-  Slice 8, real agent steps, is complete: agents are decided by a local model by default or by Anthropic's when a key is set.
+  Slices 1 to 6 are complete: a case can be filed, submitted, worked and decided, of either kind, with agent decisions, document types, and a history that says what each decision read.
+  Slice 8, real agent steps, is complete: agents are decided by Anthropic's models when a key is set, and otherwise replay recorded answers (see CaseWork replay).
   Slices 1 to 9 are complete.
   Remaining: nothing.
   Detail in [pending-tasks/client-ui-rebuild.md](pending-tasks/client-ui-rebuild.md).
 - **CaseWork hosting** — *Complete*.
   Host CaseWork publicly at casework.happensbefore.com.
   Detail in [pending-tasks/casework-hosting.md](pending-tasks/casework-hosting.md).
-- **CaseWork replay** — *Not started*.
+- **CaseWork replay** — *Complete*.
   Replace the local model with replays of recorded Sonnet calls on the seeded cases.
+  Deployed: the hosted demo replays only, and runs no model.
   Detail in [pending-tasks/casework-replay.md](pending-tasks/casework-replay.md).
