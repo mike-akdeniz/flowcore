@@ -30,6 +30,9 @@ type App struct {
 	// Samples are the example documents a visitor can add to a case, and what the
 	// seed is built from, so the two cannot drift.
 	Samples *samples.Library
+	// Recordings are the answers the seeded cases' agent steps replay, copied into
+	// each session as it is seeded (client decision 69).
+	Recordings Recordings
 	// Models is what the configured backends offer to decide agent steps.
 	Models *ModelDirectory
 	// Dispatcher runs agent steps off the web request. Set by New.
@@ -38,11 +41,12 @@ type App struct {
 
 func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *slog.Logger) *App {
 	application := &App{
-		Config:  config,
-		Catalog: flowcore.NewCatalog(pool),
-		Engine:  flowcore.NewEngine(pool),
-		Store:   store.New(pool),
-		Samples: library,
+		Config:     config,
+		Catalog:    flowcore.NewCatalog(pool),
+		Engine:     flowcore.NewEngine(pool),
+		Store:      store.New(pool),
+		Samples:    library,
+		Recordings: embeddedRecordings(),
 	}
 	application.Models = NewModelDirectory(backends(config)...)
 	application.Dispatcher = NewDispatcher(application, logger)
@@ -50,13 +54,10 @@ func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *sl
 	return application
 }
 
-// backends are what agent steps can be decided by: Anthropic, when a key is set.
-//
-// There is no local model (client decision 69, superseding decision 40's): a
-// session picks from whatever is offered, and without a model an agent step
-// waits.
+// backends are what agent steps can be decided by: Replay always, and
+// Anthropic when a key is set (client decision 69).
 func backends(config Config) []Backend {
-	var available []Backend
+	available := []Backend{ReplayBackend{}}
 
 	if config.AnthropicAPIKey != "" {
 		available = append(available, NewAnthropicBackend(option.WithAPIKey(config.AnthropicAPIKey)))
@@ -75,20 +76,12 @@ func (a *App) Health(ctx context.Context) error {
 	return nil
 }
 
-// ReportModels says at startup what agent steps can use. It is advice, not a
-// gate: CaseWork runs without a model, and agent steps wait for one.
+// ReportModels says at startup what agent steps can use.
 func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
-	listed := false
 	for _, group := range a.Models.List(ctx) {
 		for _, model := range group.Models {
-			listed = true
 			logger.Info("agent model available", "backend", group.Backend, "model", model.ID)
 		}
-	}
-
-	if !listed {
-		logger.Warn("no model is available; agent steps wait until one is",
-			"how", "set ANTHROPIC_API_KEY in .env")
 	}
 }
 

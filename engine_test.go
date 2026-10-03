@@ -208,6 +208,28 @@ func TestStartWritesTheWholeSnapshotWithProvenance(t *testing.T) {
 	if nullProvenance != 0 {
 		t.Errorf("%d actions recorded a zero action_definition_id", nullProvenance)
 	}
+
+	// And through the API: each action on the current step names the definition
+	// action it was copied from (decision 48).
+	stored, err := catalog.Get(ctx, definition.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	definitionActions := map[string]uuid.UUID{}
+	for _, step := range stored.Steps {
+		if step.ID == ids.managerStep {
+			for _, action := range step.Actions {
+				definitionActions[action.Name] = action.ID
+			}
+		}
+	}
+
+	for _, action := range state.CurrentStep.Actions {
+		if want, ok := definitionActions[action.Name]; !ok || action.ActionDefinitionID != want {
+			t.Errorf("action %q reports definition action %s, want %s", action.Name, action.ActionDefinitionID, want)
+		}
+	}
 }
 
 func TestCompleteRoutesToTheNextStep(t *testing.T) {

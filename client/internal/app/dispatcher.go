@@ -359,29 +359,16 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 		return
 	}
 
-	question, err := NewQuestion(CheckRequest{
-		Agent:        state.CurrentStep.AssigneeID,
-		StepName:     state.CurrentStep.Name,
-		Instructions: state.CurrentStep.Instructions,
-		SubjectText:  view.Text,
-		Actions:      state.CurrentStep.Actions,
-	})
-	if err != nil {
-		d.failed(item.VisitID, choice, err)
-
-		return
+	// Replay answers for the case and the step, from the session's recordings; a
+	// model answers the question the case puts to it.
+	var verdict Verdict
+	if backend.Name() == replayName {
+		d.begin(item.VisitID, choice)
+		verdict, err = d.app.replayVerdict(ctx, item.SessionID, submission.Reference, *state.CurrentStep)
+	} else {
+		verdict, err = d.ask(ctx, item.VisitID, choice, backend, model, *state.CurrentStep, view.Text)
 	}
 
-	d.begin(item.VisitID, choice)
-
-	answer, err := backend.Decide(ctx, model.ID, question)
-	if err != nil {
-		d.failed(item.VisitID, choice, err)
-
-		return
-	}
-
-	verdict, err := NewVerdict(answer, state.CurrentStep.Actions, Signature(backend, model))
 	if err != nil {
 		d.failed(item.VisitID, choice, err)
 
@@ -415,6 +402,37 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	// The next step may be another agent's, which is how two agent steps run back
 	// to back without anything polling.
 	d.Dispatch(item.SessionID, item.DefinitionID, next)
+}
+
+// ask puts a step to a model and turns its answer into a verdict.
+func (d *Dispatcher) ask(
+	ctx context.Context,
+	visitID uuid.UUID,
+	choice ModelChoice,
+	backend Backend,
+	model Model,
+	step flowcore.CurrentStep,
+	subjectText string,
+) (Verdict, error) {
+	question, err := NewQuestion(CheckRequest{
+		Agent:        step.AssigneeID,
+		StepName:     step.Name,
+		Instructions: step.Instructions,
+		SubjectText:  subjectText,
+		Actions:      step.Actions,
+	})
+	if err != nil {
+		return Verdict{}, err
+	}
+
+	d.begin(visitID, choice)
+
+	answer, err := backend.Decide(ctx, model.ID, question)
+	if err != nil {
+		return Verdict{}, err
+	}
+
+	return NewVerdict(answer, step.Actions, Signature(backend, model))
 }
 
 // subjectOf strips the session prefix, leaving the subject's own reference:

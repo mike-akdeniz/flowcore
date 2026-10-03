@@ -61,6 +61,14 @@ func (b *fakeBackend) respond(answer Answer, err error) {
 func dispatcherTestApp(t *testing.T, backends ...Backend) (*App, string) {
 	t.Helper()
 
+	return seededTestApp(t, Recordings{}, backends...)
+}
+
+// seededTestApp is dispatcherTestApp with the recordings its session is seeded
+// with chosen by the test.
+func seededTestApp(t *testing.T, recordings Recordings, backends ...Backend) (*App, string) {
+	t.Helper()
+
 	databaseURL := os.Getenv("CASEWORK_TEST_DSN")
 	if databaseURL == "" {
 		t.Skip("set CASEWORK_TEST_DSN to a migrated CaseWork Postgres database")
@@ -81,6 +89,7 @@ func dispatcherTestApp(t *testing.T, backends ...Backend) (*App, string) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	application := New(Config{}, pool, library, logger)
+	application.Recordings = recordings
 	application.Models = NewModelDirectory(backends...)
 	application.Dispatcher = NewDispatcher(application, logger)
 

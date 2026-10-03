@@ -54,7 +54,7 @@ func insertAction(ctx context.Context, q querier, action actionRow) error {
 // definition the run started from, which the definition side permits.
 func listActionsByStep(ctx context.Context, q querier, stepID uuid.UUID) ([]Action, error) {
 	rows, err := q.Query(ctx,
-		`select id, name from flowcore.action where step_id = $1 order by name`,
+		`select id, action_definition_id, name from flowcore.action where step_id = $1 order by name`,
 		stepID)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func listActionsByStep(ctx context.Context, q querier, stepID uuid.UUID) ([]Acti
 
 	actions, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Action, error) {
 		var action Action
-		err := row.Scan(&action.ID, &action.Name)
+		err := row.Scan(&action.ID, &action.ActionDefinitionID, &action.Name)
 
 		return action, err
 	})

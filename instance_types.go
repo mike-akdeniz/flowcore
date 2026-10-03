@@ -97,8 +97,13 @@ type CurrentStep struct {
 // present the choice and then name it back to Complete; where the action leads is
 // the Engine's business, not the caller's.
 type Action struct {
-	ID   uuid.UUID
-	Name string
+	ID uuid.UUID
+	// ActionDefinitionID is the definition action this snapshot was copied from:
+	// provenance, as StepDefinitionID is on the step, and for the same reason. A
+	// caller hanging its own behaviour on an action needs a key that survives the
+	// snapshot and a rename (decision 48).
+	ActionDefinitionID uuid.UUID
+	Name               string
 }
 
 // AssignedStep is one piece of open work in a worklist: a visit waiting on someone,

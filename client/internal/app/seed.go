@@ -63,6 +63,10 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 		return err
 	}
 
+	if err := a.seedReplays(ctx, sessionID, "C-1042", definition); err != nil {
+		return err
+	}
+
 	submissionID := uuid.Must(uuid.NewV7())
 
 	// A draft: no run, no workflow stamped, no subject reference. The schema
@@ -167,6 +171,10 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	}
 
 	if err := a.register(ctx, sessionID, store.TypeApplication, definition); err != nil {
+		return err
+	}
+
+	if err := a.seedReplays(ctx, sessionID, "P-2087", definition); err != nil {
 		return err
 	}
 

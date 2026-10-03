@@ -157,3 +157,14 @@ type DocumentType struct {
 	Title     string
 	CreatedAt time.Time
 }
+
+// ReplayStep is one recorded answer a session's seeded agent step replays on its
+// seeded case (client decision 69). The ids are the session's own, resolved when
+// it was seeded.
+type ReplayStep struct {
+	SessionID          string
+	StepDefinitionID   uuid.UUID
+	Reference          string
+	ActionDefinitionID uuid.UUID
+	Finding            string
+}

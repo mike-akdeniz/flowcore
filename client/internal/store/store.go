@@ -646,3 +646,34 @@ func (s *Store) RemoveDocument(ctx context.Context, tx pgx.Tx, submissionID, doc
 
 	return err
 }
+
+func (s *Store) InsertReplayStep(ctx context.Context, step ReplayStep) error {
+	_, err := s.pool.Exec(ctx,
+		`insert into casework.replay_step
+		 (session_id, step_definition_id, reference, action_definition_id, finding)
+		 values ($1, $2, $3, $4, $5)`,
+		step.SessionID, step.StepDefinitionID, step.Reference, step.ActionDefinitionID, step.Finding)
+
+	return err
+}
+
+// ReplayStepFor returns the recorded answer for a step on a case, or ErrNotFound
+// when that step plays nothing there.
+func (s *Store) ReplayStepFor(
+	ctx context.Context,
+	sessionID string,
+	stepDefinitionID uuid.UUID,
+	reference string,
+) (ReplayStep, error) {
+	step := ReplayStep{SessionID: sessionID, StepDefinitionID: stepDefinitionID, Reference: reference}
+
+	err := s.pool.QueryRow(ctx,
+		`select action_definition_id, finding from casework.replay_step
+		 where session_id = $1 and step_definition_id = $2 and reference = $3`,
+		sessionID, stepDefinitionID, reference).Scan(&step.ActionDefinitionID, &step.Finding)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ReplayStep{}, ErrNotFound
+	}
+
+	return step, err
+}

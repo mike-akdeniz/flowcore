@@ -171,16 +171,23 @@ func NewVerdict(answer Answer, actions []flowcore.Action, modelLabel string) (Ve
 		finding = "The model gave no finding."
 	}
 
-	signature := "\n\n— " + modelLabel
+	return Verdict{ActionID: actionID, Remark: signed(finding, modelLabel)}, nil
+}
 
-	// Trimmed rather than failed: a model that ignored "two or three sentences"
-	// still made its decision, and FlowCore would otherwise refuse the whole
-	// completion over the length of the explanation.
+// signed is a finding as it is stamped on a visit: the text, a blank line, and
+// whoever wrote it.
+//
+// Trimmed rather than failed: a model that ignored "two or three sentences"
+// still made its decision, and FlowCore would otherwise refuse the whole
+// completion over the length of the explanation.
+func signed(finding, signer string) string {
+	signature := "\n\n— " + signer
+
 	if room := remarkLimit - utf8.RuneCountInString(signature); utf8.RuneCountInString(finding) > room {
 		finding = string([]rune(finding)[:room-1]) + "…"
 	}
 
-	return Verdict{ActionID: actionID, Remark: finding + signature}, nil
+	return finding + signature
 }
 
 // actionNamed resolves an action name the model chose to the id CompleteStep
