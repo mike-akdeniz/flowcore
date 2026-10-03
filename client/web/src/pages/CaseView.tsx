@@ -523,6 +523,10 @@ function ActionPanel({
           </Text>
         )}
 
+        {/* Shown to anyone looking, not only the holder: what the step is for
+            explains the case as much as it guides the decision. */}
+        {step.instructions && <Text size="sm">{step.instructions}</Text>}
+
         <Decide
           subject={subject}
           canDecide={canActAs(identity, step.assignee)}

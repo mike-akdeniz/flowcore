@@ -46,11 +46,9 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 				// happen after submitting is this deciding which path the claim takes.
 				ID: triage, WorkflowStatusDefinitionID: inAssessment,
 				Name: "triage", AssigneeID: "agent:triage",
-				Instructions: stepInstructions(`Decide whether this claim can take the fast track.
+				Instructions: stepInstructions(`Decide whether this claim can take the fast track or needs full assessment.
 
-Fast track suits a claim with no third party to trace, an account the claimant witnessed
-themselves, and an amount inside the fast-track limit. Anything else needs full
-assessment. Read the intake note against the claimant's account.`),
+Read the intake note against the claimant's account.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "fast track", NextStepDefinitionID: &fastTrack},
 					{Name: "full assessment", NextStepDefinitionID: &documentation},
@@ -60,6 +58,8 @@ assessment. Read the intake note against the claimant's account.`),
 				// One side of the branch, with a cross-over out of it.
 				ID: fastTrack, WorkflowStatusDefinitionID: inAssessment,
 				Name: "fast-track review", AssigneeID: "group:claims-adjusters",
+				Instructions: stepInstructions("Settle the claim if the quote fits the damage described, " +
+					"escalate it if anything needs a closer look, or decline it if the policy does not cover it."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "settle", TerminalWorkflowStatusDefinitionID: &settled},
 					{Name: "escalate", NextStepDefinitionID: &documentation},
@@ -86,6 +86,8 @@ of those out.`),
 				// The loop target: an AI step re-run against a genuinely different file.
 				ID: awaiting, WorkflowStatusDefinitionID: inAssessment,
 				Name: "estimate follow-up", AssigneeID: "group:intake-handlers",
+				Instructions: stepInstructions("Get an itemised estimate from the repairer, add it to the case, " +
+					"then resubmit the claim to the estimate check."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "resubmit", NextStepDefinitionID: &documentation},
 				},
@@ -108,6 +110,8 @@ them contradicts the account on one of those.`),
 				// The main human decision, with the cross-over back.
 				ID: adjuster, WorkflowStatusDefinitionID: inAssessment,
 				Name: "adjuster review", AssigneeID: "group:claims-adjusters",
+				Instructions: stepInstructions("Settle the claim if the documents support the amount, " +
+					"downgrade it to fast-track review if it turns out simple, or decline it if they do not."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "settle", TerminalWorkflowStatusDefinitionID: &settled},
 					{Name: "downgrade", NextStepDefinitionID: &fastTrack},
@@ -118,6 +122,8 @@ them contradicts the account on one of those.`),
 				// A side branch that rejoins the main path or ends the run.
 				ID: fraud, WorkflowStatusDefinitionID: inAssessment,
 				Name: "fraud referral", AssigneeID: "group:fraud-investigators",
+				Instructions: stepInstructions("Investigate the inconsistency in the history, then clear the claim " +
+					"back to the adjuster or confirm the fraud to decline it."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "cleared", NextStepDefinitionID: &adjuster},
 					{Name: "confirmed", TerminalWorkflowStatusDefinitionID: &declined},
@@ -165,6 +171,8 @@ cover, anything undisclosed, or anything that contradicts the disclosures.`),
 			{
 				ID: underwrite, WorkflowStatusDefinitionID: inUnderwriting,
 				Name: "underwriter review", AssigneeID: "group:underwriters",
+				Instructions: stepInstructions("Accept the application if the risk is ordinary, " +
+					"refer it up if you are unsure, or decline it."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "accept", TerminalWorkflowStatusDefinitionID: &accepted},
 					{Name: "refer up", NextStepDefinitionID: &senior},
@@ -174,6 +182,8 @@ cover, anything undisclosed, or anything that contradicts the disclosures.`),
 			{
 				ID: senior, WorkflowStatusDefinitionID: inUnderwriting,
 				Name: "senior underwriter", AssigneeID: "group:senior-underwriters",
+				Instructions: stepInstructions("Accept the referred application if the risk can be carried, " +
+					"or decline it."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "accept", TerminalWorkflowStatusDefinitionID: &accepted},
 					{Name: "decline", TerminalWorkflowStatusDefinitionID: &declined},

@@ -37,6 +37,27 @@ type NewSubmission struct {
 // judgment belongs to the workflow's first agent step, not to a form. Letting the
 // process do the checking rather than the input is the point of having a process.
 func (a *App) CreateSubmission(ctx context.Context, sessionID string, request NewSubmission) (string, error) {
+	// Everything is checked before anything is written, so a refused field
+	// leaves no draft behind without its detail.
+	var (
+		claim       store.ClaimDetail
+		application store.ApplicationDetail
+		err         error
+	)
+
+	switch request.Type {
+	case store.TypeClaim:
+		claim, err = newClaimDetail(request)
+	case store.TypeApplication:
+		application, err = newApplicationDetail(request)
+	default:
+		err = fmt.Errorf("unknown submission type %q", request.Type)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
 	reference, err := a.nextReference(ctx, sessionID, request.Type)
 	if err != nil {
 		return "", err
@@ -55,32 +76,72 @@ func (a *App) CreateSubmission(ctx context.Context, sessionID string, request Ne
 		return "", err
 	}
 
-	switch request.Type {
-	case store.TypeClaim:
-		occurred, err := time.Parse("2006-01-02", request.OccurredAt)
-		if err != nil {
-			return "", fmt.Errorf("the date of the incident is not a date")
-		}
+	if request.Type == store.TypeClaim {
+		claim.SubmissionID = submissionID
 
-		return reference, a.Store.InsertClaimDetail(ctx, store.ClaimDetail{
-			SubmissionID:      submissionID,
-			PolicyNumber:      request.PolicyNumber,
-			ClaimantName:      request.ClaimantName,
-			Amount:            request.Amount,
-			OccurredAt:        occurred,
-			IncidentNarrative: request.IncidentNarrative,
-		})
-	case store.TypeApplication:
-		return reference, a.Store.InsertApplicationDetail(ctx, store.ApplicationDetail{
-			SubmissionID: submissionID,
-			ProposerName: request.ProposerName,
-			CoverType:    request.CoverType,
-			SumInsured:   request.SumInsured,
-			Disclosures:  request.Disclosures,
-		})
+		return reference, a.Store.InsertClaimDetail(ctx, claim)
 	}
 
-	return "", fmt.Errorf("unknown submission type %q", request.Type)
+	application.SubmissionID = submissionID
+
+	return reference, a.Store.InsertApplicationDetail(ctx, application)
+}
+
+// newClaimDetail checks a claim's fields as outside text (client decision 65).
+// The amount is left to its numeric column, which already refuses anything else.
+func newClaimDetail(request NewSubmission) (store.ClaimDetail, error) {
+	occurred, err := time.Parse("2006-01-02", request.OccurredAt)
+	if err != nil {
+		return store.ClaimDetail{}, fmt.Errorf("the date of the incident is not a date")
+	}
+
+	policyNumber, err := CleanLine("the policy number", request.PolicyNumber)
+	if err != nil {
+		return store.ClaimDetail{}, err
+	}
+
+	claimantName, err := CleanLine("the claimant's name", request.ClaimantName)
+	if err != nil {
+		return store.ClaimDetail{}, err
+	}
+
+	narrative, err := cleanProse("the claimant's account", request.IncidentNarrative, proseLimit)
+	if err != nil {
+		return store.ClaimDetail{}, err
+	}
+
+	return store.ClaimDetail{
+		PolicyNumber:      policyNumber,
+		ClaimantName:      claimantName,
+		Amount:            request.Amount,
+		OccurredAt:        occurred,
+		IncidentNarrative: narrative,
+	}, nil
+}
+
+// newApplicationDetail is newClaimDetail for a policy application.
+func newApplicationDetail(request NewSubmission) (store.ApplicationDetail, error) {
+	proposerName, err := CleanLine("the proposer's name", request.ProposerName)
+	if err != nil {
+		return store.ApplicationDetail{}, err
+	}
+
+	coverType, err := CleanLine("the cover type", request.CoverType)
+	if err != nil {
+		return store.ApplicationDetail{}, err
+	}
+
+	disclosures, err := cleanProse("the disclosures", request.Disclosures, proseLimit)
+	if err != nil {
+		return store.ApplicationDetail{}, err
+	}
+
+	return store.ApplicationDetail{
+		ProposerName: proposerName,
+		CoverType:    coverType,
+		SumInsured:   request.SumInsured,
+		Disclosures:  disclosures,
+	}, nil
 }
 
 // Submit turns a draft into a running case.

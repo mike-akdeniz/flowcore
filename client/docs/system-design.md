@@ -132,6 +132,7 @@ The Add document selector shows that set throughout a case, whether the case is 
 Each step separately declares the document types required for a decision on that step, and the case screen shows them with their present or missing state beside the current step and assignee.
 CaseWork refuses a human decision while a required type is missing.
 An agent step's instruction must be nonempty.
+A person's step may carry a one-sentence instruction, which the case screen shows above the Decision control, from the run's snapshot; an agent step's instruction is its prompt and is not shown there.
 The agent reads the case details and the whole current file, each document labelled by its type title, and the instructions say in prose what to look at; required documents are the presence gate, not the agent's reading list.
 Before a selected action hands control to an agent step, CaseWork checks that one immediate destination's required documents are present, using the running workflow snapshot.
 It does not walk beyond that destination or require documents for branches the run has not chosen.

@@ -85,7 +85,7 @@ func (s *Server) Routes() http.Handler {
 	// paths, so any unmatched GET returns the shell.
 	mux.Handle("/", s.assets)
 
-	sessioned := s.withSession(mux)
+	sessioned := withRequestLimit(s.withSession(mux))
 
 	// The uptime monitor's probe creates no session: it would seed one every
 	// time it asked (client decision 58).
@@ -97,6 +97,18 @@ func (s *Server) Routes() http.Handler {
 		}
 
 		sessioned.ServeHTTP(w, r)
+	})
+}
+
+// requestLimit bounds a request body. The largest legitimate one is a document at
+// its character limit, which JSON can inflate several times over; anything past
+// this is refused before it is read (client decision 65).
+const requestLimit = 256 << 10
+
+func withRequestLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, requestLimit)
+		next.ServeHTTP(w, r)
 	})
 }
 

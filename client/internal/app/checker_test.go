@@ -34,6 +34,10 @@ func TestNewQuestionHoldsTheModelToTheStepsActions(t *testing.T) {
 		t.Errorf("system prompt %q does not start with the step's instructions", question.System)
 	}
 
+	if !strings.Contains(question.System, evidenceInstruction) {
+		t.Error("the system prompt does not say the case is evidence, not instructions")
+	}
+
 	if question.User != "Claim: C-1042" {
 		t.Errorf("user message %q, want the case text", question.User)
 	}

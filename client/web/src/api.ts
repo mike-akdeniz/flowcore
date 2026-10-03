@@ -244,6 +244,9 @@ export type CaseStep = {
   required: { name: string; title: string; present: boolean }[];
   assignee: string;
   isAgent: boolean;
+  // What whoever holds a person's step should do, frozen with the run. Null on
+  // an agent step, and on a person's step that has none.
+  instructions: string | null;
   // Null on a person's step.
   agent: AgentStatus | null;
   waitingSince: string;

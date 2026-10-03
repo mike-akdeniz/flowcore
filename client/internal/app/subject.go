@@ -66,10 +66,10 @@ func (a *App) claimView(ctx context.Context, submission store.Submission) (Subje
 
 	var text strings.Builder
 	fmt.Fprintf(&text, "Claim: %s\nPolicy: %s\nClaimant: %s\nAmount: %s\nDate of incident: %s\n\n",
-		submission.Reference, detail.PolicyNumber, detail.ClaimantName,
+		submission.Reference, quoted(detail.PolicyNumber), quoted(detail.ClaimantName),
 		detail.Amount, detail.OccurredAt.Format("2 January 2006"))
 
-	fmt.Fprintf(&text, "Claimant's account:\n%s\n\n", detail.IncidentNarrative)
+	fmt.Fprintf(&text, "Claimant's account:\n<account>\n%s\n</account>\n\n", quoted(detail.IncidentNarrative))
 
 	return withDocuments(&text, documents, submission.Revision), nil
 }
@@ -87,9 +87,9 @@ func (a *App) applicationView(ctx context.Context, submission store.Submission) 
 
 	var text strings.Builder
 	fmt.Fprintf(&text, "Application: %s\nProposer: %s\nCover: %s\nSum insured: %s\n\n",
-		submission.Reference, detail.ProposerName, detail.CoverType, detail.SumInsured)
+		submission.Reference, quoted(detail.ProposerName), quoted(detail.CoverType), detail.SumInsured)
 
-	fmt.Fprintf(&text, "Disclosures:\n%s\n\n", detail.Disclosures)
+	fmt.Fprintf(&text, "Disclosures:\n<disclosures>\n%s\n</disclosures>\n\n", quoted(detail.Disclosures))
 
 	return withDocuments(&text, documents, submission.Revision), nil
 }
@@ -113,21 +113,26 @@ func withDocuments(text *strings.Builder, documents []store.Document, revision i
 	// instructions call it — "read the intake note against the claimant's
 	// account" — and even the smallest model can match the words it was given to
 	// the words on the page (client decision 40).
+	//
+	// Each one is a block of its own, and what it says is quoted, so a document
+	// cannot end its block early and forge another after it (client decision 65).
 	text.WriteString("Documents on file:\n")
 	for _, document := range current {
-		fmt.Fprintf(text, "- %s: %s, received %s\n",
-			document.Title, document.Name, document.ReceivedAt.Format("2 January 2006"))
+		fmt.Fprintf(text, "\n<document>\nType: %s\nName: %s\nReceived: %s\n",
+			document.Title, quoted(document.Name), document.ReceivedAt.Format("2 January 2006"))
 
 		// A photograph is a row with no body. The ones that carry text are what
 		// an agent actually weighs against the account above — the text is the
 		// document.
 		if document.Body != nil {
-			fmt.Fprintf(text, "  %s\n", *document.Body)
+			fmt.Fprintf(text, "\n%s\n", quoted(*document.Body))
 		}
+
+		text.WriteString("</document>\n")
 	}
 
 	if len(current) == 0 {
-		text.WriteString("- nothing on file\n")
+		text.WriteString("nothing on file\n")
 	}
 
 	if superseded := len(documents) - len(current); superseded > 0 {

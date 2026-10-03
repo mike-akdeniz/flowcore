@@ -105,6 +105,10 @@ type currentStepJSON struct {
 	Required []requiredDocumentJSON `json:"required"`
 	Assignee string                 `json:"assignee"`
 	IsAgent  bool                   `json:"isAgent"`
+	// Instructions tell whoever holds a person's step what to do, from the run's
+	// snapshot. Nil on an agent step, whose instructions are its prompt and are
+	// read in the editor rather than above a decision it cannot take.
+	Instructions *string `json:"instructions"`
 	// Agent is where an agent step stands; nil on a person's step.
 	Agent        *agentStatusJSON `json:"agent"`
 	WaitingSince string           `json:"waitingSince"`
@@ -355,6 +359,10 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			Actions:      make([]actionJSON, 0, len(state.CurrentStep.Actions)),
 		}
 
+		if !payload.CurrentStep.IsAgent {
+			payload.CurrentStep.Instructions = state.CurrentStep.Instructions
+		}
+
 		for _, action := range state.CurrentStep.Actions {
 			payload.CurrentStep.Actions = append(payload.CurrentStep.Actions,
 				actionJSON{ID: action.ID.String(), Name: action.Name})
@@ -585,16 +593,38 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 		document.Body = &text
 		document.SourceFile = &fileName
 	} else {
-		if body.Body == "" || body.FileName == "" {
+		// The upload is outside text, checked like a case's own fields before it
+		// can reach a model (client decision 65).
+		text, err := app.CleanDocument("the document", body.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		fileName, err := app.CleanLine("the file name", body.FileName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		name, err := app.CleanLine("the document's name", body.Name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+
+		if text == "" || fileName == "" {
 			http.Error(w, "a document needs a file and its text", http.StatusBadRequest)
 
 			return
 		}
 
-		text, fileName := body.Body, body.FileName
-		document.Name = body.Name
+		document.Name = name
 		if document.Name == "" {
-			document.Name = body.FileName
+			document.Name = fileName
 		}
 
 		kind := body.Kind
