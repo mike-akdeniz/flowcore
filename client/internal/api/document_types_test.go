@@ -91,7 +91,7 @@ func TestSeededDocumentTypes(t *testing.T) {
 	workflow := seededWorkflow(t, server, sessionID, store.TypeClaim)
 	triage := stepCalled(t, workflow, "triage")
 	slices.Sort(triage.Expects)
-	if want := []string{"estimate", "intake-note", "police-report"}; !slices.Equal(triage.Expects, want) {
+	if want := []string{"intake-note", "police-report"}; !slices.Equal(triage.Expects, want) {
 		t.Errorf("triage requires %v, want %v", triage.Expects, want)
 	}
 
@@ -107,9 +107,10 @@ func TestSeededDocumentTypes(t *testing.T) {
 func TestDocumentsMustBeAllowedOnTheCase(t *testing.T) {
 	server, sessionID := documentTestServer(t)
 
-	// An inspection is an application's document, not a claim's.
+	// A previous insurer's letter and an inspection are an application's
+	// documents, not a claim's.
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents",
-		newDocumentJSON{SampleFile: "3-inspection-demo-pass.txt"}, http.StatusBadRequest)
+		newDocumentJSON{SampleFile: "1-prior-insurer.txt"}, http.StatusBadRequest)
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents",
 		newDocumentJSON{FileName: "notes.txt", Body: "text", Kind: "inspection"}, http.StatusBadRequest)
 
@@ -169,10 +170,10 @@ func TestStepEditRules(t *testing.T) {
 		}
 
 		witness := stepCalled(t, updated, "witness check")
-		documentation := stepCalled(t, updated, "estimate check")
+		consistency := stepCalled(t, updated, "narrative consistency")
 
 		refused := jsonRequest(t, server, sessionID, http.MethodPost,
-			base+"/steps/"+documentation.ID+"/actions",
+			base+"/steps/"+consistency.ID+"/actions",
 			actionEditJSON{Name: "check witness", NextStepID: witness.ID}, http.StatusBadRequest)
 		if !strings.Contains(refused.Body.String(), "Witness statement") {
 			t.Errorf("error does not name the missing type: %s", refused.Body.String())
@@ -188,7 +189,7 @@ func TestStepEditRules(t *testing.T) {
 		edit.Expects = []string{"police-report"}
 		jsonRequest(t, server, sessionID, http.MethodPatch, base+"/steps/"+witness.ID, edit, http.StatusOK)
 		jsonRequest(t, server, sessionID, http.MethodPost,
-			base+"/steps/"+documentation.ID+"/actions",
+			base+"/steps/"+consistency.ID+"/actions",
 			actionEditJSON{Name: "check witness", NextStepID: witness.ID}, http.StatusOK)
 
 		// And an edit that would break an existing handoff is refused too.
@@ -223,7 +224,7 @@ func TestAllowedListRemoval(t *testing.T) {
 
 	workflow := seededWorkflow(t, server, sessionID, store.TypeClaim)
 	base := "/api/workflows/" + workflow.DefinitionID
-	for _, name := range []string{"narrative consistency", "estimate check", "triage"} {
+	for _, name := range []string{"narrative consistency", "triage"} {
 		step := stepCalled(t, workflow, name)
 		edit := editStep(step)
 		edit.Expects = slices.DeleteFunc(slices.Clone(step.Expects),
@@ -266,19 +267,19 @@ func TestRetitleKeepsIdentity(t *testing.T) {
 	server, sessionID := documentTestServer(t)
 
 	before := readCase(t, server, sessionID)
-	jsonRequest(t, server, sessionID, http.MethodPatch, "/api/document-types/estimate",
-		documentTypeEditJSON{Title: "Garage quote"}, http.StatusOK)
+	jsonRequest(t, server, sessionID, http.MethodPatch, "/api/document-types/police-report",
+		documentTypeEditJSON{Title: "Officer's report"}, http.StatusOK)
 	after := readCase(t, server, sessionID)
 
 	var title string
 	for _, documentType := range after.DocumentTypes {
-		if documentType.Name == "estimate" {
+		if documentType.Name == "police-report" {
 			title = documentType.Title
 		}
 	}
 
-	if title != "Garage quote" {
-		t.Errorf("estimate is titled %q, want the new title", title)
+	if title != "Officer's report" {
+		t.Errorf("police-report is titled %q, want the new title", title)
 	}
 
 	// The filed document keeps its own name and its type.
@@ -290,7 +291,7 @@ func TestRetitleKeepsIdentity(t *testing.T) {
 	}
 
 	workflow := seededWorkflow(t, server, sessionID, store.TypeClaim)
-	if !slices.Contains(stepCalled(t, workflow, "triage").Expects, "estimate") {
+	if !slices.Contains(stepCalled(t, workflow, "triage").Expects, "police-report") {
 		t.Error("triage no longer requires the retitled type")
 	}
 }

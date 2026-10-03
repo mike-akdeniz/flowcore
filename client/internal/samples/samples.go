@@ -5,8 +5,9 @@
 // see and edit them, and they are embedded in the binary so a hosted visitor —
 // who has no folder to browse — gets the same set from the application itself.
 //
-// The file name tells a person what the document argues for. It is a label for
-// the picker and nothing else: agent steps read the text, never the name.
+// They are the documents of the seeded story (client decision 69), one per
+// kind, so a visitor filing their own case has a document of each kind to hand.
+// Agent steps read the text, never the name.
 package samples
 
 import (
@@ -18,38 +19,8 @@ import (
 	"strings"
 )
 
-// Outcome is what a sample document argues for at the step that judges it.
-//
-// Two words, and deliberately only two. There were eight — complete/incomplete,
-// consistent/contradicts, simple/complex, clean/adverse — one private pair per
-// agent step, and every new step wanted a ninth and tenth. `demo-pass` and
-// `demo-fail` say the one thing a sample needs to say: whether the step it
-// reaches will be satisfied. The `demo-` is there because the words are shown
-// beside a document on a case, where a bare `fail` reads as an error that has
-// happened rather than as what the example was written to argue (client decision
-// 46). A claim that passes triage takes the fast track; one that fails
-// needs full assessment. Triage is a screen, so the words fit it as well as they
-// fit the risk screen.
-//
-// It labels the sample in the picker — "Repair estimate / demo-pass" — so a visitor
-// can choose which way to push the model deciding agent steps. What the model
-// decides is its own: a small local model may not follow the text's argument
-// (client decision 40).
-type Outcome string
-
-const (
-	// OutcomeNone is a document whose name carries no outcome — anything a
-	// visitor uploaded themselves.
-	OutcomeNone Outcome = ""
-	OutcomePass Outcome = "demo-pass"
-	OutcomeFail Outcome = "demo-fail"
-)
-
-// Outcomes is the vocabulary.
-var Outcomes = []Outcome{OutcomePass, OutcomeFail}
-
 // Document is one sample: its file name, the document type it is an example of,
-// what it argues for, and its text.
+// and its text.
 //
 // No title and no submission type. Both used to be decided here by a switch on
 // the file name's prefix, and both now live in the database — the title on the
@@ -61,9 +32,8 @@ type Document struct {
 	// Kind is the document type's name, which is the file name's middle segment
 	// verbatim: `estimate`, `police-report`, `prior-insurer`. One spelling across
 	// the file, the row and the document.
-	Kind    string
-	Outcome Outcome
-	Body    string
+	Kind string
+	Body string
 }
 
 // Library is the loaded set.
@@ -133,30 +103,11 @@ func (l *Library) MustHave(fileName string) Document {
 	return document
 }
 
-// parse splits `<order>-<type>-<outcome>.txt` into its parts.
-//
-// Entirely structural: strip the number, strip the outcome, and whatever is left
-// is the document type's name. There is no list of kinds here, so adding one is
-// two files and a row rather than a code change.
-//
-// A name that does not match the convention still loads — it is simply a document
-// with no outcome, which is exactly what an uploaded file is.
+// parse reads `<order>-<type>.txt`: strip the number, and what is left is the
+// document type's name. There is no list of kinds here, so adding one is a file
+// and a row rather than a code change.
 func parse(fileName, body string) Document {
-	stem := TrimOrder(strings.TrimSuffix(fileName, ".txt"))
-
-	document := Document{FileName: fileName, Body: body, Kind: stem}
-
-	for _, outcome := range Outcomes {
-		suffix := "-" + string(outcome)
-		if strings.HasSuffix(stem, suffix) {
-			document.Outcome = outcome
-			document.Kind = strings.TrimSuffix(stem, suffix)
-
-			break
-		}
-	}
-
-	return document
+	return Document{FileName: fileName, Body: body, Kind: TrimOrder(strings.TrimSuffix(fileName, ".txt"))}
 }
 
 // order reads the leading `<n>-`. A file without one sorts last, since the

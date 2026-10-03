@@ -283,8 +283,8 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 
 	// The only model offered is used without being chosen, and the finding is
 	// signed with it.
-	if name := stepName(t, application, submission); name != "estimate check" {
-		t.Errorf("after the agent decided, the case is at %q, want estimate check", name)
+	if name := stepName(t, application, submission); name != "narrative consistency" {
+		t.Errorf("after the agent decided, the case is at %q, want narrative consistency", name)
 	}
 
 	history, err := application.SubjectHistory(ctx, sessionID, submission)
@@ -332,8 +332,8 @@ func TestAgentStepWaitsForAModelToBeChosen(t *testing.T) {
 
 	runOnce(t, application, sessionID, submission, visitID)
 
-	if name := stepName(t, application, submission); name != "estimate check" {
-		t.Errorf("case is at %q, want estimate check", name)
+	if name := stepName(t, application, submission); name != "narrative consistency" {
+		t.Errorf("case is at %q, want narrative consistency", name)
 	}
 }
 

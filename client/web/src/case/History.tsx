@@ -19,9 +19,9 @@ function ageOf(visit: Visit) {
 
 // What happened, and what it was decided against.
 //
-// The second half is the point. A run that loops through `estimate follow-up`
-// visits `estimate check` twice, with the same name and different answers,
-// and the only thing that explains the change is its decision documents: the
+// The second half is the point. A run that loops back visits a step twice, with
+// the same name and different answers, and the only thing that explains the
+// change is its decision documents: the
 // newest of each type the step required, as they stood at the revision each
 // visit stamped. The server derives them, so the rule lives in one place rather
 // than being reimplemented here in TypeScript. They are what a decision depended

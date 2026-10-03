@@ -4,10 +4,10 @@ Replace the local model with replays of recorded Sonnet calls, so the hosted dem
 
 ## What this file is
 
-The plan from the replay interview of 2026-10-02.
+The agreed plan from the replay interview of 2026-10-02.
 
-**The phases below are proposed, not yet agreed.**
-Once the owner marks them [agreed] they are binding: followed in order, and a different sequence, a skipped phase or a new step is raised rather than made quietly.
+**The phases below are [agreed] and binding.**
+Follow them in order; if the work suggests a different sequence, or a phase turns out unnecessary, stop and say so rather than re-sequencing quietly.
 
 Why each choice is what it is lives in [`client/docs/decisions.md`](../../client/docs/decisions.md), entry 69; it is not restated here.
 State lives in [status](../status.md).
@@ -40,7 +40,7 @@ The seeded data the recordings will be made against.
 - The claim workflow loses `estimate check` and `estimate follow-up`; triage's `full assessment` leads to `narrative consistency`.
 - The claim's required documents are re-derived: with no estimate step, triage no longer has to require the estimate for an agent after it (decision 38's rule), so it requires the intake note and the police report.
 - The sample documents lose their outcomes: `demo-pass` and `demo-fail` leave the file names, the `Outcome` field leaves `internal/samples` and the API, and the document labels in the UI lose them (decisions 45 and 46 superseded).
-  The samples stay, unlabelled, as documents a visitor can add.
+  The library shrinks to the story's four documents, one per kind, named `<order>-<type>.txt`; the eight alternates are deleted (decided during phase 1, client decision 69).
 - The sample-documents README is rewritten around the story rather than around steering a model.
 
 Done when the tests pass with the shorter claim workflow and no outcome anywhere.

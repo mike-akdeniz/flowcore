@@ -610,8 +610,7 @@ function DocumentList({ documents, empty, onOpen }: {
           <Table.Tr key={document.id}>
             <Table.Td>
               <Anchor component="button" type="button" size="sm" onClick={() => onOpen(document.id)}>
-                {document.name}
-                {document.outcome ? ` / ${document.outcome}` : ""} · v{document.version}
+                {document.name} · v{document.version}
               </Anchor>
             </Table.Td>
             <Table.Td><Text size="xs" c="dimmed">{document.kind}</Text></Table.Td>

@@ -17,7 +17,7 @@ import (
 // database and the workflow definitions are the source rather than this file.
 //
 // `name` is the document type's name in the sample's file name and here. A sample
-// called `1-estimate-demo-pass.txt` is an example of the type named `estimate`, and
+// called `2-estimate.txt` is an example of the type named `estimate`, and
 // nothing has to map between them. Everything else refers to the type by its id.
 
 type documentType struct {
@@ -62,11 +62,9 @@ var applicationDocumentTypes = []documentType{
 // `triage` requires everything its agent successors do.
 //
 // The human steps require nothing. A person can file what is missing before
-// deciding, and the claim's `estimate follow-up` loop turns on whether the
-// estimate is adequate, which is a judgment rather than a presence check.
+// deciding.
 var claimRequirements = []requirement{
-	{step: "triage", types: []string{"intake-note", "estimate", "police-report"}},
-	{step: "estimate check", types: []string{"estimate", "police-report"}},
+	{step: "triage", types: []string{"intake-note", "police-report"}},
 	{step: "narrative consistency", types: []string{"police-report"}},
 }
 

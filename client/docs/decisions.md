@@ -2704,6 +2704,12 @@ Claude added that each replayed finding be signed "— Claude Sonnet 5.5 (replay
 The owner kept the signature and dropped the version: *"let's drop "Sonnet 5.5" because models become obsolete and forgottne in months"*; it reads "— Claude (replay)".
 The random path's wording Claude drafted, "This step is not part of the replay, so *action* was chosen at random. Set ANTHROPIC_API_KEY and choose a model to run it live.", replaced the owner's "Anthropic key not set", which would be false locally with a key set and Replay chosen; the owner: *"Your random path's wording is ok."*
 
+**The sample library is the story's documents.**
+Found in phase 1: every kind of sample came as a pass and a fail, and with the outcome gone from the name the two would show as identical entries.
+The plan had said the samples stay, unlabelled, so Claude raised it rather than improvise.
+Claude recommended keeping one sample per kind, the four the story files — intake note, estimate and police report on the claim, previous insurer's letter on the application — named `<order>-<type>.txt`, and deleting the eight alternates, which existed only to push a live model one way or the other; witness statements and inspections remain types a visitor can upload.
+The owner: *"your recommendation"*.
+
 **Not settled here.**
 A smaller Lightsail instance, now that the host runs no model, is a separate cost decision.
 

@@ -25,11 +25,6 @@ type documentJSON struct {
 	ReceivedAt string  `json:"receivedAt"`
 	Body       *string `json:"body"`
 	SourceFile *string `json:"sourceFile"`
-	// Outcome is what a sample document argues for, `demo-pass` or `demo-fail`, read from
-	// the sample's file name, and empty for anything that is not one of the
-	// embedded samples. Shown in the document's label on the case and nowhere
-	// else, where a bare fail would read as the case's own verdict.
-	Outcome string `json:"outcome"`
 	// AddedAtRevision is when this document arrived, and Superseded says a newer
 	// one of its kind has taken over. Superseded documents are sent rather than
 	// filtered out: an agent's remark refers to the document it actually read,
@@ -57,9 +52,9 @@ type documentJSON struct {
 // visitJSON is one entry into a step, with what was decided and what the file
 // looked like when it was.
 //
-// DocumentIDs is the point of carrying the revision at all. A step reached twice
-// by the `estimate follow-up` loop leaves two visits with the same name and
-// different answers, and this is what shows why: the documents each decision
+// DocumentIDs is the point of carrying the revision at all. A step a workflow
+// loops back to leaves two visits with the same name and different answers, and
+// this is what shows why: the documents each decision
 // depended on, as they stood at the revision it stamped. Derived here rather
 // than in the browser, because `store.Current` is the rule and there should be
 // one of it.
@@ -299,13 +294,6 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 
 	payload.Documents = make([]documentJSON, 0, len(documents))
 	for _, document := range documents {
-		outcome := ""
-		if document.SourceFile != nil {
-			if sample, ok := s.app.Samples.ByName(*document.SourceFile); ok {
-				outcome = string(sample.Outcome)
-			}
-		}
-
 		payload.Documents = append(payload.Documents, documentJSON{
 			ID:              document.ID.String(),
 			Name:            document.Name,
@@ -313,7 +301,6 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			ReceivedAt:      document.ReceivedAt.Format("2006-01-02"),
 			Body:            document.Body,
 			SourceFile:      document.SourceFile,
-			Outcome:         outcome,
 			AddedAtRevision: document.AddedAtRevision,
 			Superseded:      !inForce[document.ID],
 			Version:         versions[document.ID],
@@ -677,9 +664,8 @@ type sampleJSON struct {
 	// case payload carries, so the two are joined in the browser rather than
 	// denormalised here — a visitor can rename a type, and a sample would then
 	// be carrying a stale label.
-	Kind    string `json:"kind"`
-	Outcome string `json:"outcome"`
-	Body    string `json:"body"`
+	Kind string `json:"kind"`
+	Body string `json:"body"`
 }
 
 // listSamples serves the whole embedded set, so a hosted visitor has the same
@@ -696,7 +682,6 @@ func (s *Server) listSamples(w http.ResponseWriter, _ *http.Request) {
 		payload = append(payload, sampleJSON{
 			FileName: document.FileName,
 			Kind:     document.Kind,
-			Outcome:  string(document.Outcome),
 			Body:     document.Body,
 		})
 	}

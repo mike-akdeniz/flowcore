@@ -94,19 +94,18 @@ func (a *App) seedClaimExample(ctx context.Context, sessionID string) error {
 	// so there is one place to edit the text. They are the three documents
 	// `triage` requires, so the claim can be submitted as it stands.
 	//
-	// With a model they argue for the long route. The intake note puts `triage`
-	// on full assessment, the estimate is a scribbled figure `estimate check`
-	// should send back for detail, and the police report contradicts the
+	// They tell the story the replay records (client decision 69): the intake note
+	// puts `triage` on full assessment, and the police report contradicts the
 	// claimant's account on both the circumstances and the timing, which is what
-	// `narrative consistency` is for. Whether a model follows that argument is the
-	// model's: a small local one may not.
+	// `narrative consistency` is for. The estimate is a scribbled figure that no
+	// step judges; it is on file because a real claim would have one.
 	seeded := []struct {
 		fileName   string
 		receivedAt time.Time
 	}{
-		{"6-intake-note-demo-fail.txt", date(2026, 9, 15)},
-		{"7-estimate-demo-fail.txt", date(2026, 9, 16)},
-		{"8-police-report-demo-fail.txt", date(2026, 9, 16)},
+		{"1-intake-note.txt", date(2026, 9, 15)},
+		{"2-estimate.txt", date(2026, 9, 16)},
+		{"3-police-report.txt", date(2026, 9, 16)},
 	}
 
 	for _, entry := range seeded {
@@ -203,7 +202,7 @@ func (a *App) seedApplicationExample(ctx context.Context, sessionID string) erro
 	//
 	// It is also the document `risk screen` requires, so the application can be
 	// submitted as it stands.
-	sample := a.Samples.MustHave("4-prior-insurer-demo-fail.txt")
+	sample := a.Samples.MustHave("1-prior-insurer.txt")
 	body, fileName := sample.Body, sample.FileName
 
 	documentType, err := a.DocumentTypeNamed(ctx, sessionID, sample.Kind)

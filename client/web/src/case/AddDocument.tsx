@@ -36,20 +36,15 @@ export function AddDocument({
   // (client decision 36). The server refuses anything else, so offering it here
   // would only be a way to be refused.
   //
-  // Sorted by title so a type's pass and fail sit together, and pass first within
-  // each so the ordinary case leads. The numeric prefix the files carry is a
-  // reading order for the folder, and it is not shown here — the label is the
-  // type's title — so nothing about the two orderings conflicts.
+  // Sorted by title. The numeric prefix the files carry is a reading order for
+  // the folder, and it is not shown here — the label is the type's title — so
+  // nothing about the two orderings conflicts.
   const offered = samples
     .filter(
       (candidate) =>
         subject.expects.includes(candidate.kind),
     )
-    .sort((left, right) => {
-      const byTitle = kindLabel(left.kind).localeCompare(kindLabel(right.kind));
-
-      return byTitle !== 0 ? byTitle : left.outcome.localeCompare(right.outcome) * -1;
-    });
+    .sort((left, right) => kindLabel(left.kind).localeCompare(kindLabel(right.kind)));
   const [mode, setMode] = useState<"sample" | "upload">("sample");
   const [chosen, setChosen] = useState<string | null>(null);
   const [upload, setUpload] = useState<{ fileName: string; body: string }>();
@@ -146,9 +141,7 @@ export function AddDocument({
           w={320}
           data={offered.map((candidate) => ({
             value: candidate.fileName,
-            label: candidate.outcome
-              ? `${kindLabel(candidate.kind)} / ${candidate.outcome}`
-              : kindLabel(candidate.kind),
+            label: kindLabel(candidate.kind),
           }))}
           value={chosen}
           onChange={setChosen}

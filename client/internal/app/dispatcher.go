@@ -391,8 +391,8 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	// The revision stamped here is the one the model actually read, not whatever
 	// the claim is at by the time this write lands. A document added in between
 	// belongs to the next visit, and saying so is the entire point of recording
-	// it: a step reached twice by the `estimate follow-up` loop leaves two visits,
-	// and the revision is what tells them apart.
+	// it: a step a workflow loops back to leaves two visits, and the revision is
+	// what tells them apart.
 	next, err := d.app.CompleteStep(ctx, item.SessionID, submission, *state.CurrentStep,
 		Identity{Reference: state.CurrentStep.AssigneeID},
 		CompleteRequest{

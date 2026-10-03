@@ -6,7 +6,7 @@ Permanent project state lives in [status.md](../status.md), not here.
 
 - [Agent handover](agent-handover.md) — current continuation context for the next Claude Code or Codex session.
 - [Agent-step configuration](agent-step-configuration.md) — settled cross-module design and implementation checklist for slice 7.
-- [CaseWork — agent steps as replays](casework-replay.md) — the proposed plan for replacing the local model with replays of recorded Sonnet calls, from client decision 69.
+- [CaseWork — agent steps as replays](casework-replay.md) — the agreed plan for replacing the local model with replays of recorded Sonnet calls, from client decision 69.
 - [CaseWork — public hosting](casework-hosting.md) — the agreed plan for hosting CaseWork at casework.happensbefore.com, from client decisions 50-60.
 - [Reference client — UI rebuild](client-ui-rebuild.md) — the agreed slices for rebuilding the interface on React.
 - [Reference client — HTMX era](client-htmx.md) — the original plan; phases 1-6 complete. Its UI half is superseded by the rebuild above; its Go-side reasoning still holds.

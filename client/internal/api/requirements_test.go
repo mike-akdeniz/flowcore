@@ -173,7 +173,7 @@ func TestDecisionsWaitForRequiredDocuments(t *testing.T) {
 	}
 
 	// Only whoever the case waits on may file on it once it is submitted.
-	witness := newDocumentJSON{SampleFile: "4-witness-statement-demo-pass.txt"}
+	witness := newDocumentJSON{FileName: "statement.txt", Body: "I saw the car hit the post.", Kind: "witness-statement"}
 	requestAs(t, server, sessionID, "user:marek", http.MethodPost, "/api/cases/C-1042/documents",
 		witness, http.StatusForbidden)
 	jsonRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/documents", witness, http.StatusForbidden)
@@ -227,7 +227,7 @@ func TestHandingToAnAgentChecksItsDocuments(t *testing.T) {
 	}
 
 	slices.Sort(read)
-	if want := []string{"estimate", "intake-note", "police-report"}; !slices.Equal(read, want) {
+	if want := []string{"intake-note", "police-report"}; !slices.Equal(read, want) {
 		t.Errorf("triage's decision documents are %v, want %v", read, want)
 	}
 

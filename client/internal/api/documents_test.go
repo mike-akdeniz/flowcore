@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -123,28 +122,6 @@ func TestDocumentRemovalAndHistory(t *testing.T) {
 		if document.ReadBy == nil || len(document.ReadBy) != 0 || document.Version != 1 {
 			t.Fatalf("new draft document has invalid readers or version: %+v", document)
 		}
-	}
-
-	// A sample's outcome comes from its file name, and a sample whose name
-	// carries none has none.
-	outcomes := map[string]int{}
-	for _, document := range original.Documents {
-		want := ""
-		for _, outcome := range []string{"demo-pass", "demo-fail"} {
-			if document.SourceFile != nil && strings.HasSuffix(*document.SourceFile, "-"+outcome+".txt") {
-				want = outcome
-			}
-		}
-
-		if document.Outcome != want {
-			t.Fatalf("%s has outcome %q, want %q", document.Name, document.Outcome, want)
-		}
-
-		outcomes[want]++
-	}
-
-	if outcomes["demo-fail"] == 0 {
-		t.Fatal("the seeded claim carries demo-fail samples, and none reported an outcome")
 	}
 
 	first := original.Documents[0]

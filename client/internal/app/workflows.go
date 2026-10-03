@@ -23,13 +23,11 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 		settled      = uuid.Must(uuid.NewV7())
 		declined     = uuid.Must(uuid.NewV7())
 
-		triage        = uuid.Must(uuid.NewV7())
-		fastTrack     = uuid.Must(uuid.NewV7())
-		documentation = uuid.Must(uuid.NewV7())
-		awaiting      = uuid.Must(uuid.NewV7())
-		consistency   = uuid.Must(uuid.NewV7())
-		adjuster      = uuid.Must(uuid.NewV7())
-		fraud         = uuid.Must(uuid.NewV7())
+		triage      = uuid.Must(uuid.NewV7())
+		fastTrack   = uuid.Must(uuid.NewV7())
+		consistency = uuid.Must(uuid.NewV7())
+		adjuster    = uuid.Must(uuid.NewV7())
+		fraud       = uuid.Must(uuid.NewV7())
 	)
 
 	return flowcore.WorkflowDefinition{
@@ -51,7 +49,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 Read the intake note against the claimant's account.`),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "fast track", NextStepDefinitionID: &fastTrack},
-					{Name: "full assessment", NextStepDefinitionID: &documentation},
+					{Name: "full assessment", NextStepDefinitionID: &consistency},
 				},
 			},
 			{
@@ -62,34 +60,8 @@ Read the intake note against the claimant's account.`),
 					"escalate it if anything needs a closer look, or decline it if the policy does not cover it."),
 				Actions: []flowcore.ActionDefinition{
 					{Name: "settle", TerminalWorkflowStatusDefinitionID: &settled},
-					{Name: "escalate", NextStepDefinitionID: &documentation},
+					{Name: "escalate", NextStepDefinitionID: &consistency},
 					{Name: "decline", TerminalWorkflowStatusDefinitionID: &declined},
-				},
-			},
-			{
-				// An AI step whose judgment loops back for a better document. It
-				// judges whether the estimate is adequate, never whether one exists:
-				// its required types are on the case before it can be reached.
-				ID: documentation, WorkflowStatusDefinitionID: inAssessment,
-				Name: "estimate check", AssigneeID: "agent:estimates",
-				Instructions: stepInstructions(`Decide whether the repair estimate can be assessed as it stands.
-
-It is adequate when an assessor could check it line by line: parts, labour, hours, rate
-and VAT all stated. It needs detail when it is a single approximate figure or leaves any
-of those out.`),
-				Actions: []flowcore.ActionDefinition{
-					{Name: "adequate", NextStepDefinitionID: &consistency},
-					{Name: "needs detail", NextStepDefinitionID: &awaiting},
-				},
-			},
-			{
-				// The loop target: an AI step re-run against a genuinely different file.
-				ID: awaiting, WorkflowStatusDefinitionID: inAssessment,
-				Name: "estimate follow-up", AssigneeID: "group:intake-handlers",
-				Instructions: stepInstructions("Get an itemised estimate from the repairer, add it to the case, " +
-					"then resubmit the claim to the estimate check."),
-				Actions: []flowcore.ActionDefinition{
-					{Name: "resubmit", NextStepDefinitionID: &documentation},
 				},
 			},
 			{

@@ -1,71 +1,35 @@
 # Sample documents
 
-Text documents you can add to a case in CaseWork, either by uploading the file or by picking it from
-the list in the application — they are embedded in the binary, so a hosted instance offers the same
-set.
+The documents of CaseWork's seeded story, as text you can read here and add to a case in the
+application — they are embedded in the binary, so a hosted instance offers the same set.
 
-**The name says what the document argues for.** Each file is `<order>-<document>-<outcome>.txt`, and
-the outcome is one of two words:
+**They are the story's own documents.** The seeded claim `C-1042` and policy application `P-2087`
+are built from them, and the agent steps' replays were recorded against them (client decision 69).
+Adding one to a case of your own gives it a document of that kind, so it can be submitted; on a
+case outside the story, an agent step under Replay chooses its action at random and says so.
 
-- `demo-pass` — the step judging this document should be satisfied.
-- `demo-fail` — it should not.
-
-The `demo-` keeps the word from reading as an error when the application shows it beside a document.
-
-Two words rather than one pair per step. An intake note that passes sends a claim down the fast track
-at `triage` and one that fails needs full assessment; an estimate that passes `estimate check` is
-itemised and one that fails is a scribbled figure. What "demo-pass" means is a property of the step, not
-of the vocabulary.
-
-**The name is a label, not an instruction.** The agent steps read what is *inside* these files, along
-with the rest of the case, and the model chosen in the top bar decides for itself; the outcome in the
-name is what the text was written to argue, and the picker shows it so you can choose which way to
-push the model. The tables below describe what a model that follows the argument does — a small local
-model may not, and that is its finding to make (client decision 40).
-
-**The number is a suggested order**, and nothing else — the application strips it before reading the
-name. Numbering restarts for each kind of submission, because the picker only ever shows one kind at
-a time.
+**The name is the document type.** Each file is `<order>-<type>.txt`, and the type is the name of
+the document type it is an example of. The number is a suggested reading order and nothing else —
+the application strips it — and it restarts for each kind of submission.
 
 ## Claims
 
-The longer workflow: seven steps, three of them decided by an agent, and a loop back through
-`estimate follow-up`. The seeded lists lead with it, so start here.
-
-| # | File | What it does |
+| # | File | In the story |
 |---|------|--------------|
-| 1 | `1-estimate-demo-pass.txt` | The document the seeded claim is waiting for. Add it at `estimate follow-up` and the claim moves on. |
-| 2 | `2-police-report-demo-pass.txt` | Changes the ending: `narrative consistency` sends the claim to the adjuster instead of to fraud. |
-| 3 | `3-witness-statement-demo-fail.txt` | A second voice against the claimant's account. |
-| 4 | `4-witness-statement-demo-pass.txt` | A second voice for it. |
-| 5 | `5-intake-note-demo-pass.txt` | On a claim you file yourself, sends it down the fast track at `triage`. |
-| 6 | `6-intake-note-demo-fail.txt` | Already on the seeded claim — the reason it takes the long route. |
-| 7 | `7-estimate-demo-fail.txt` | Already on the seeded claim — the reason it stalls. |
-| 8 | `8-police-report-demo-fail.txt` | Already on the seeded claim — the reason it ends in a fraud referral. |
+| 1 | `1-intake-note.txt` | The claimant was not present; the account is inference. Triage reads it. |
+| 2 | `2-estimate.txt` | A single approximate figure from a bodyshop. On file; no step judges it. |
+| 3 | `3-police-report.txt` | The car was seen already damaged two miles away the night before. Narrative consistency reads it against the claimant's account. |
+
+The seeded claim also has a photographs entry: a document with a name and no text, because not
+everything on a claim file is prose.
 
 ## Policy applications
 
-| # | File | What it does |
+| # | File | In the story |
 |---|------|--------------|
-| 1 | `1-prior-insurer-demo-pass.txt` | Supersedes the letter on the seeded application, so `risk screen` passes it to an ordinary underwriter. The policy application is the shorter workflow, if you want a run's whole shape in a minute. |
-| 2 | `2-inspection-demo-fail.txt` | A vehicle that is not the one proposed. |
-| 3 | `3-inspection-demo-pass.txt` | A vehicle that is. |
-| 4 | `4-prior-insurer-demo-fail.txt` | Already on the seeded application — the reason it goes to a senior underwriter. |
+| 1 | `1-prior-insurer.txt` | Two convictions, a vehicle kept on the street, and no renewal offered. Risk screen reads it. |
 
-## Required documents
-
-Each step can require kinds of document, and a decision on it waits until one of each is on the case
-(client decision 36). The seeded claim already holds everything its agent steps require, so it can be
-submitted as it stands; the samples above are what you add to change a decision or to satisfy a step
-you have edited to require more.
-
-**Policy applications take documents on the same terms as claims.** A claim and a proposal have
-nothing in common at the detail level and run through identical document machinery, which is what the
-library being subject-agnostic looks like from the application's side.
-
-**Adding one never removes another.** A second estimate supersedes the first rather than replacing
-it: both stay on the case, the older is labelled, and the agent steps read the newest document of
-each kind. That is what keeps an earlier decision's finding pointing at the document it was actually
-about.
+Witness statements and vehicle inspections are document types too, with no sample: upload a text
+file of your own to file one.
 
 Everything here is fictional.
