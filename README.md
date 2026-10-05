@@ -8,15 +8,22 @@ A workflow library written in Go, in which both people and AI make decisions.
 
 No account needed, free to play with workflows, submissions, steps.
 
-[-- will put two screenshots here: a policy page with history, workflow edit page, recommend me screenshot siz in pixels]
+![A policy application in CaseWork, with the history of who decided each step and why](docs/images/casework-case-history.webp)
 
-*Why use a workflow library instead of a single AI agent?* 
-Some business processes require input from multiple people. Accountability and ownership of these decisions has legal and financial implications and these can't be delegated to a single agent from start to finish. Those are no-negotiable requirements for many domains.
+![The CaseWork workflow editor, with AI steps outlined in violet](docs/images/casework-workflow-editor.webp)
 
-An AI step in flowcore makes one decision inside a workflow someone designed: it picks one of the step's actions and writes a finding saying why.It cannot add a step, call a tool or change the path, and which steps belong to the model is the process owner's choice.
+### Why use a workflow library instead of a single AI agent?
 
-*Demo Stack*
-A Go server on `net/http` and pgx with a React, TypeScript and Mantine front end, the workflow graph drawn with React Flow, all served from one binary. 
+Some business processes require input from multiple people.
+Accountability and ownership of these decisions have legal and financial implications, and these can't be delegated to a single agent from start to finish.
+Those are non-negotiable requirements for many domains.
+
+An AI step in FlowCore makes one decision inside a workflow someone designed: it picks one of the step's actions and writes a finding saying why.
+It cannot add a step, call a tool or change the path, and which steps belong to the model is the process owner's choice.
+
+### Demo stack
+
+A Go server on `net/http` and pgx with a React, TypeScript and Mantine front end, the workflow graph drawn with React Flow, all served from one binary.
 
 Runs on one AWS Lightsail instance with Postgres and Caddy for TLS, provisioned with OpenTofu, its DNS on Cloudflare, and deployed by a GitHub Actions workflow.
 
@@ -40,7 +47,7 @@ To have Claude decide them live through the Anthropic API, copy `.env.example` t
 The picker in the top bar then lists Claude models.
 [What to try](client/README.md#what-to-try) walks through the demo.
 
-## How the library was designed 
+## How the library was designed
 
 The design was argued rather than asserted.
 
@@ -56,7 +63,10 @@ Examples:
 
 [`docs/code-map.md`](docs/code-map.md) shows how the pieces fit together in code.
 
-One deliberate idiom deviation: identifiers spell out full domain words rather than Go's typical short local names, with a narrow receiver-like exception for a function's single dominant parameter. Reasons recorded in decision 18.
+[`docs/usage.md`](docs/usage.md) covers installing the library, applying the schema, configuring and running a workflow, and its errors.
+
+One deliberate idiom deviation: identifiers spell out full domain words rather than Go's typical short local names, with a narrow receiver-like exception for a function's single dominant parameter.
+Reasons recorded in decision 18.
 
 ## License
 
