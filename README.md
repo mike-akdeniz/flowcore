@@ -65,10 +65,9 @@ Some business processes require input from multiple people.
 Accountability and ownership of these decisions have legal and financial implications, and these can't be delegated to a single agent from start to finish.
 
 An AI step in FlowCore makes one decision inside a workflow someone designed: it picks one of the step's actions and writes a finding saying why.
-It cannot add a step, call a tool or change the path, and which steps belong to the model is the process owner's choice.
 
-An AI step can also be an agent working within that step, with tools of its own, as long as it ends with the same reply: an action and a finding.
-In CaseWork that would be another implementation of the `Backend` interface's `Decide`; FlowCore needs no change, since the assignee is opaque and the client does the dispatching.
+An agent can work within a step, with tools of its own, as long as it ends with the same reply: an action and a finding.
+In a client similar to CaseWork that would be another implementation of the `Backend` interface's `Decide`; FlowCore needs no change, since the assignee is opaque and the client does the dispatching.
 
 ## License
 
