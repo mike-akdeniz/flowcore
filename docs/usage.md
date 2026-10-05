@@ -5,9 +5,9 @@ The [README](../README.md) says what FlowCore is.
 
 ## Requirements
 
-Go 1.25.7+, Postgres 13+, and a database role with CREATE privilege — the first migration creates a dedicated `flowcore` schema.
+Go 1.25.7+, Postgres 17+, and a database role with CREATE privilege — the first migration creates a dedicated `flowcore` schema.
 
-The test suite runs against Postgres 13 and 17.
+The test suite runs against Postgres 17.
 
 ## Install
 

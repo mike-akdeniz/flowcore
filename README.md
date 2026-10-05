@@ -8,18 +8,9 @@ A workflow library written in Go, in which both people and AI make decisions.
 
 No account needed, free to play with workflows, submissions, steps.
 
-![A policy application in CaseWork, with the history of who decided each step and why](docs/images/casework-case-history.webp)
+![An insurance claim in CaseWork, with the history of who decided each step and why](docs/images/casework-case-history.webp)
 
 ![The CaseWork workflow editor, with AI steps outlined in violet](docs/images/casework-workflow-editor.webp)
-
-### Why use a workflow library instead of a single AI agent?
-
-Some business processes require input from multiple people.
-Accountability and ownership of these decisions have legal and financial implications, and these can't be delegated to a single agent from start to finish.
-Those are non-negotiable requirements for many domains.
-
-An AI step in FlowCore makes one decision inside a workflow someone designed: it picks one of the step's actions and writes a finding saying why.
-It cannot add a step, call a tool or change the path, and which steps belong to the model is the process owner's choice.
 
 ### Demo stack
 
@@ -67,6 +58,15 @@ Examples:
 
 One deliberate idiom deviation: identifiers spell out full domain words rather than Go's typical short local names, with a narrow receiver-like exception for a function's single dominant parameter.
 Reasons recorded in decision 18.
+
+## Why use a workflow library instead of a single AI agent?
+
+Some business processes require input from multiple people.
+Accountability and ownership of these decisions have legal and financial implications, and these can't be delegated to a single agent from start to finish.
+
+An AI step in FlowCore makes one decision inside a workflow someone designed: it picks one of the step's actions and writes a finding saying why. It cannot add a step, call a tool or change the path, and which steps belong to the model is the process owner's choice.
+
+That being said, using agents scoped to AI steps is a very plausible scenario and the library support that. On the client, an agent would be another implementation of the Backend interface's Decide; FlowCore needs no change, since the assignee is opaque and client should do the dispatching.
 
 ## License
 
