@@ -96,7 +96,7 @@ func TestSeededDocumentTypes(t *testing.T) {
 	}
 
 	if triage.Instructions == nil || *triage.Instructions == "" {
-		t.Error("the seeded agent step has no instructions")
+		t.Error("the seeded AI step has no instructions")
 	}
 
 	if adjuster := stepCalled(t, workflow, "adjuster review"); len(adjuster.Expects) != 0 {
@@ -134,9 +134,9 @@ func TestStepEditRules(t *testing.T) {
 		}
 	})
 
-	t.Run("an agent step needs instructions", func(t *testing.T) {
+	t.Run("an AI step needs instructions", func(t *testing.T) {
 		jsonRequest(t, server, sessionID, http.MethodPost, base+"/steps", stepEditJSON{
-			Name: "photo check", Assignee: "agent:photos", StatusID: workflow.Statuses[0].ID,
+			Name: "photo check", Assignee: "ai:photos", StatusID: workflow.Statuses[0].ID,
 		}, http.StatusBadRequest)
 	})
 
@@ -157,10 +157,10 @@ func TestStepEditRules(t *testing.T) {
 		}
 	})
 
-	t.Run("an agent may hand over only what it required", func(t *testing.T) {
+	t.Run("an AI step may hand over only what it required", func(t *testing.T) {
 		instructions := "Check the witness statement."
 		response := jsonRequest(t, server, sessionID, http.MethodPost, base+"/steps", stepEditJSON{
-			Name: "witness check", Assignee: "agent:witness", StatusID: workflow.Statuses[0].ID,
+			Name: "witness check", Assignee: "ai:witness", StatusID: workflow.Statuses[0].ID,
 			Instructions: &instructions, Expects: []string{"witness-statement"},
 		}, http.StatusOK)
 
@@ -184,7 +184,7 @@ func TestStepEditRules(t *testing.T) {
 			base+"/steps/"+stepCalled(t, updated, "adjuster review").ID+"/actions",
 			actionEditJSON{Name: "check witness", NextStepID: witness.ID}, http.StatusOK)
 
-		// Once the destination needs nothing the source lacks, the agent may too.
+		// Once the destination needs nothing the source lacks, the AI step may too.
 		edit := editStep(witness)
 		edit.Expects = []string{"police-report"}
 		jsonRequest(t, server, sessionID, http.MethodPatch, base+"/steps/"+witness.ID, edit, http.StatusOK)

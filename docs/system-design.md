@@ -147,7 +147,7 @@ _Step Definition_
 - actions
 - workflow status definition id
 - assignee_id // opaque reference to the person or group expected to act on this step. Required — a step with no decided owner carries a value saying so, chosen by the client. A default, copied to the Step at workflow start.
-- instructions // optional text describing the work, for a person or an agent. The library records and snapshots it but never executes or interprets it.
+- instructions // optional text describing the work, for a person or an AI step. The library records and snapshots it but never executes or interprets it.
 - required_input_type_ids // `text[]` of opaque client-defined IDs for the kinds of material a decision on this step requires. Empty is allowed. The library records and snapshots them but does not resolve them or enforce presence.
 
 _Action Definition_
@@ -208,7 +208,7 @@ The snapshot step, not the definition step, answers what instruction and input t
 `CurrentStep` exposes both, and historical visit reads expose the frozen required input type IDs needed to explain a completed decision.
 `CurrentStep` also says which definition step it was copied from, and each of its actions which definition action, so a client can hang its own configuration on either and keep it through a rename; history and worklist reads do not carry these until a caller needs them there.
 An action's selected immediate destination can be read from the instance snapshot before completion, including that destination's assignee and required input type IDs.
-The library does not decide which references name agents or which inputs exist: the client makes those decisions.
+The library does not decide which references name AI steps or which inputs exist: the client makes those decisions.
 
 There is no instance-side workflow status _entity_.
 A status has no attribute but a name, and per-run status ids would be useless to any caller — two runs started a minute apart would hold different ids for the same logical status, so no cross-run query could key on them.
@@ -535,14 +535,14 @@ _Reassign Step_
 _Complete Step_ — gains an optional remark
 
 AI review steps are in scope and need no new mechanism.
-An AI review step is an ordinary step whose `assignee_id` is an opaque agent reference, completed by whatever acts on its behalf.
+An AI review step is an ordinary step whose `assignee_id` is an opaque reference to something the client dispatches itself, completed by whatever acts on its behalf.
 This supersedes the increment 2 candidate noted above: "advisory rather than deciding" is not a step type but graph topology, chosen per definition — an advisory step's actions converge on a human step, a deciding step's diverge.
-Human override is the human completing the agent's visit, which the completer-need-not-be-assignee rule already permits, and a superseded agent's late completion is refused by the existing stale-visit check.
+Human override is the human completing the AI step's visit, which the completer-need-not-be-assignee rule already permits, and a superseded AI step's late completion is refused by the existing stale-visit check.
 
-The two capabilities that make an agent usable as an actor are the worklist, so work addressed to it can be found, and the remark, so the reason for a decision is stamped in the same transaction as the decision.
+The two capabilities that make an AI step usable as an actor are the worklist, so work addressed to it can be found, and the remark, so the reason for a decision is stamped in the same transaction as the decision.
 Reassignment joins them because the worklist is what gives it a caller: a queue you can read and not manage is half a feature.
 
-Out of scope: parallel steps and joins, N-of-M voting, the library calling a model or constructing model-specific prompts, agent retry and failure policy, `step_visit.step_definition_id` and the two indexes keyed on it, Scale.
+Out of scope: parallel steps and joins, N-of-M voting, the library calling a model or constructing model-specific prompts, AI step retry and failure policy, `step_visit.step_definition_id` and the two indexes keyed on it, Scale.
 
 # CaseWork-driven extension after iteration 2
 
@@ -554,7 +554,7 @@ Both values are copied eagerly into every instance step at `Start` and read from
 The client's case type, document type catalog, and document records remain outside FlowCore.
 
 Recovery discovery also follows instances rather than definitions.
-A generic open-step read gives clients the live assignees from open visits; CaseWork decides which of those references it dispatches as agents and which sessions it owns.
+A generic open-step read gives clients the live assignees from open visits; CaseWork decides which of those references it dispatches as AI steps and which sessions it owns.
 The existing assignee-keyed worklist keeps its meaning, including returning nothing for an empty reference set.
 A second read takes a set of definition IDs and returns every snapshot step, reached or not, of their open runs, with each step's assignee, instructions, and required input type IDs.
 It serves a client that must know whether any open run could still require an input type; the client does the comparison, and FlowCore reports the snapshot without interpreting it.

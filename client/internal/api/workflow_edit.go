@@ -345,7 +345,7 @@ type newWorkflowJSON struct {
 	StatusName string `json:"statusName"`
 	StepName   string `json:"stepName"`
 	Assignee   string `json:"assignee"`
-	// StepInstructions are required when the first step is an agent's.
+	// StepInstructions are required when the first step is an AI step.
 	StepInstructions *string `json:"stepInstructions"`
 }
 

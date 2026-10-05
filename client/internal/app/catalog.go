@@ -74,8 +74,8 @@ type NewDefinition struct {
 	StatusName     string
 	StepName       string
 	AssigneeID     string
-	// StepInstructions is required when the first step is an agent's, as it is
-	// for any agent step.
+	// StepInstructions is required when the first step is an AI step, as it is
+	// for any AI step.
 	StepInstructions *string
 }
 
@@ -94,7 +94,7 @@ type NewDefinition struct {
 // filed while you were still adding steps would run the half-finished version.
 func (a *App) CreateDefinition(ctx context.Context, sessionID string, request NewDefinition) (flowcore.WorkflowDefinition, error) {
 	instructions := presentInstructions(request.StepInstructions)
-	if err := requireAgentInstructions(request.StepName, request.AssigneeID, instructions); err != nil {
+	if err := requireAIStepInstructions(request.StepName, request.AssigneeID, instructions); err != nil {
 		return flowcore.WorkflowDefinition{}, err
 	}
 
@@ -184,7 +184,7 @@ type AddStepRequest struct {
 	Name       string
 	StatusID   uuid.UUID
 	AssigneeID string
-	// Instructions are what whoever acts on the step is told; an agent step must
+	// Instructions are what whoever acts on the step is told; an AI step must
 	// have them. On an update nil keeps the stored instructions and an empty
 	// string clears them, because the editor sends them only when it shows them.
 	Instructions *string
@@ -196,7 +196,7 @@ type AddStepRequest struct {
 
 // AddStep adds a step, with its instructions and required document types.
 //
-// Nothing routes to a new step and it has no actions yet, so the agent handoff
+// Nothing routes to a new step and it has no actions yet, so the AI step handoff
 // rule has nothing to check until an action is added.
 func (a *App) AddStep(ctx context.Context, sessionID string, definitionID uuid.UUID, request AddStepRequest) error {
 	if err := a.mustOwn(ctx, sessionID, definitionID); err != nil {
@@ -204,7 +204,7 @@ func (a *App) AddStep(ctx context.Context, sessionID string, definitionID uuid.U
 	}
 
 	instructions := presentInstructions(request.Instructions)
-	if err := requireAgentInstructions(request.Name, request.AssigneeID, instructions); err != nil {
+	if err := requireAIStepInstructions(request.Name, request.AssigneeID, instructions); err != nil {
 		return err
 	}
 
@@ -232,7 +232,7 @@ func (a *App) AddStep(ctx context.Context, sessionID string, definitionID uuid.U
 // when the editor shows them.
 //
 // Checked before the write: the required types against the allowed list, an
-// agent's instructions, and the agent handoff rule on every action into or out
+// AI step's instructions, and the AI step handoff rule on every action into or out
 // of this step. The checks read the definition and then write, so a concurrent
 // edit can slip between them — they are the editor's rules, not a lock, as
 // DeleteStep's pre-check is.
@@ -256,7 +256,7 @@ func (a *App) UpdateStep(ctx context.Context, sessionID string, definitionID, st
 		params.Instructions = presentInstructions(request.Instructions)
 	}
 
-	if err := requireAgentInstructions(params.Name, params.AssigneeID, params.Instructions); err != nil {
+	if err := requireAIStepInstructions(params.Name, params.AssigneeID, params.Instructions); err != nil {
 		return err
 	}
 
@@ -273,7 +273,7 @@ func (a *App) UpdateStep(ctx context.Context, sessionID string, definitionID, st
 	edited.RequiredInputTypeIDs = params.RequiredInputTypeIDs
 	definition.Steps[index] = edited
 
-	if err := a.checkAgentHandoffs(ctx, sessionID, definition, stepID); err != nil {
+	if err := a.checkAIStepHandoffs(ctx, sessionID, definition, stepID); err != nil {
 		return err
 	}
 
@@ -313,8 +313,8 @@ type AddActionRequest struct {
 	TerminalStatusID *uuid.UUID
 }
 
-// AddAction adds an action to a step, refusing one that would hand an agent's
-// step to another agent needing documents the first did not require.
+// AddAction adds an action to a step, refusing one that would hand an AI step
+// to another AI step needing documents the first did not require.
 func (a *App) AddAction(ctx context.Context, sessionID string, definitionID, stepID uuid.UUID, request AddActionRequest) error {
 	definition, err := a.Definition(ctx, sessionID, definitionID)
 	if err != nil {
@@ -331,7 +331,7 @@ func (a *App) AddAction(ctx context.Context, sessionID string, definitionID, ste
 		definition.Steps[index].Actions = append(definition.Steps[index].Actions,
 			flowcore.ActionDefinition{Name: request.Name, NextStepDefinitionID: request.NextStepID})
 
-		if err := a.checkAgentHandoffs(ctx, sessionID, definition, stepID); err != nil {
+		if err := a.checkAIStepHandoffs(ctx, sessionID, definition, stepID); err != nil {
 			return err
 		}
 	}
@@ -536,11 +536,11 @@ func presentInstructions(instructions *string) *string {
 	return instructions
 }
 
-// requireAgentInstructions refuses an agent step with nothing to tell the agent.
-// A person can be left to read the case; an agent has only what it is given.
-func requireAgentInstructions(stepName, assigneeID string, instructions *string) error {
-	if IsAgent(assigneeID) && instructions == nil {
-		return fmt.Errorf("%q is assigned to an agent, so it needs instructions", stepName)
+// requireAIStepInstructions refuses an AI step with nothing to tell the model.
+// A person can be left to read the case; an AI step has only what it is given.
+func requireAIStepInstructions(stepName, assigneeID string, instructions *string) error {
+	if IsAIStep(assigneeID) && instructions == nil {
+		return fmt.Errorf("%q is an AI step, so it needs instructions", stepName)
 	}
 
 	return nil

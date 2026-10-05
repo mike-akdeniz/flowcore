@@ -15,13 +15,13 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { api, type AgentStatus, type Case, type CaseDocument, type Staff } from "../api";
+import { api, type AiStepStatus, type Case, type CaseDocument, type Staff } from "../api";
 import { AddDocument } from "../case/AddDocument";
 import { submissionName } from "../vocabulary";
 import { Decide } from "../case/Decide";
 import { History } from "../case/History";
 import { Notice, type Severity } from "../case/Notice";
-import { agentIsWorking, useHeldSubject } from "../case/useHeldSubject";
+import { aiStepIsWorking, useHeldSubject } from "../case/useHeldSubject";
 import { DocumentDrawer } from "../case/DocumentDrawer";
 
 // A case, in whichever state it is in.
@@ -39,7 +39,7 @@ export function CaseView({
   onDemoSwitcherChange,
   onSwitch,
 }: {
-  // The model that will decide this session's agent steps, if one is chosen and
+  // The model that will decide this session's AI steps, if one is chosen and
   // available.
   model: string | null;
   // Whether that model is Replay, which the History says beside its findings.
@@ -78,16 +78,16 @@ export function CaseView({
     void load();
   }, [load]);
 
-  // Poll only while an agent holds the step.
+  // Poll only while the step is an AI step.
   //
   // Submitting returns as soon as the run reaches its first step, because the
   // dispatcher works off the request — so the response is already stale by
-  // design. Quickly while the agent is working, which under Replay is at once
+  // design. Quickly while the AI step is working, which under Replay is at once
   // and on a live model a few seconds; slowly while it waits on something a
   // person has to do — choose a model — since nothing will change until they
   // do. A case waiting on a person polls nothing at all.
-  const agent = subject?.currentStep?.agent ?? null;
-  const pollEvery = agent ? (agentIsWorking(agent) ? 1500 : 5000) : null;
+  const aiStep = subject?.currentStep?.aiStep ?? null;
+  const pollEvery = aiStep ? (aiStepIsWorking(aiStep) ? 1500 : 5000) : null;
   const loadRef = useRef(load);
   loadRef.current = load;
 
@@ -118,7 +118,7 @@ export function CaseView({
   // The demo user switcher: when the case is waiting on a person who is not you,
   // become someone who holds the step. Runs on opening the case and whenever the
   // step changes, so following a case from person to person needs no account
-  // menu. An agent step has no one to switch to, and a team step leaves you be if
+  // menu. An AI step has no one to switch to, and a team step leaves you be if
   // you are already in the team. The server applies its rule whoever you are.
   //
   // The roster and the switch go through a ref, like `load`, so a re-render that
@@ -128,7 +128,7 @@ export function CaseView({
   switchRef.current = { roster, onSwitch };
 
   useEffect(() => {
-    if (!demoSwitcher || !step || step.isAgent) return;
+    if (!demoSwitcher || !step || step.isAiStep) return;
     if (canActAs(identity, step.assignee)) return;
 
     const holder = switchRef.current.roster.find((member) => canActAs(member, step.assignee));
@@ -221,7 +221,7 @@ export function CaseView({
         onFailure={setActionFailure}
       />
 
-      {/* History before the documents: the agent's finding is what a person
+      {/* History before the documents: the AI step's finding is what a person
           reads before deciding, so it sits next to the decision. */}
       <History subject={subject} replaying={replaying} onOpenDocument={setDocumentId} />
 
@@ -282,55 +282,55 @@ function canActAs(identity: Staff, assignee: string) {
   return identity.reference === assignee || identity.groups.includes(assignee);
 }
 
-// What an agent step is waiting on, and what would move it (client decision 40).
+// What an AI step is waiting on, and what would move it (client decision 40).
 // One line per state, because each has a different answer to "what do I do":
 // wait, choose a model, or choose another model or reassign.
-function agentLine(
-  agent: AgentStatus,
+function aiStepLine(
+  aiStep: AiStepStatus,
   missingDocuments: boolean,
 ): { text: string; severity?: Severity } {
-  // An agent cannot file a document, so a step missing one waits for a person
+  // An AI step cannot file a document, so a step missing one waits for a person
   // to take it back, whatever the model is doing.
   if (missingDocuments) {
     return {
-      text: "Waiting for the documents marked missing. An agent cannot file them — reassign the step to someone who can.",
+      text: "Waiting for the documents marked missing. An AI step cannot file them — reassign the step to someone who can.",
       severity: "warning",
     };
   }
 
-  switch (agent.state) {
+  switch (aiStep.state) {
     case "queued":
       return {
-        text: `Waiting for ${agent.detail}. Nothing is holding this open — the run is sitting in the database until the worker picks it up.`,
+        text: `Waiting for ${aiStep.detail}. Nothing is holding this open — the run is sitting in the database until the worker picks it up.`,
       };
     case "running":
       return {
-        text: `${agent.detail} is reading the case. Nothing is holding this open — the run is sitting in the database until the answer is recorded.`,
+        text: `${aiStep.detail} is reading the case. Nothing is holding this open — the run is sitting in the database until the answer is recorded.`,
       };
     case "retrying":
-      return { text: `The last attempt failed and will be tried again: ${agent.detail}` };
+      return { text: `The last attempt failed and will be tried again: ${aiStep.detail}` };
     case "needs-model":
-      return { text: "Choose a model in the top bar for automatic processing of all agent steps.", severity: "warning" };
+      return { text: "Choose a model in the top bar for automatic processing of all AI steps.", severity: "warning" };
     case "unavailable":
       return {
-        text: agent.detail
-          ? `${agent.detail} is not available. Choose another model in the top bar.`
+        text: aiStep.detail
+          ? `${aiStep.detail} is not available. Choose another model in the top bar.`
           : "No model is available. Choose Replay in the top bar, or set ANTHROPIC_API_KEY and restart.",
         severity: "warning",
       };
     case "parked":
       return {
-        text: `The model could not decide this step, and asking again would fail the same way: ${agent.detail}. Choose another model in the top bar, or reassign the step.`,
+        text: `The model could not decide this step, and asking again would fail the same way: ${aiStep.detail}. Choose another model in the top bar, or reassign the step.`,
         severity: "error",
       };
   }
 }
 
-// The agent's line for a step, whatever its state, or null when a person holds it.
+// The status line for an AI step, whatever its state, or null when a person holds it.
 function stepLine(step: NonNullable<Case["currentStep"]>) {
-  return step.agent
-    ? agentLine(
-        step.agent,
+  return step.aiStep
+    ? aiStepLine(
+        step.aiStep,
         step.required.some((required) => !required.present),
       )
     : null;
@@ -418,7 +418,7 @@ function ActionPanel({
             <Text size="sm" c="dimmed">
               Not submitted.
             </Text>
-            {/* Always enabled. If the workflow starts at an agent whose required
+            {/* Always enabled. If the workflow starts at an AI step whose required
                 documents are missing, the server refuses and names them — the
                 rule lives there, not in a disabled button. */}
             <Button onClick={onSubmit} loading={submitting}>
@@ -480,7 +480,7 @@ function ActionPanel({
               checked={demoSwitcher}
               onChange={(event) => onDemoSwitcherChange(event.currentTarget.checked)}
             />
-            {demoSwitcher && !step.isAgent && canActAs(identity, step.assignee) && (
+            {demoSwitcher && !step.isAiStep && canActAs(identity, step.assignee) && (
               <Text size="sm" c="dimmed">
                 Acting as {identity.name}
               </Text>
@@ -490,10 +490,10 @@ function ActionPanel({
 
         <Group gap="xs">
           <Text fw={500}>Now at: {step.name}</Text>
-          <Badge size="sm" variant="light" color={step.isAgent ? "violet" : "gray"}>
+          <Badge size="sm" variant="light" color={step.isAiStep ? "violet" : "gray"}>
             {step.assignee}
           </Badge>
-          {step.agent && agentIsWorking(step.agent) && !missing && <Loader size="xs" />}
+          {step.aiStep && aiStepIsWorking(step.aiStep) && !missing && <Loader size="xs" />}
         </Group>
 
         {/* What a decision here waits on. The server refuses a decision while any
@@ -516,7 +516,7 @@ function ActionPanel({
           </Group>
         )}
 
-        {/* The line about the database stays while the agent works. The pause is
+        {/* The line about the database stays while the AI step works. The pause is
             the demonstration, not a delay to apologise for: the run is open in
             the database with nothing attending it, which is what a workflow
             engine exists to survive. */}

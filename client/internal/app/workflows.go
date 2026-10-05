@@ -7,15 +7,15 @@ import (
 
 // The two seeded workflows.
 //
-// Each agent step carries its instructions on the step itself, in FlowCore, so a
+// Each AI step carries its instructions on the step itself, in FlowCore, so a
 // run keeps the ones it started under and an edit reaches only new runs. They
 // are neutral text: FlowCore does not know a model will read them.
 //
 // Every step in the claim workflow demonstrates something structural that no
 // other step does — that was the test the owner set, and decision 17 records the
-// two steps it removed. Assignee strings are opaque to FlowCore: `agent:triage`
+// two steps it removed. Assignee strings are opaque to FlowCore: `ai:triage`
 // and `group:adjusters` are meaningful only to CaseWork, which is what makes
-// an agent an ordinary actor rather than a special case.
+// an AI step an ordinary actor rather than a special case.
 
 func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 	var (
@@ -43,7 +43,7 @@ func claimAssessmentDefinition() flowcore.WorkflowDefinition {
 				// An AI entry step that branches. The first thing a visitor sees
 				// happen after submitting is this deciding which path the claim takes.
 				ID: triage, WorkflowStatusDefinitionID: inAssessment,
-				Name: "triage", AssigneeID: "agent:triage",
+				Name: "triage", AssigneeID: "ai:triage",
 				Instructions: stepInstructions(`Decide whether this claim can take the fast track or needs full assessment.
 
 Read the intake note against the claimant's account.`),
@@ -67,7 +67,7 @@ Read the intake note against the claimant's account.`),
 			{
 				// An AI step that diverts to a specialist.
 				ID: consistency, WorkflowStatusDefinitionID: inAssessment,
-				Name: "narrative consistency", AssigneeID: "agent:fraud",
+				Name: "narrative consistency", AssigneeID: "ai:fraud",
 				Instructions: stepInstructions(`Compare the claimant's account with the independent documents on file.
 
 It is consistent when the police report and any witness statement agree with the
@@ -129,7 +129,7 @@ func underwritingDefinition() flowcore.WorkflowDefinition {
 		Steps: []flowcore.StepDefinition{
 			{
 				ID: riskScreen, WorkflowStatusDefinitionID: inUnderwriting,
-				Name: "risk screen", AssigneeID: "agent:risk",
+				Name: "risk screen", AssigneeID: "ai:risk",
 				Instructions: stepInstructions(`Screen this policy application.
 
 It is standard when the disclosures and the previous insurer's letter describe an

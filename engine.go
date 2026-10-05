@@ -210,7 +210,7 @@ func (e *Engine) ListAssignedSteps(ctx context.Context, assigneeReferences []str
 // the worklist without its assignee filter.
 //
 // It exists for a client that has to find running work by what the runs
-// themselves say rather than by what the definitions say now: an agent
+// themselves say rather than by what the definitions say now: an AI step
 // dispatcher recovering after a restart, say, when a definition's assignee has
 // since been edited and a query keyed on the new one would miss the visit still
 // waiting on the old. The client decides which rows are its own; the library

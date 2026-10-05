@@ -47,7 +47,7 @@ type StepDefinition struct {
 	AssigneeID string
 	Name       string
 	// Instructions is neutral guidance for whoever acts on this step, a person or
-	// an agent alike. Nil when the step has none. The library stores and snapshots
+	// an AI step alike. Nil when the step has none. The library stores and snapshots
 	// it and never reads it.
 	Instructions *string
 	// RequiredInputTypeIDs are opaque client-defined ids for the kinds of input a

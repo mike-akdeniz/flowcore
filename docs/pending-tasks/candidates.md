@@ -65,7 +65,7 @@ Recorded so nobody rediscovers these as gaps.
   `CLAUDE.md` and several decisions describe a "deferred locking mechanism", which reads like open work.
   It is not: decision 25 establishes that `ux_step_visit_open` *is* the mechanism, probed by forcing two concurrent completions — the loser gets a unique violation and exactly one open row survives.
   No `SELECT FOR UPDATE`, no version column, no serializable isolation, and nothing to build.
-- **Agent retry, backoff and failure policy.**
+- **AI step retry, backoff and failure policy.**
   Decision 43 put these with the client's own job queue, permanently rather than temporarily.
   A workflow library growing its own would be building a worse queue inside itself.
 - **The library calling a model, or holding a prompt.**

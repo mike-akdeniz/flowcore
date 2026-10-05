@@ -26,7 +26,7 @@ func (a *App) SeedSession(ctx context.Context, sessionID string) error {
 	// lists a visitor lands on — the queue and the workflows are ordered newest
 	// first, so creation order is what decides.
 	//
-	// The claim leads deliberately: it is the richer example, with agent steps
+	// The claim leads deliberately: it is the richer example, with AI steps
 	// reading several documents and a history worth looking at (client decision
 	// 42). It used to be the application, for its three steps against the claim's
 	// seven; the owner reversed that.

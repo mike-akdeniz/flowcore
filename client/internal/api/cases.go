@@ -27,7 +27,7 @@ type documentJSON struct {
 	SourceFile *string `json:"sourceFile"`
 	// AddedAtRevision is when this document arrived, and Superseded says a newer
 	// one of its kind has taken over. Superseded documents are sent rather than
-	// filtered out: an agent's remark refers to the document it actually read,
+	// filtered out: a model's remark refers to the document it actually read,
 	// and hiding that document would leave the remark looking wrong.
 	AddedAtRevision int  `json:"addedAtRevision"`
 	Superseded      bool `json:"superseded"`
@@ -66,7 +66,7 @@ type visitJSON struct {
 	RunID       string  `json:"runId"`
 	StepName    string  `json:"stepName"`
 	Assignee    string  `json:"assignee"`
-	IsAgent     bool    `json:"isAgent"`
+	IsAIStep    bool    `json:"isAiStep"`
 	EnteredAt   string  `json:"enteredAt"`
 	CompletedAt *string `json:"completedAt"`
 	CompletedBy *string `json:"completedBy"`
@@ -99,22 +99,22 @@ type currentStepJSON struct {
 	// decision is refused while any of it is not present.
 	Required []requiredDocumentJSON `json:"required"`
 	Assignee string                 `json:"assignee"`
-	IsAgent  bool                   `json:"isAgent"`
+	IsAIStep bool                   `json:"isAiStep"`
 	// Instructions tell whoever holds a person's step what to do, from the run's
-	// snapshot. Nil on an agent step, whose instructions are its prompt and are
+	// snapshot. Nil on an AI step, whose instructions are its prompt and are
 	// read in the editor rather than above a decision it cannot take.
 	Instructions *string `json:"instructions"`
-	// Agent is where an agent step stands; nil on a person's step.
-	Agent        *agentStatusJSON `json:"agent"`
-	WaitingSince string           `json:"waitingSince"`
-	VisitID      string           `json:"visitId"`
-	Actions      []actionJSON     `json:"actions"`
+	// AIStep is where an AI step stands; nil on a person's step.
+	AIStep       *aiStepStatusJSON `json:"aiStep"`
+	WaitingSince string            `json:"waitingSince"`
+	VisitID      string            `json:"visitId"`
+	Actions      []actionJSON      `json:"actions"`
 }
 
-// agentStatusJSON says why an agent step has not been decided yet, so the case
+// aiStepStatusJSON says why an AI step has not been decided yet, so the case
 // screen can say what would move it: wait, choose a model, start the model
 // server, or choose another model or reassign (client decision 40).
-type agentStatusJSON struct {
+type aiStepStatusJSON struct {
 	State  string `json:"state"`
 	Detail string `json:"detail"`
 }
@@ -136,7 +136,7 @@ type caseJSON struct {
 	CurrentStep *currentStepJSON `json:"currentStep"`
 	// History is every visit, oldest first, and empty on a draft. It rides on the
 	// case rather than having an endpoint of its own because the screen polls the
-	// case while an agent holds the step — a separate endpoint would mean polling
+	// case while an AI step is open — a separate endpoint would mean polling
 	// twice, or a history that lags the step it explains.
 	History []visitJSON `json:"history"`
 	// DocumentTypes is every type this session knows about, for labelling what is
@@ -336,7 +336,7 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 		payload.CurrentStep = &currentStepJSON{
 			Name:     state.CurrentStep.Name,
 			Assignee: state.CurrentStep.AssigneeID,
-			IsAgent:  app.IsAgent(state.CurrentStep.AssigneeID),
+			IsAIStep: app.IsAIStep(state.CurrentStep.AssigneeID),
 			// The visit id passes through the browser untouched. React does not
 			// know what a visit is; returning it unchanged is what preserves
 			// FlowCore's stale-view protection without the front end understanding
@@ -346,7 +346,7 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 			Actions:      make([]actionJSON, 0, len(state.CurrentStep.Actions)),
 		}
 
-		if !payload.CurrentStep.IsAgent {
+		if !payload.CurrentStep.IsAIStep {
 			payload.CurrentStep.Instructions = state.CurrentStep.Instructions
 		}
 
@@ -355,13 +355,13 @@ func (s *Server) composeCase(r *http.Request, sessionID string, submission store
 				actionJSON{ID: action.ID.String(), Name: action.Name})
 		}
 
-		if payload.CurrentStep.IsAgent {
+		if payload.CurrentStep.IsAIStep {
 			status, err := s.app.Dispatcher.Status(r.Context(), sessionID, state.CurrentStep.VisitID)
 			if err != nil {
 				return caseJSON{}, err
 			}
 
-			payload.CurrentStep.Agent = &agentStatusJSON{State: string(status.State), Detail: status.Detail}
+			payload.CurrentStep.AIStep = &aiStepStatusJSON{State: string(status.State), Detail: status.Detail}
 		}
 
 		payload.CurrentStep.Required = make([]requiredDocumentJSON, 0, len(state.CurrentStep.RequiredInputTypeIDs))
@@ -388,7 +388,7 @@ func toVisitJSON(visit flowcore.StepVisit, documents []store.Document) visitJSON
 		RunID:       visit.WorkflowID.String(),
 		StepName:    visit.StepName,
 		Assignee:    visit.AssigneeID,
-		IsAgent:     app.IsAgent(visit.AssigneeID),
+		IsAIStep:    app.IsAIStep(visit.AssigneeID),
 		EnteredAt:   visit.EnteredAt.Format(time.RFC3339),
 		DocumentIDs: []string{},
 	}
@@ -753,7 +753,7 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 		VisitID:  visitID,
 		ActionID: actionID,
 		Remark:   body.Remark,
-		// The same revision an agent would stamp, so both kinds of decision are
+		// The same revision an AI step's decision would stamp, so both kinds of decision are
 		// answerable on the same terms: this is the state of the file the person
 		// was looking at.
 		SubjectVersionToken: strconv.Itoa(submission.Revision),
@@ -773,7 +773,7 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A human decision can hand the run straight to an agent, and this response
+	// A human decision can hand the run straight to an AI step, and this response
 	// already knows whether it did. That is decision 4's whole point — nothing
 	// polls to find out — and leaving it off would work, silently, by falling
 	// back on the fifteen-second recovery sweep.
@@ -791,7 +791,7 @@ type reassignJSON struct {
 //
 // Deliberately not restricted to the assignee, unlike deciding. Reassigning
 // settles nothing about the claim — the case sits exactly where it sat, and only
-// the name beside it changes — and it is what makes a failed agent step
+// the name beside it changes — and it is what makes a failed AI step
 // recoverable, since no person is ever the assignee of one.
 func (s *Server) reassign(w http.ResponseWriter, r *http.Request) {
 	sessionID := sessionFrom(r)
@@ -822,7 +822,7 @@ func (s *Server) reassign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handing a step to an agent is a legitimate move — it is how a person gives
+	// Handing a step to an AI step is a legitimate move — it is how a person gives
 	// work back to one — so this dispatches for the same reason deciding does.
 	s.app.Dispatcher.Dispatch(sessionID, *submission.FlowcoreDefinitionID, next)
 
@@ -912,8 +912,8 @@ func twoIDs(first, second string) (uuid.UUID, uuid.UUID, error) {
 
 // writeCase re-reads and returns the whole case, which is what every mutating
 // handler answers with. The caller then never has to work out what changed —
-// deciding can move the run, which changes the step, the history and whether an
-// agent now holds it.
+// deciding can move the run, which changes the step, the history and whether the
+// run is now at an AI step.
 func (s *Server) writeCase(w http.ResponseWriter, r *http.Request, sessionID, reference string) {
 	submission, err := s.app.Store.SubmissionByReference(r.Context(), sessionID, reference)
 	if err != nil {

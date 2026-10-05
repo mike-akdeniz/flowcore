@@ -77,7 +77,7 @@ export function toGraph(workflow: Workflow): { nodes: Node[]; edges: Edge[] } {
       data: {
         name: step.name,
         assignee: step.assignee,
-        isAgent: step.isAgent,
+        isAiStep: step.isAiStep,
         isEntry: step.id === workflow.entryStepId,
         isDeadEnd: step.actions.length === 0,
       },

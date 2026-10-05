@@ -131,7 +131,7 @@ type AssignedStep struct {
 	StepID   uuid.UUID
 	StepName string
 	// Instructions and RequiredInputTypeIDs are the step's, frozen at start, as on
-	// CurrentStep. They are here because an agent picking work off this list acts
+	// CurrentStep. They are here because a client dispatching AI steps off this list acts
 	// on them directly, and fetching them per row would be the fan-out the missing
 	// actions avoid.
 	Instructions         *string
@@ -202,7 +202,7 @@ type Completion struct {
 	// as supplied by the caller. Nil when the client does not version its
 	// subjects; the library never compares or interprets it.
 	SubjectVersionToken *string
-	// Remark is the completer's own account of this decision — an agent's
+	// Remark is the completer's own account of this decision — a model's
 	// findings, a human's reason — as supplied by the caller and never
 	// interpreted. Nil when none was given.
 	//

@@ -7,7 +7,7 @@
 //
 // They are the documents of the seeded story (client decision 69), one per
 // kind, so a visitor filing their own case has a document of each kind to hand.
-// Agent steps read the text, never the name.
+// AI steps read the text, never the name.
 package samples
 
 import (

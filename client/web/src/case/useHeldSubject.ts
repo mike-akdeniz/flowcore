@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentStatus, Case } from "../api";
+import type { AiStepStatus, Case } from "../api";
 
-// How long an agent step's spinner stays on screen once it has been shown.
+// How long an AI step's spinner stays on screen once it has been shown.
 //
 // A result that arrives in half a second is indistinguishable, on screen, from
 // nothing having happened: the panel shows "choose a model" and then, with no
@@ -13,8 +13,8 @@ import type { AgentStatus, Case } from "../api";
 const minimumWorkingMilliseconds = 1000;
 
 // Queued, being asked, or about to be asked again: states that end on their own.
-export function agentIsWorking(agent: AgentStatus) {
-  return agent.state === "queued" || agent.state === "running" || agent.state === "retrying";
+export function aiStepIsWorking(aiStep: AiStepStatus) {
+  return aiStep.state === "queued" || aiStep.state === "running" || aiStep.state === "retrying";
 }
 
 type Working = { reference: string; visitId: string; since: number };
@@ -23,7 +23,7 @@ type Working = { reference: string; visitId: string; since: number };
 // floor above.
 //
 // `receive` takes every update the page gets — a load, a poll, the response to
-// an action. While the screen is showing an agent step at work, an update that
+// an action. While the screen is showing an AI step at work, an update that
 // says it is over waits until the spinner has been up for the minimum. Anything
 // else is shown at once. `expectWork` is for the moment a person does something
 // that puts a waiting step to work — choosing a model — when the server has
@@ -42,7 +42,7 @@ export function useHeldSubject() {
     pending.current = null;
 
     const step = next.currentStep;
-    if (step?.agent && agentIsWorking(step.agent)) {
+    if (step?.aiStep && aiStepIsWorking(step.aiStep)) {
       if (working.current?.visitId !== step.visitId) {
         working.current = { reference: next.reference, visitId: step.visitId, since: Date.now() };
       }
@@ -59,7 +59,7 @@ export function useHeldSubject() {
       const held = working.current;
       const step = next.currentStep;
       const stillWorking =
-        step?.agent && agentIsWorking(step.agent) && step.visitId === held?.visitId;
+        step?.aiStep && aiStepIsWorking(step.aiStep) && step.visitId === held?.visitId;
 
       if (!held || held.reference !== next.reference || stillWorking) {
         show(next);
@@ -88,11 +88,11 @@ export function useHeldSubject() {
   const expectWork = useCallback((detail: string) => {
     const current = shown.current;
     const step = current?.currentStep;
-    if (!current || !step?.agent || agentIsWorking(step.agent)) return;
+    if (!current || !step?.aiStep || aiStepIsWorking(step.aiStep)) return;
 
     working.current = { reference: current.reference, visitId: step.visitId, since: Date.now() };
 
-    const running = { ...current, currentStep: { ...step, agent: { state: "running" as const, detail } } };
+    const running = { ...current, currentStep: { ...step, aiStep: { state: "running" as const, detail } } };
     shown.current = running;
     setSubject(running);
   }, []);

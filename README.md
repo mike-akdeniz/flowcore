@@ -10,10 +10,10 @@ The library records opaque references — subject, assignee, completer — and n
 
 Two iterations shipped.
 Configure a workflow, start one, read where it stands, complete a step with a remark, list what is assigned to someone, and reassign an open step.
-AI review steps need no mechanism of their own: an agent is a step whose assignee happens to name one, and the library never learns the difference.
+AI review steps need no mechanism of their own: an assignee can be a person, a team, or anything the client dispatches itself, such as an AI step, and the library never learns the difference.
 A step can carry neutral `Instructions` and the opaque ids of the inputs a decision on it requires; the library stores and snapshots both and never reads them.
 
-See it running: [CaseWork](client/), the reference client, is an insurer's case console built on this library — claims and policy applications on two workflows with nothing in common, worked by five teams and by agent steps decided by a local or an Anthropic model.
+See it running: [CaseWork](client/), the reference client, is an insurer's case console built on this library — claims and policy applications on two workflows with nothing in common, worked by five teams and by AI steps decided by an Anthropic model when a key is set, or replaying recorded answers otherwise.
 
 ## Why this repo is worth a look
 

@@ -34,8 +34,8 @@ func replayTestApp(t *testing.T) (*App, string) {
 	return application, sessionID
 }
 
-// decideAgentStep runs the open agent step once and returns how it was decided.
-func decideAgentStep(
+// decideAIStep runs the open AI step once and returns how it was decided.
+func decideAIStep(
 	t *testing.T,
 	application *App,
 	sessionID string,
@@ -61,7 +61,7 @@ func decideAgentStep(
 	}
 
 	if completion == nil || completion.Remark == nil {
-		t.Fatalf("%s was not decided: %+v", state.CurrentStep.Name, agentState(t, application, sessionID, visitID))
+		t.Fatalf("%s was not decided: %+v", state.CurrentStep.Name, aiStepState(t, application, sessionID, visitID))
 	}
 
 	next, err := application.Engine.GetState(ctx, *submission.SubjectReference, *submission.FlowcoreDefinitionID)
@@ -98,7 +98,7 @@ func TestReplayPlaysTheSeededPaths(t *testing.T) {
 			}
 
 			var completion flowcore.Completion
-			completion, state = decideAgentStep(t, application, sessionID, submission, state)
+			completion, state = decideAIStep(t, application, sessionID, submission, state)
 
 			if completion.ActionName != path.actions[i] {
 				t.Errorf("%s: %s chose %q, want the recorded %q", path.reference, step, completion.ActionName, path.actions[i])
@@ -159,7 +159,7 @@ func TestReplayDrawsAtRandomOffTheStory(t *testing.T) {
 	}
 
 	submission, state := submitSeeded(t, application, sessionID, reference, "triage")
-	completion, _ := decideAgentStep(t, application, sessionID, submission, state)
+	completion, _ := decideAIStep(t, application, sessionID, submission, state)
 
 	if !strings.HasPrefix(*completion.Remark, "This step is not part of the replay, so \""+completion.ActionName+"\"") ||
 		!strings.HasSuffix(*completion.Remark, "\n\n— Replay") {
@@ -212,7 +212,7 @@ func TestReplayFollowsTheRecordedActionByID(t *testing.T) {
 		})
 
 		submission, state := submitSeeded(t, application, sessionID, "C-1042", "triage")
-		completion, _ := decideAgentStep(t, application, sessionID, submission, state)
+		completion, _ := decideAIStep(t, application, sessionID, submission, state)
 
 		if completion.ActionName != "assess fully" || *completion.Remark != "Triage, recorded.\n\n— Claude (replay)" {
 			t.Errorf("chose %q with %q, want the renamed action and the recorded finding",
@@ -227,7 +227,7 @@ func TestReplayFollowsTheRecordedActionByID(t *testing.T) {
 		})
 
 		submission, state := submitSeeded(t, application, sessionID, "C-1042", "triage")
-		completion, _ := decideAgentStep(t, application, sessionID, submission, state)
+		completion, _ := decideAIStep(t, application, sessionID, submission, state)
 
 		if !strings.HasPrefix(*completion.Remark, "This step's recorded action is no longer one of its actions") {
 			t.Errorf("remark %q, want the random draw explained", *completion.Remark)
@@ -276,7 +276,7 @@ func TestReplayKeepsAnEditedStep(t *testing.T) {
 	}
 
 	submission, state := submitSeeded(t, application, sessionID, "C-1042", "claim triage")
-	completion, _ := decideAgentStep(t, application, sessionID, submission, state)
+	completion, _ := decideAIStep(t, application, sessionID, submission, state)
 
 	if *completion.Remark != "Triage, recorded.\n\n— Claude (replay)" {
 		t.Errorf("remark %q, want the recorded finding", *completion.Remark)
@@ -299,7 +299,7 @@ func TestRecordingsMustMatchTheSeededWorkflow(t *testing.T) {
 }
 
 // The recordings shipped in the binary cover the story's agreed paths (client
-// decision 69). A change to what an agent step reads, or a recording on a route
+// decision 69). A change to what an AI step reads, or a recording on a route
 // the story does not take, fails here rather than on the live site; the fix is
 // `make record`, and, if the model chose another route, a change to the story's
 // documents — never an edit to its answer.

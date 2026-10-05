@@ -55,11 +55,11 @@ var applicationDocumentTypes = []documentType{
 }
 
 // Required means required: a step cannot be decided without them (client
-// decision 36). An agent cannot file a missing document, so the agent steps' sets
+// decision 36). An AI step cannot file a missing document, so the AI steps' sets
 // are chosen to satisfy the two rules an editor would enforce — a case enters
-// `triage` only if its requirements are on file, and an agent hands another
-// agent only requirements it already had (client decision 38). That is why
-// `triage` requires everything its agent successors do.
+// `triage` only if its requirements are on file, and an AI step hands another
+// AI step only requirements it already had (client decision 38). That is why
+// `triage` requires everything the AI steps after it do.
 //
 // The human steps require nothing. A person can file what is missing before
 // deciding.

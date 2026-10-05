@@ -7,7 +7,7 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/app"
 )
 
-// The model picker in the top bar. Which model decides agent steps is the
+// The model picker in the top bar. Which model decides AI steps is the
 // visitor's choice, from whatever the backends offer right now; CaseWork holds no
 // model id of its own (client decision 40).
 
@@ -37,7 +37,7 @@ type modelsJSON struct {
 	// picker shows Replay and cannot change it.
 	Locked bool `json:"locked"`
 	// Replaying is true while the session's model is Replay, which is when the
-	// header says agent steps are replays.
+	// header says AI steps are replays.
 	Replaying bool `json:"replaying"`
 }
 
@@ -55,7 +55,7 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 		payload.Groups = append(payload.Groups, entry)
 	}
 
-	choice, chosen, err := s.app.AgentChoice(r.Context(), sessionFrom(r))
+	choice, chosen, err := s.app.SessionModelChoice(r.Context(), sessionFrom(r))
 	if err != nil {
 		s.fail(w, "could not read the chosen model", err)
 

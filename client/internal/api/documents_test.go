@@ -26,7 +26,7 @@ import (
 )
 
 // These tests use an already migrated CaseWork database and create their own
-// session. They never reset the database or start agent workers.
+// session. They never reset the database or start AI step workers.
 func documentTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
 
@@ -177,7 +177,7 @@ func TestDocumentRemovalAndHistory(t *testing.T) {
 		t.Fatal("submission stamped an obsolete revision")
 	}
 
-	// Finish through ordinary library decisions without dispatching agents.
+	// Finish through ordinary library decisions without dispatching AI steps.
 	for i := 0; state.CurrentStep != nil && i < 20; i++ {
 		action := state.CurrentStep.Actions[0]
 		for _, candidate := range state.CurrentStep.Actions {

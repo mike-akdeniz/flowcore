@@ -7,7 +7,7 @@ import type { Case, Visit } from "../api";
 // The spinner says something is happening; this says it happened. Judged from
 // when the decision was recorded rather than from what this screen has seen, so
 // it survives the screen being remounted — the demo user switcher does that the
-// instant an agent hands a step to a person, which is exactly when the agent's
+// instant an AI step hands a step to a person, which is exactly when the AI step's
 // finding arrives. It trusts the browser's clock to be near the server's, which
 // it is on one machine and is within a second or two anywhere sensible; a clock
 // far behind would show no highlight, and one far ahead would show none either.
@@ -148,7 +148,7 @@ function Heading({ visit }: { visit: Visit }) {
       <Text size="sm" fw={500}>
         {visit.stepName}
       </Text>
-      <Badge size="xs" variant="light" color={visit.isAgent ? "violet" : "gray"}>
+      <Badge size="xs" variant="light" color={visit.isAiStep ? "violet" : "gray"}>
         {visit.completedBy ?? visit.assignee}
       </Badge>
       {visit.actionName ? (

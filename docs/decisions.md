@@ -2010,3 +2010,19 @@ An additive public call; no migration, since every instance table already cascad
 It returns `NotFoundError` for an unknown definition, as `DeleteWorkflowDefinition` does, and deletes nothing in that case.
 A run started concurrently with the delete can survive it: `Start` takes no lock on the definition it copies, and adding one is the locking this library defers until something needs it (CLAUDE.md).
 The caller in view deletes sessions nobody is using, where no run can be starting.
+
+## 50. "Agent" leaves the docs: an assignee can be anything the client dispatches itself, such as an AI step
+
+*Settled by interview, 2026-10-04; the decision itself is load-bearing-marketing's decision 29, and CaseWork's side is client decision 71.*
+
+**What changed.**
+In the strict sense engineers use, an agent is an LLM directing its own multi-step process, and what the library has always supported is narrower: a step whose assignee names something the client acts for.
+The library's public API never used the word, so only prose, comments and test fixtures change.
+The README now says an assignee can be a person, a team, or anything the client dispatches itself, such as an AI step.
+`system-design.md` keeps "AI review step" as iteration 2 named it, and says "AI step" where it said "agent".
+Test fixtures that used `agent:` assignees and completers now use `ai:`, matching CaseWork's prefix, though the library still compares them only for equality.
+
+**What stays.**
+Past entries in this log, comments in applied migrations (`00004`, `00006`), and the completed plans in `docs/pending-tasks/`, filenames included, stay as written: each records what was true or agreed at the time, and renaming a file would break links from entries that are not edited.
+`CLAUDE.md` and the handover file keep "agent" where it means the coding agent.
+The owner agreed that line as Claude proposed it: *"right"*.

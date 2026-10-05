@@ -87,7 +87,7 @@ create database casework owner casework;
 EOF
 
 # CaseWork's whole configuration. 24 idle hours and Secure cookies are decision
-# 56; it listens on localhost, and Caddy is the only way in. Agent steps replay
+# 56; it listens on localhost, and Caddy is the only way in. AI steps replay
 # recorded answers, and no model runs here (decision 69).
 umask 077
 cat >/etc/casework.env <<EOF

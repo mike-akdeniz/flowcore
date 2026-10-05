@@ -4,9 +4,9 @@ The documents of CaseWork's seeded story, as text you can read here and add to a
 application — they are embedded in the binary, so a hosted instance offers the same set.
 
 **They are the story's own documents.** The seeded claim `C-1042` and policy application `P-2087`
-are built from them, and the agent steps' replays were recorded against them (client decision 69).
+are built from them, and the AI steps' replays were recorded against them (client decision 69).
 Adding one to a case of your own gives it a document of that kind, so it can be submitted; on a
-case outside the story, an agent step under Replay chooses its action at random and says so.
+case outside the story, an AI step under Replay chooses its action at random and says so.
 
 **The name is the document type.** Each file is `<order>-<type>.txt`, and the type is the name of
 the document type it is an example of. The number is a suggested reading order and nothing else —

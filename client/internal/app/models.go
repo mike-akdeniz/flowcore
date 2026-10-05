@@ -44,7 +44,7 @@ type ModelGroup struct {
 
 // modelListTTL is how long a listing is reused.
 //
-// The case screen asks whether its agent's model is available on every poll, and
+// The case screen asks whether the chosen model is available on every poll, and
 // Anthropic's listing is a network call; twenty seconds is short enough that a
 // model being retired shows up while someone is still looking.
 const modelListTTL = 20 * time.Second

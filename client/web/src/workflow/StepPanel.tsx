@@ -79,15 +79,15 @@ export function StepPanel({
   }
 
   const isEntry = workflow.entryStepId === step.id;
-  const isAgent = form.assignee.startsWith("agent:");
+  const isAiStep = form.assignee.startsWith("ai:");
 
-  // People and teams from the session, plus the agents this workflow already
-  // uses. Free text as well, because an agent is whatever reference you give
-  // it: typing `agent:photos` makes a new one.
+  // People and teams from the session, plus the AI step assignees this workflow
+  // already uses. Free text as well, because an AI step is whatever reference
+  // you give it: typing `ai:photos` makes a new one.
   const assigneeOptions = [
     ...new Set([
       ...assignees,
-      ...workflow.steps.map((candidate) => candidate.assignee).filter((a) => a.startsWith("agent:")),
+      ...workflow.steps.map((candidate) => candidate.assignee).filter((a) => a.startsWith("ai:")),
     ]),
   ];
 
@@ -120,7 +120,7 @@ export function StepPanel({
 
         <Autocomplete
           label="Assignee"
-          description="A reference starting agent: makes this a step the application decides for itself."
+          description="A reference starting ai: makes this a step the application decides for itself."
           data={assigneeOptions}
           value={form.assignee}
           onChange={(value) => setForm({ ...form, assignee: value })}
@@ -129,8 +129,8 @@ export function StepPanel({
         <Textarea
           label="Instructions"
           description={
-            isAgent
-              ? "What the agent is asked to decide. Required for an agent."
+            isAiStep
+              ? "What the model is asked to decide. Required for an AI step."
               : "Optional guidance for whoever holds this step."
           }
           autosize

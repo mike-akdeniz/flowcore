@@ -1,6 +1,6 @@
 // Package app is the client half of the boundary: everything FlowCore
 // deliberately does not do. Identity resolution, subject storage, session
-// scoping, and (later) dispatching agent steps all live here.
+// scoping, and (later) dispatching AI steps all live here.
 //
 // Nothing in this package is part of the library. That is the point — reading it
 // beside the flowcore calls it makes is what shows where the line falls.

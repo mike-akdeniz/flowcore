@@ -56,7 +56,7 @@ func (b *fakeBackend) respond(answer Answer, err error) {
 	b.mutex.Unlock()
 }
 
-// dispatcherTestApp is a seeded session on a migrated database, deciding agent
+// dispatcherTestApp is a seeded session on a migrated database, deciding AI step
 // steps with the given backends, and with no workers running.
 func dispatcherTestApp(t *testing.T, backends ...Backend) (*App, string) {
 	t.Helper()
@@ -122,7 +122,7 @@ func seededTestApp(t *testing.T, recordings Recordings, backends ...Backend) (*A
 	return application, sessionID
 }
 
-// submitSeededClaim submits the seeded claim, which opens its `triage` agent
+// submitSeededClaim submits the seeded claim, which opens its `triage` AI step
 // step, and returns it with the run's current state.
 func submitSeededClaim(t *testing.T, application *App, sessionID string) (store.Submission, flowcore.WorkflowState) {
 	t.Helper()
@@ -168,7 +168,7 @@ func submitSeeded(
 	return submission, state
 }
 
-// runOnce drains what Submit queued and runs one pass over an open agent
+// runOnce drains what Submit queued and runs one pass over an open AI step
 // visit, the way the worker would.
 func runOnce(t *testing.T, application *App, sessionID string, submission store.Submission, visitID uuid.UUID) {
 	t.Helper()
@@ -187,7 +187,7 @@ func runOnce(t *testing.T, application *App, sessionID string, submission store.
 	})
 }
 
-func agentState(t *testing.T, application *App, sessionID string, visitID uuid.UUID) AgentStatus {
+func aiStepState(t *testing.T, application *App, sessionID string, visitID uuid.UUID) AIStepStatus {
 	t.Helper()
 
 	status, err := application.Dispatcher.Status(context.Background(), sessionID, visitID)
@@ -214,10 +214,10 @@ func stepName(t *testing.T, application *App, submission store.Submission) strin
 	return state.CurrentStep.Name
 }
 
-// A definition edited while an agent step is open, then a restart: the sweep
-// still finds the visit, from the run rather than the definition, and the agent
+// A definition edited while an AI step is open, then a restart: the sweep
+// still finds the visit, from the run rather than the definition, and the AI step
 // is given the instructions the run froze.
-func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
+func TestSweepRecoversAIStepWorkFromTheSnapshot(t *testing.T) {
 	backend := &fakeBackend{
 		name:   "fake",
 		models: []Model{{ID: "only", Label: "Only model"}},
@@ -247,7 +247,7 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 	original := *triage.Instructions
 
 	// The edit: triage is a person's step now, with different instructions. No
-	// definition names agent:triage any more.
+	// definition names ai:triage any more.
 	params := triage.ToUpdate()
 	params.AssigneeID = "group:claims-adjusters"
 	params.Instructions = stepInstructions("Edited after the run began.")
@@ -261,7 +261,7 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 
 	restarted.sweepOnce(ctx)
 
-	// Other packages' tests share the database and may have agent work open, so
+	// Other packages' tests share the database and may have AI steps open, so
 	// the sweep's queue is searched for this session's visit rather than counted.
 	var found *workItem
 	for {
@@ -291,7 +291,7 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 
 	// The chosen model decided, and the finding is signed with it.
 	if name := stepName(t, application, submission); name != "narrative consistency" {
-		t.Errorf("after the agent decided, the case is at %q, want narrative consistency", name)
+		t.Errorf("after the AI step decided, the case is at %q, want narrative consistency", name)
 	}
 
 	history, err := application.SubjectHistory(ctx, sessionID, submission)
@@ -305,9 +305,9 @@ func TestSweepRecoversAgentWorkFromTheSnapshot(t *testing.T) {
 	}
 }
 
-// With several models offered and none chosen, an agent step waits, and says
+// With several models offered and none chosen, an AI step waits, and says
 // so; choosing one lets it go.
-func TestAgentStepWaitsForAModelToBeChosen(t *testing.T) {
+func TestAIStepWaitsForAModelToBeChosen(t *testing.T) {
 	backend := &fakeBackend{
 		name:   "fake",
 		models: []Model{{ID: "small", Label: "Small"}, {ID: "large", Label: "Large"}},
@@ -317,7 +317,7 @@ func TestAgentStepWaitsForAModelToBeChosen(t *testing.T) {
 	submission, state := submitSeededClaim(t, application, sessionID)
 	visitID := state.CurrentStep.VisitID
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentNeedsModel {
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepNeedsModel {
 		t.Errorf("status %+v, want needs-model", status)
 	}
 
@@ -332,7 +332,7 @@ func TestAgentStepWaitsForAModelToBeChosen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentQueued ||
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepQueued ||
 		status.Detail != "Large (Fake)" {
 		t.Errorf("status %+v, want queued for Large", status)
 	}
@@ -345,17 +345,17 @@ func TestAgentStepWaitsForAModelToBeChosen(t *testing.T) {
 }
 
 // A chosen model that stops being offered makes the step wait, not fail.
-func TestAgentStepWaitsForAnUnavailableModel(t *testing.T) {
+func TestAIStepWaitsForAnUnavailableModel(t *testing.T) {
 	backend := &fakeBackend{name: "fake", models: []Model{{ID: "small"}, {ID: "large"}}}
 	application, sessionID := dispatcherTestApp(t, backend)
 	submission, state := submitSeededClaim(t, application, sessionID)
 	visitID := state.CurrentStep.VisitID
 
-	if err := application.Store.SetSessionAgentModel(context.Background(), sessionID, "fake/retired"); err != nil {
+	if err := application.Store.SetSessionModelChoice(context.Background(), sessionID, "fake/retired"); err != nil {
 		t.Fatal(err)
 	}
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentUnavailable ||
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepUnavailable ||
 		status.Detail != "retired" {
 		t.Errorf("status %+v, want unavailable naming the model", status)
 	}
@@ -388,7 +388,7 @@ func TestFailedCallsRetryOrPark(t *testing.T) {
 		t.Errorf("asked %d times after two transient failures, want each pass to try", backend.asked())
 	}
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentRetrying ||
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepRetrying ||
 		!strings.Contains(status.Detail, "overloaded") {
 		t.Errorf("status %+v, want retrying with the error", status)
 	}
@@ -401,7 +401,7 @@ func TestFailedCallsRetryOrPark(t *testing.T) {
 		t.Errorf("asked %d times, want a permanent failure not to be repeated", backend.asked())
 	}
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentParked ||
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepParked ||
 		!strings.Contains(status.Detail, "declined") {
 		t.Errorf("status %+v, want parked with the error", status)
 	}
@@ -411,7 +411,7 @@ func TestFailedCallsRetryOrPark(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if status := agentState(t, application, sessionID, visitID); status.State != AgentQueued {
+	if status := aiStepState(t, application, sessionID, visitID); status.State != AIStepQueued {
 		t.Errorf("status %+v after choosing another model, want queued", status)
 	}
 
@@ -421,8 +421,8 @@ func TestFailedCallsRetryOrPark(t *testing.T) {
 		t.Errorf("asked %d times, want the new model tried", backend.asked())
 	}
 
-	// So is reassigning, even back to the same agent.
-	if _, err := application.Reassign(ctx, visitID, "agent:triage"); err != nil {
+	// So is reassigning, even back to the same AI step.
+	if _, err := application.Reassign(ctx, visitID, "ai:triage"); err != nil {
 		t.Fatal(err)
 	}
 

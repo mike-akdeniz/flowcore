@@ -1,4 +1,4 @@
-// Command record decides the seeded cases' agent steps on Claude and writes the
+// Command record decides the seeded cases' AI steps on Claude and writes the
 // answers to internal/app/replays.json, which the demo replays (client decision
 // 69).
 //
@@ -6,7 +6,7 @@
 //
 // It needs ANTHROPIC_API_KEY, spends a few cents, and runs against the
 // development database in a scratch session it deletes afterwards. Run it again
-// whenever a change reaches what an agent step reads — its instructions, the
+// whenever a change reaches what an AI step reads — its instructions, the
 // seeded documents, the case text — since a recording is only the answer to the
 // question as it was asked.
 package main

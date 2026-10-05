@@ -69,10 +69,10 @@ dev: build
 	trap "kill $$api 2>/dev/null" EXIT INT TERM; \
 	cd web && npm run dev
 
-# Record what the seeded cases' agent steps answer on Claude, into
+# Record what the seeded cases' AI steps answer on Claude, into
 # internal/app/replays.json, which the demo replays (client decision 69). Needs
 # ANTHROPIC_API_KEY in .env and the development database; spends a few cents.
-# Run it again whenever a change reaches what an agent step reads.
+# Run it again whenever a change reaches what an AI step reads.
 record: up
 	go run ./cmd/record
 

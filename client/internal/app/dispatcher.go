@@ -13,16 +13,16 @@ import (
 	"github.com/mike-akdeniz/flowcore"
 )
 
-// agentPrefix marks an assignee this application dispatches automatically.
+// aiPrefix marks an assignee this application dispatches automatically.
 //
 // It is this client's convention and nothing more. FlowCore stores
-// "agent:diff-risk@v1" exactly as it stores "group:security" — an opaque string
+// "ai:diff-risk@v1" exactly as it stores "group:security" — an opaque string
 // it compares for equality and never parses. Deciding that one of them means
 // "a machine handles this" is a decision made here, in eleven characters.
-const agentPrefix = "agent:"
+const aiPrefix = "ai:"
 
-// IsAgent reports whether an assignee is one this application will dispatch.
-func IsAgent(assignee string) bool { return strings.HasPrefix(assignee, agentPrefix) }
+// IsAIStep reports whether an assignee is one this application will dispatch.
+func IsAIStep(assignee string) bool { return strings.HasPrefix(assignee, aiPrefix) }
 
 // workItem is enough to find the work again. Deliberately not the visit itself:
 // by the time a worker picks this up the run may have moved on, so the worker
@@ -34,14 +34,14 @@ type workItem struct {
 	VisitID          uuid.UUID
 }
 
-// Dispatcher runs agent steps off the web request.
+// Dispatcher runs AI steps off the web request.
 //
 // This is decision 4's case-4 dispatch. The alternative — calling the model
 // inline, inside the HTTP handler — would complete the whole loop before the
 // response was written, and a reader could fairly say that is a function call
 // chain rather than something needing a workflow engine.
 //
-// Here the request returns as soon as the run reaches an agent step. The run then
+// Here the request returns as soon as the run reaches an AI step. The run then
 // sits in the database, open, assigned, with nothing attending it, until a worker
 // gets to it. That pause is the thing a workflow engine exists to survive, and it
 // is only visible because nothing is holding it open.
@@ -101,13 +101,13 @@ func (d *Dispatcher) Start(ctx context.Context) {
 	go d.sweep(ctx)
 }
 
-// Dispatch enqueues the run's current step if an agent owns it.
+// Dispatch enqueues the run's current step if it is an AI step.
 //
 // Called with the state returned by Start and CompleteStep — which is the whole
 // point of case 4. Whoever advanced the run is already holding the answer to "is
-// the next step an agent's", so nothing has to poll to find out.
+// the next step an AI step", so nothing has to poll to find out.
 func (d *Dispatcher) Dispatch(sessionID string, definitionID uuid.UUID, state flowcore.WorkflowState) {
-	if state.CurrentStep == nil || !IsAgent(state.CurrentStep.AssigneeID) {
+	if state.CurrentStep == nil || !IsAIStep(state.CurrentStep.AssigneeID) {
 		return
 	}
 
@@ -196,12 +196,12 @@ func (d *Dispatcher) consume(ctx context.Context) {
 	}
 }
 
-// sweep finds agent work nobody enqueued.
+// sweep finds open AI steps nobody enqueued.
 //
 // The queue lives in memory, so a restart loses whatever was in it and those runs
 // would sit open forever. This is the recovery path decision 43 described, asking
 // the runs themselves what is open rather than the definitions who might be
-// assigned: a definition edited since a run began can name different agents, or
+// assigned: a definition edited since a run began can name different AI steps, or
 // none, while the run still waits on the one it froze (FlowCore decision 47).
 func (d *Dispatcher) sweep(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second)
@@ -237,7 +237,7 @@ func (d *Dispatcher) sweepOnce(ctx context.Context) {
 	}
 
 	for _, step := range open {
-		if !IsAgent(step.AssigneeID) {
+		if !IsAIStep(step.AssigneeID) {
 			continue
 		}
 
@@ -274,21 +274,21 @@ func sessionOf(subjectReference string) string {
 	return session
 }
 
-// run does one agent step: read where the work stands, assemble what the model
+// run does one AI step: read where the work stands, assemble what the model
 // needs from both halves, decide, and record.
 func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	state, err := d.app.Engine.GetState(ctx, item.SubjectReference, item.DefinitionID)
 	if err != nil {
-		d.logger.Warn("agent step: reading state", "visit", item.VisitID, "err", err)
+		d.logger.Warn("AI step: reading state", "visit", item.VisitID, "err", err)
 
 		return
 	}
 
 	// The run may have moved since this was queued — a person can complete an
-	// agent's step, which is the override the library allows by never requiring
+	// AI step, which is the override the library allows by never requiring
 	// the completer to be the assignee. If so, there is nothing to do.
 	if state.CurrentStep == nil || state.CurrentStep.VisitID != item.VisitID {
-		d.logger.Info("agent step: already handled", "visit", item.VisitID)
+		d.logger.Info("AI step: already handled", "visit", item.VisitID)
 
 		return
 	}
@@ -299,32 +299,32 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 
 	view, err := d.app.SubjectText(ctx, item.SessionID, reference)
 	if err != nil {
-		d.logger.Warn("agent step: no subject", "subject", item.SubjectReference, "err", err)
+		d.logger.Warn("AI step: no subject", "subject", item.SubjectReference, "err", err)
 
 		return
 	}
 
 	submission, err := d.app.Store.SubmissionByReference(ctx, item.SessionID, referenceOf(reference))
 	if err != nil {
-		d.logger.Warn("agent step: no submission", "subject", item.SubjectReference, "err", err)
+		d.logger.Warn("AI step: no submission", "subject", item.SubjectReference, "err", err)
 
 		return
 	}
 
-	// An agent cannot file a missing document, so there is no point asking it to
-	// decide without one. The editor's rules keep an agent from being handed a
+	// An AI step cannot file a missing document, so there is no point asking it to
+	// decide without one. The editor's rules keep an AI step from being handed a
 	// case that lacks its documents; reassignment can still do it, and then the
 	// visit waits here, open, for a person to take it back.
 	missing, err := d.app.missingDocuments(ctx, item.SessionID, submission.ID,
 		state.CurrentStep.RequiredInputTypeIDs)
 	if err != nil {
-		d.logger.Warn("agent step: checking documents", "visit", item.VisitID, "err", err)
+		d.logger.Warn("AI step: checking documents", "visit", item.VisitID, "err", err)
 
 		return
 	}
 
 	if len(missing) > 0 {
-		d.logger.Info("agent step: waiting for documents", "visit", item.VisitID, "missing", missing)
+		d.logger.Info("AI step: waiting for documents", "visit", item.VisitID, "missing", missing)
 
 		return
 	}
@@ -332,22 +332,22 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 	// Which model decides is the session's choice (client decision 40). Until
 	// there is one, or while the one chosen is not being offered, the visit stays
 	// open and the case screen says why; the sweep comes back to it.
-	choice, chosen, err := d.app.AgentChoice(ctx, item.SessionID)
+	choice, chosen, err := d.app.SessionModelChoice(ctx, item.SessionID)
 	if err != nil {
-		d.logger.Warn("agent step: reading the model choice", "visit", item.VisitID, "err", err)
+		d.logger.Warn("AI step: reading the model choice", "visit", item.VisitID, "err", err)
 
 		return
 	}
 
 	if !chosen {
-		d.logger.Info("agent step: waiting for a model to be chosen", "visit", item.VisitID)
+		d.logger.Info("AI step: waiting for a model to be chosen", "visit", item.VisitID)
 
 		return
 	}
 
 	backend, model, available := d.app.Models.Find(ctx, choice)
 	if !available {
-		d.logger.Info("agent step: the chosen model is not available", "visit", item.VisitID, "model", choice)
+		d.logger.Info("AI step: the chosen model is not available", "visit", item.VisitID, "model", choice)
 
 		return
 	}
@@ -396,10 +396,10 @@ func (d *Dispatcher) run(ctx context.Context, item workItem) {
 
 	d.Release(item.VisitID)
 
-	d.logger.Info("agent step completed",
+	d.logger.Info("AI step completed",
 		"step", state.CurrentStep.Name, "by", state.CurrentStep.AssigneeID, "model", choice)
 
-	// The next step may be another agent's, which is how two agent steps run back
+	// The next step may be another AI step, which is how two AI steps run back
 	// to back without anything polling.
 	d.Dispatch(item.SessionID, item.DefinitionID, next)
 }
@@ -415,7 +415,7 @@ func (d *Dispatcher) ask(
 	subjectText string,
 ) (Verdict, error) {
 	question, err := NewQuestion(CheckRequest{
-		Agent:        step.AssigneeID,
+		Assignee:     step.AssigneeID,
 		StepName:     step.Name,
 		Instructions: step.Instructions,
 		SubjectText:  subjectText,
@@ -473,7 +473,7 @@ func (d *Dispatcher) failed(visitID uuid.UUID, choice ModelChoice, err error) {
 	d.attempts[visitID] = attempt{choice: choice, failure: err}
 	d.mutex.Unlock()
 
-	d.logger.Warn("agent step: the model call failed",
+	d.logger.Warn("AI step: the model call failed",
 		"visit", visitID, "model", choice, "permanent", isPermanent(err), "err", err)
 }
 
@@ -485,51 +485,51 @@ func (d *Dispatcher) Release(visitID uuid.UUID) {
 	d.mutex.Unlock()
 }
 
-// AgentState is where an agent step stands, as the case screen shows it.
-type AgentState string
+// AIStepState is where an AI step stands, as the case screen shows it.
+type AIStepState string
 
 const (
-	// AgentQueued is waiting for the worker, or being asked right now.
-	AgentQueued AgentState = "queued"
-	// AgentRunning is a model call in flight.
-	AgentRunning AgentState = "running"
-	// AgentNeedsModel is waiting for the session to choose a model.
-	AgentNeedsModel AgentState = "needs-model"
-	// AgentUnavailable is waiting for the chosen model to be offered again, or
+	// AIStepQueued is waiting for the worker, or being asked right now.
+	AIStepQueued AIStepState = "queued"
+	// AIStepRunning is a model call in flight.
+	AIStepRunning AIStepState = "running"
+	// AIStepNeedsModel is waiting for the session to choose a model.
+	AIStepNeedsModel AIStepState = "needs-model"
+	// AIStepUnavailable is waiting for the chosen model to be offered again, or
 	// for any model at all to be.
-	AgentUnavailable AgentState = "unavailable"
-	// AgentRetrying failed in a way the next sweep may not repeat.
-	AgentRetrying AgentState = "retrying"
-	// AgentParked failed in a way that would repeat with this model.
-	AgentParked AgentState = "parked"
+	AIStepUnavailable AIStepState = "unavailable"
+	// AIStepRetrying failed in a way the next sweep may not repeat.
+	AIStepRetrying AIStepState = "retrying"
+	// AIStepParked failed in a way that would repeat with this model.
+	AIStepParked AIStepState = "parked"
 )
 
-// AgentStatus is an agent state and the one detail that explains it: the
+// AIStepStatus is an AI step's state and the one detail that explains it: the
 // model's name, or the error.
-type AgentStatus struct {
-	State  AgentState
+type AIStepStatus struct {
+	State  AIStepState
 	Detail string
 }
 
-// Status reports where an open agent visit stands, from the session's choice,
+// Status reports where an open AI step visit stands, from the session's choice,
 // what the backends offer, and what the dispatcher last tried.
-func (d *Dispatcher) Status(ctx context.Context, sessionID string, visitID uuid.UUID) (AgentStatus, error) {
-	choice, chosen, err := d.app.AgentChoice(ctx, sessionID)
+func (d *Dispatcher) Status(ctx context.Context, sessionID string, visitID uuid.UUID) (AIStepStatus, error) {
+	choice, chosen, err := d.app.SessionModelChoice(ctx, sessionID)
 	if err != nil {
-		return AgentStatus{}, err
+		return AIStepStatus{}, err
 	}
 
 	if !chosen {
 		if len(d.app.Models.List(ctx)) == 0 {
-			return AgentStatus{State: AgentUnavailable}, nil
+			return AIStepStatus{State: AIStepUnavailable}, nil
 		}
 
-		return AgentStatus{State: AgentNeedsModel}, nil
+		return AIStepStatus{State: AIStepNeedsModel}, nil
 	}
 
 	backend, model, available := d.app.Models.Find(ctx, choice)
 	if !available {
-		return AgentStatus{State: AgentUnavailable, Detail: choice.Model}, nil
+		return AIStepStatus{State: AIStepUnavailable, Detail: choice.Model}, nil
 	}
 
 	signature := Signature(backend, model)
@@ -537,12 +537,12 @@ func (d *Dispatcher) Status(ctx context.Context, sessionID string, visitID uuid.
 
 	switch {
 	case previous.running:
-		return AgentStatus{State: AgentRunning, Detail: signature}, nil
+		return AIStepStatus{State: AIStepRunning, Detail: signature}, nil
 	case previous.failure != nil && previous.choice == choice && isPermanent(previous.failure):
-		return AgentStatus{State: AgentParked, Detail: previous.failure.Error()}, nil
+		return AIStepStatus{State: AIStepParked, Detail: previous.failure.Error()}, nil
 	case previous.failure != nil && previous.choice == choice:
-		return AgentStatus{State: AgentRetrying, Detail: previous.failure.Error()}, nil
+		return AIStepStatus{State: AIStepRetrying, Detail: previous.failure.Error()}, nil
 	}
 
-	return AgentStatus{State: AgentQueued, Detail: signature}, nil
+	return AIStepStatus{State: AIStepQueued, Detail: signature}, nil
 }

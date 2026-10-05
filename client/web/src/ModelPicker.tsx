@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Select, type ComboboxItem, type ComboboxItemGroup } from "@mantine/core";
 import { api, type ModelOption, type Models } from "./api";
 
-// Which model decides agent steps, for this session.
+// Which model decides AI steps, for this session.
 //
 // Replay first, on its own, then Anthropic's models under their own heading when
 // a key is set — whatever the API offers right now, so there is no model id in
@@ -27,7 +27,7 @@ export function ModelPicker({
   );
 
   // A chosen model that is not being offered still shows, marked, so the top
-  // bar says what agent steps are waiting for.
+  // bar says what AI steps are waiting for.
   if (models?.chosen && !models.available) {
     data.push({
       group: "Not available",
@@ -53,7 +53,7 @@ export function ModelPicker({
     <Select
       size="xs"
       w={240}
-      aria-label="Model for agent steps"
+      aria-label="Model for AI steps"
       placeholder={nothingOffered ? "No model available" : "Choose a model"}
       data={data}
       value={models?.chosen?.value ?? null}

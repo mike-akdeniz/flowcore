@@ -2793,3 +2793,48 @@ FlowCore decision 49 added the call that deletes a definition with its runs, and
 The janitor's sweep itself is not tested, since a test would expire every idle session in the development database.
 
 This reached the library twice: `Action.ActionDefinitionID` (FlowCore decision 48) and `DeleteWorkflowDefinitionWithInstances` (FlowCore decision 49).
+
+## 71. "Agent" leaves CaseWork: "AI step", and "model" only for a named LLM
+
+*Settled by interview, 2026-10-04; the decision itself is load-bearing-marketing's decision 29, and FlowCore's side is FlowCore decision 50.*
+
+**Why.**
+In the strict sense engineers use, an agent is an LLM that directs its own multi-step process and tool use.
+A CaseWork AI step is one model call choosing one of the step's actions and writing a finding; the workflow decides what happens next.
+The owner, on keeping the word in the product while dropping it from the copy: *"Hiding an incorrect usage from the marketing material while keeping the usage in the product will be hiding the dirt under the carpet and then trying to lure people to look under the carpet."*
+
+**The interview.**
+Claude asked the root question first, because `agent:` is a stored value, not only a word: `IsAIStep` matches the assignee prefix, and the hosted demo already held per-session definitions and running steps assigned to `agent:triage`, `agent:fraud` and `agent:risk`.
+Once the prefix became `ai:`, those rows would have stopped matching, and their steps would have sat in the queue for a person named "agent:triage".
+Claude recommended resetting the hosted database over a migration rewriting FlowCore's tables, which would have had the client writing library tables and rewriting snapshots of runs that had already happened, or over accepting both prefixes, which would have kept the word in live code.
+The owner: *"reset, no data migration, nobody knows the prod demoe yet."*
+A session cookie that outlives the reset is re-seeded: `TouchSession` recreates a missing session and the server seeds it.
+
+The column was put next: `agent_model` becomes `model_choice` in a new migration, `00003`, because migrations are append-only (decision 54) even though the reset would have let `00001` be edited without breaking anyone.
+`model_choice` because the column holds a choice, which can be Replay, and matches `ModelChoice`, which parses it; plain `model` would have said Replay is a model.
+The store's `SessionAgentModel` and `SetSessionAgentModel` became `SessionModelChoice` and `SetSessionModelChoice`, and `App.AgentChoice` became `App.SessionModelChoice`, since `ModelChoice` is taken by the type.
+The owner: *"right"*.
+
+Then the identifiers: where "agent" named the step, it became "AI step" — `IsAIStep`, `aiPrefix`, `AIStepState` and its values, `AIStepStatus`, and the tests.
+On the wire, following `runId` and `visitId`, `isAgent` became `isAiStep` and the current step's `agent` became `aiStep`.
+Where "agent" meant whatever decides — "the agent's remark", "what the agent would have been asked" — it became "model".
+Plain "AI" alone was ruled out, because "is AI" says nothing about what it refers to.
+The owner: *"right"*.
+
+Last, the line between history and live text: past entries in this log and comments in applied migrations stay as written, and so do the completed plans in `docs/pending-tasks/`, filenames included, since each records a plan as agreed and is linked from entries that are not edited.
+The owner: *"right"*.
+
+**A question that should not have been asked.**
+Decision 29 noted something to check during the rename: what a finding's signature shows under Replay.
+Claude checked, then proposed changing it — recorded findings signed with the full model label, kept in `replays.json` — alongside dropping the picker option's "Model: " prefix.
+The owner: *"Why are you asking this question? This has nothing to do with renaming agent to ai and you denitiely shouldn't make those changes you recommend..."*
+Neither changed.
+For the record, the check found: a recorded finding replayed on its own case is signed "— Claude (replay)", and a random draw "— Replay".
+
+**Local implementation calls.**
+`CheckRequest.Agent`, which held the step's assignee, became `CheckRequest.Assignee` rather than `AIStep`, because it holds a reference, not a step.
+The editor's refusal now reads "%q is an AI step, so it needs instructions", since an assignee names an AI step rather than being assigned to one.
+Comments that the swap left reading badly were reworded, not reflowed, so some lines run a few characters past the wrap they had.
+
+**Deploying.**
+The hosted database is reset when this ships: both schemas dropped, as `make reset` does locally, before the new binary starts.

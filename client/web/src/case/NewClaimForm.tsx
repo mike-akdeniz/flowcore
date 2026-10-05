@@ -68,7 +68,7 @@ export function NewClaimForm() {
 
         <Textarea
           label="Claimant's account"
-          description="In their words. One of the two texts the narrative-consistency agent reads."
+          description="In their words. One of the two texts the narrative-consistency AI step reads."
           autosize
           minRows={4}
           {...field("incidentNarrative")}

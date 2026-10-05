@@ -34,7 +34,7 @@ type NewSubmission struct {
 // submitting is the only thing that begins one.
 //
 // Note what is *not* validated — whether the documentation is adequate. That
-// judgment belongs to the workflow's first agent step, not to a form. Letting the
+// judgment belongs to the workflow's first AI step, not to a form. Letting the
 // process do the checking rather than the input is the point of having a process.
 func (a *App) CreateSubmission(ctx context.Context, sessionID string, request NewSubmission) (string, error) {
 	// Everything is checked before anything is written, so a refused field
@@ -175,7 +175,7 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 	// FlowCore stores the string and never reads it.
 	startingRevision := strconv.Itoa(revision)
 
-	// An agent entry step's documents are checked against the definition Start
+	// An entry AI step's documents are checked against the definition Start
 	// is about to freeze, inside its transaction, so an edit cannot land between
 	// the check and the snapshot. A failure leaves no run, and the case stays a
 	// draft because the lock above is rolled back.
@@ -200,7 +200,7 @@ func (a *App) Submit(ctx context.Context, sessionID string, submission store.Sub
 		return err
 	}
 
-	// The response already says whether an agent owns the first step, so nothing
+	// The response already says whether the first step is an AI step, so nothing
 	// has to poll to find out. The request returns; a worker picks it up.
 	a.Dispatcher.Dispatch(sessionID, workflow.FlowcoreDefinitionID, state)
 

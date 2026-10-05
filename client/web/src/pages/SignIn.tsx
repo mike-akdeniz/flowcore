@@ -43,7 +43,7 @@ export function SignIn({
             >
               FlowCore
             </Anchor>
-            . Some steps are decided by people and some by an AI agent.
+            . Some steps are decided by people and some are AI steps.
           </Text>
           <Text c="dimmed" size="sm">
             These are demo accounts — pick one. There are no passwords, and your

@@ -430,7 +430,7 @@ func TestCompleteStampsTheRemark(t *testing.T) {
 	if _, err := engine.CompleteStep(ctx, CompleteParams{
 		VisitID:     state.CurrentStep.VisitID,
 		ActionID:    actionNamed(t, state, "approve"),
-		CompletedBy: "agent:policy@v2",
+		CompletedBy: "ai:policy@v2",
 	}); err != nil {
 		t.Fatalf("Complete without a remark: %v", err)
 	}

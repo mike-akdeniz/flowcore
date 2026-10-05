@@ -18,7 +18,7 @@ import (
 // FlowCore entry points it calls.
 //
 // Catalog and Engine are the entire library surface. Everything else in this
-// package — sessions, the subject store, seeding, later the agent dispatcher —
+// package — sessions, the subject store, seeding, later the AI step dispatcher —
 // exists because FlowCore deliberately does none of it.
 type App struct {
 	Config  Config
@@ -30,12 +30,12 @@ type App struct {
 	// Samples are the example documents a visitor can add to a case, and what the
 	// seed is built from, so the two cannot drift.
 	Samples *samples.Library
-	// Recordings are the answers the seeded cases' agent steps replay, copied into
+	// Recordings are the answers the seeded cases' AI steps replay, copied into
 	// each session as it is seeded (client decision 69).
 	Recordings Recordings
-	// Models is what the configured backends offer to decide agent steps.
+	// Models is what the configured backends offer to decide AI steps.
 	Models *ModelDirectory
-	// Dispatcher runs agent steps off the web request. Set by New.
+	// Dispatcher runs AI steps off the web request. Set by New.
 	Dispatcher *Dispatcher
 }
 
@@ -54,7 +54,7 @@ func New(config Config, pool *pgxpool.Pool, library *samples.Library, logger *sl
 	return application
 }
 
-// backends are what agent steps can be decided by: Replay always, and
+// backends are what AI steps can be decided by: Replay always, and
 // Anthropic when a key is set and the demo is not locked to Replay (client
 // decision 69).
 func backends(config Config) []Backend {
@@ -77,16 +77,16 @@ func (a *App) Health(ctx context.Context) error {
 	return nil
 }
 
-// ReportModels says at startup what agent steps can use.
+// ReportModels says at startup what AI steps can use.
 func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
 	for _, group := range a.Models.List(ctx) {
 		for _, model := range group.Models {
-			logger.Info("agent model available", "backend", group.Backend, "model", model.ID)
+			logger.Info("model available", "backend", group.Backend, "model", model.ID)
 		}
 	}
 }
 
-// AgentChoice is the model that decides this session's agent steps: Replay
+// SessionModelChoice is the model that decides this session's AI steps: Replay
 // where the demo is locked to it, and otherwise the one the session chose.
 // Chosen is false until it has chosen.
 //
@@ -94,12 +94,12 @@ func (a *App) ReportModels(ctx context.Context, logger *slog.Logger) {
 // exactly one model was offered; with Replay always offered, that rule would
 // preselect it on every run without a key, and the picker is meant to start
 // empty there (client decision 69).
-func (a *App) AgentChoice(ctx context.Context, sessionID string) (ModelChoice, bool, error) {
+func (a *App) SessionModelChoice(ctx context.Context, sessionID string) (ModelChoice, bool, error) {
 	if a.Config.ReplayOnly {
 		return ReplayChoice, true, nil
 	}
 
-	stored, err := a.Store.SessionAgentModel(ctx, sessionID)
+	stored, err := a.Store.SessionModelChoice(ctx, sessionID)
 	if err != nil {
 		return ModelChoice{}, false, err
 	}
@@ -120,7 +120,7 @@ func (a *App) ChooseModel(ctx context.Context, sessionID string, choice ModelCho
 		return fmt.Errorf("%s is not available", choice.Model)
 	}
 
-	if err := a.Store.SetSessionAgentModel(ctx, sessionID, choice.String()); err != nil {
+	if err := a.Store.SetSessionModelChoice(ctx, sessionID, choice.String()); err != nil {
 		return err
 	}
 

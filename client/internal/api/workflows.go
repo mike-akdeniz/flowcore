@@ -70,7 +70,7 @@ type stepJSON struct {
 	Name     string `json:"name"`
 	Assignee string `json:"assignee"`
 	StatusID string `json:"statusId"`
-	IsAgent  bool   `json:"isAgent"`
+	IsAIStep bool   `json:"isAiStep"`
 	// Expects names the document types a decision on this step requires. FlowCore
 	// stores them as opaque ids on the step; the names are CaseWork's.
 	Expects []string `json:"expects"`
@@ -225,11 +225,11 @@ func (s *Server) composeWorkflow(
 			Name:     step.Name,
 			Assignee: step.AssigneeID,
 			StatusID: step.WorkflowStatusDefinitionID.String(),
-			// Whether an assignee names an agent is CaseWork's convention, not
-			// the library's — FlowCore stores "agent:triage" exactly as it stores
+			// Whether an assignee names an AI step is CaseWork's convention, not
+			// the library's — FlowCore stores "ai:triage" exactly as it stores
 			// "group:claims-adjusters". Deciding it here keeps that convention in
 			// one place rather than duplicated in the browser.
-			IsAgent:      app.IsAgent(step.AssigneeID),
+			IsAIStep:     app.IsAIStep(step.AssigneeID),
 			Expects:      expects,
 			Instructions: step.Instructions,
 			Actions:      toActionsJSON(step.Actions),

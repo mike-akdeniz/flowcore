@@ -13,14 +13,14 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
-// Agent steps in the demo are replays of recorded model calls (client decision
+// AI steps in the demo are replays of recorded model calls (client decision
 // 69).
 //
-// The seeded cases tell a story, and each of their agent steps was decided once
+// The seeded cases tell a story, and each of their AI steps was decided once
 // by Claude and recorded. Replay plays those answers back: the same action and
 // finding every time, on that case, for as long as the step exists in the
 // seeded workflow — whatever is on file, and however the step is edited. Every
-// other agent step under Replay draws an action at random and says so, rather
+// other AI step under Replay draws an action at random and says so, rather
 // than show a recorded finding about a case it was not written for.
 //
 // It is honest by being labelled: the picker names it, the header says what it
@@ -37,7 +37,7 @@ type Recordings struct {
 	Steps []Recording `json:"steps"`
 }
 
-// Recording is one agent step's answer on one seeded case, by the names the
+// Recording is one AI step's answer on one seeded case, by the names the
 // seeded workflow gives them. Names are resolved to the session's own ids when
 // it is seeded, and nothing reads them after that.
 type Recording struct {

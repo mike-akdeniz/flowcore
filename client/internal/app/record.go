@@ -10,11 +10,11 @@ import (
 	"github.com/mike-akdeniz/flowcore"
 )
 
-// recordedCases are the seeded cases whose agent steps are recorded, in the
+// recordedCases are the seeded cases whose AI steps are recorded, in the
 // order the recordings file lists them.
 var recordedCases = []string{"C-1042", "P-2087"}
 
-// Record decides the seeded cases' agent steps on a live model and returns what
+// Record decides the seeded cases' AI steps on a live model and returns what
 // it answered, for replays.json (client decision 69).
 //
 // It runs in a scratch session, seeded as any visitor's is and deleted
@@ -54,7 +54,7 @@ func (a *App) Record(ctx context.Context, backend Backend, model Model) (Recordi
 	return recordings, nil
 }
 
-// recordCase submits one seeded case and decides its agent steps until a person
+// recordCase submits one seeded case and decides its AI steps until a person
 // holds it.
 func (a *App) recordCase(
 	ctx context.Context,
@@ -83,9 +83,9 @@ func (a *App) recordCase(
 	}
 
 	var recordings []Recording
-	for state.CurrentStep != nil && IsAgent(state.CurrentStep.AssigneeID) {
+	for state.CurrentStep != nil && IsAIStep(state.CurrentStep.AssigneeID) {
 		if len(recordings) == 5 {
-			return nil, fmt.Errorf("agents decided five steps in a row; the workflow is looping")
+			return nil, fmt.Errorf("AI steps decided five steps in a row; the workflow is looping")
 		}
 
 		step := *state.CurrentStep
@@ -96,7 +96,7 @@ func (a *App) recordCase(
 		}
 
 		question, err := NewQuestion(CheckRequest{
-			Agent:        step.AssigneeID,
+			Assignee:     step.AssigneeID,
 			StepName:     step.Name,
 			Instructions: step.Instructions,
 			SubjectText:  view.Text,

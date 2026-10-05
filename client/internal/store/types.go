@@ -53,7 +53,7 @@ type Submission struct {
 
 func (s Submission) IsDraft() bool { return s.Status == "draft" }
 
-// ClaimDetail is everything the claim screens show and the claim agents read.
+// ClaimDetail is everything the claim screens show and the claim's AI steps read.
 type ClaimDetail struct {
 	SubmissionID      uuid.UUID
 	PolicyNumber      string
@@ -73,7 +73,7 @@ type ApplicationDetail struct {
 }
 
 // Document is a record carrying text, not a file. The documents that matter are
-// prose, and the text is what the agents read.
+// prose, and the text is what the AI steps read.
 //
 // Rows are never overwritten. Unused documents can be deleted while draft.
 // A newer document of the same kind supersedes an older one — see Current.
@@ -87,7 +87,7 @@ type Document struct {
 	// on it — the samples. Never written: the id is what a document stores.
 	Kind string
 	// Title is the type's title, "Police report", read with the document because
-	// it is how an agent's instructions refer to it. Never written either.
+	// it is how an AI step's instructions refer to it. Never written either.
 	Title      string
 	ReceivedAt time.Time
 	Body       *string
@@ -105,7 +105,7 @@ type Document struct {
 // and a police report — needs no tie-break: two documents only compete when they
 // are the same kind.
 //
-// Pass the submission's own revision for what an agent should read now, or the
+// Pass the submission's own revision for what an AI step should read now, or the
 // revision a visit stamped for what that visit read then. The second is what
 // keeps a completed decision legible after the file has moved on.
 //
@@ -158,7 +158,7 @@ type DocumentType struct {
 	CreatedAt time.Time
 }
 
-// ReplayStep is one recorded answer a session's seeded agent step replays on its
+// ReplayStep is one recorded answer a session's seeded AI step replays on its
 // seeded case (client decision 69). The ids are the session's own, resolved when
 // it was seeded.
 type ReplayStep struct {

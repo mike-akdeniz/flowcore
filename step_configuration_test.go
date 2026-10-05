@@ -251,7 +251,7 @@ func TestGetActionTarget(t *testing.T) {
 	}
 
 	params := stepNamed(t, stored, "director review").ToUpdate()
-	params.AssigneeID = "agent:budget"
+	params.AssigneeID = "ai:budget"
 	params.RequiredInputTypeIDs = []string{"forecast"}
 	if _, err := catalog.UpdateStep(ctx, ids.directorStep, params); err != nil {
 		t.Fatalf("UpdateStep: %v", err)
@@ -314,7 +314,7 @@ func TestListOpenSteps(t *testing.T) {
 	}
 
 	params := stepNamed(t, stored, "manager review").ToUpdate()
-	params.AssigneeID = "agent:new"
+	params.AssigneeID = "ai:new"
 	if _, err := catalog.UpdateStep(ctx, ids.managerStep, params); err != nil {
 		t.Fatalf("UpdateStep: %v", err)
 	}

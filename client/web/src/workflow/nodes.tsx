@@ -2,14 +2,14 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Badge, Group, Paper, Text } from "@mantine/core";
 import { NODE_WIDTH, STEP_HEIGHT, STATUS_HEIGHT } from "./layout";
 
-// A step. Agent steps are marked because that is the distinction a reader most
+// A step. AI steps are marked because that is the distinction a reader most
 // wants at a glance — though it is CaseWork's convention, not the library's:
-// FlowCore stores "agent:triage" exactly as it stores "group:adjusters".
+// FlowCore stores "ai:triage" exactly as it stores "group:adjusters".
 export function StepNode({ data }: NodeProps) {
-  const { name, assignee, isAgent, isEntry, isDeadEnd } = data as {
+  const { name, assignee, isAiStep, isEntry, isDeadEnd } = data as {
     name: string;
     assignee: string;
-    isAgent: boolean;
+    isAiStep: boolean;
     isEntry: boolean;
     isDeadEnd: boolean;
   };
@@ -23,12 +23,12 @@ export function StepNode({ data }: NodeProps) {
       w={NODE_WIDTH}
       mih={STEP_HEIGHT}
       style={{
-        borderColor: isAgent
+        borderColor: isAiStep
           ? "var(--mantine-color-violet-5)"
           : isEntry
             ? "var(--mantine-color-blue-5)"
             : undefined,
-        borderWidth: isAgent || isEntry ? 2 : 1,
+        borderWidth: isAiStep || isEntry ? 2 : 1,
       }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
@@ -43,7 +43,7 @@ export function StepNode({ data }: NodeProps) {
         )}
       </Group>
       <Group gap={6} wrap="nowrap">
-        <Text size="xs" c={isAgent ? "violet" : "dimmed"} lineClamp={1}>
+        <Text size="xs" c={isAiStep ? "violet" : "dimmed"} lineClamp={1}>
           {assignee}
         </Text>
         {isDeadEnd && (

@@ -17,8 +17,8 @@ import (
 // requires, as opaque ids on the step definition, frozen into every run at start
 // (FlowCore decision 47). The rules here are CaseWork's, enforced over both:
 // a step may require only what its kind of case allows, a type may leave that
-// list only when nothing could still require it, and an agent may hand work to
-// another agent only with the documents that agent needs.
+// list only when nothing could still require it, and an AI step may hand work to
+// another AI step only with the documents that AI step needs.
 
 // submissionTypeOf is the kind of case a workflow was registered for. A
 // definition is registered under one type, and that is what bounds the document
@@ -78,11 +78,11 @@ func (a *App) requiredTypeIDs(
 	return ids, nil
 }
 
-// checkAgentHandoffs refuses an action from one agent step to another unless the
+// checkAIStepHandoffs refuses an action from one AI step to another unless the
 // destination's required types are among the source's (client decision 38).
 //
 // After submission only the current assignee may file a document, so nothing
-// can be added while an agent holds a step. The source cannot be decided without
+// can be added while an AI step is open. The source cannot be decided without
 // its own required types, so if the destination's are among them they are
 // present when it hands over — and if not, the source's decision would be
 // blocked with nobody able to unblock it.
@@ -90,7 +90,7 @@ func (a *App) requiredTypeIDs(
 // Only actions into or out of the edited step are checked. A definition that
 // already broke the rule elsewhere should not stop an unrelated edit, and the
 // edit that broke it was refused where it happened.
-func (a *App) checkAgentHandoffs(
+func (a *App) checkAIStepHandoffs(
 	ctx context.Context,
 	sessionID string,
 	definition flowcore.WorkflowDefinition,
@@ -102,7 +102,7 @@ func (a *App) checkAgentHandoffs(
 	}
 
 	for _, source := range definition.Steps {
-		if !IsAgent(source.AssigneeID) {
+		if !IsAIStep(source.AssigneeID) {
 			continue
 		}
 
@@ -112,7 +112,7 @@ func (a *App) checkAgentHandoffs(
 			}
 
 			destination, ok := steps[*action.NextStepDefinitionID]
-			if !ok || !IsAgent(destination.AssigneeID) {
+			if !ok || !IsAIStep(destination.AssigneeID) {
 				continue
 			}
 
@@ -137,7 +137,7 @@ func (a *App) checkAgentHandoffs(
 			}
 
 			return fmt.Errorf(
-				"%q hands %q to another agent, which requires %s — require %s on %q as well, "+
+				"%q hands %q to another AI step, which requires %s — require %s on %q as well, "+
 					"or put a person between them who can file it",
 				source.Name+" / "+action.Name, destination.Name, strings.Join(titles, ", "),
 				map[bool]string{true: "it", false: "them"}[len(titles) == 1], source.Name)

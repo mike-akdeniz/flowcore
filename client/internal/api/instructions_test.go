@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// A person's step carries its instructions to the case screen; an agent step's
+// A person's step carries its instructions to the case screen; an AI step's
 // are its prompt, and do not.
 func TestOnlyAPersonsStepShowsItsInstructions(t *testing.T) {
 	server, sessionID := documentTestServer(t)
@@ -15,16 +15,16 @@ func TestOnlyAPersonsStepShowsItsInstructions(t *testing.T) {
 	caseRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/submit", http.StatusOK)
 
 	step := readCase(t, server, sessionID).CurrentStep
-	if step == nil || !step.IsAgent {
-		t.Fatalf("the submitted claim is at %+v, want its agent triage step", step)
+	if step == nil || !step.IsAIStep {
+		t.Fatalf("the submitted claim is at %+v, want its triage AI step", step)
 	}
 
 	if step.Instructions != nil {
-		t.Errorf("the agent step sent its prompt to the case screen: %q", *step.Instructions)
+		t.Errorf("the AI step sent its prompt to the case screen: %q", *step.Instructions)
 	}
 
 	// Handed to a person, the same step is theirs to decide, and they are shown
-	// what the agent would have been asked.
+	// what the model would have been asked.
 	response := postJSON(t, server, sessionID, "/api/cases/C-1042/reassign",
 		encode(t, map[string]string{"visitId": step.VisitID, "assignee": "group:claims-adjusters"}),
 		http.StatusOK)

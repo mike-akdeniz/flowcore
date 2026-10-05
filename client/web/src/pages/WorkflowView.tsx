@@ -31,7 +31,7 @@ export function WorkflowView() {
   if (!workflow) return <Text c="dimmed">Loading…</Text>;
 
   const step = workflow.steps.find((candidate) => candidate.id === selected);
-  const agentSteps = workflow.steps.filter((candidate) => candidate.isAgent);
+  const aiSteps = workflow.steps.filter((candidate) => candidate.isAiStep);
 
   return (
     <Stack gap="md">
@@ -41,8 +41,8 @@ export function WorkflowView() {
         </Anchor>
         <Title order={3}>{workflow.name}</Title>
         <Text size="sm" c="dimmed">
-          {workflow.steps.length} steps, {agentSteps.length} of them decided by
-          an agent · applies to{" "}
+          {workflow.steps.length} steps, {aiSteps.length} of them
+          AI steps · applies to{" "}
           {submissionPlural(workflow.submissionType)}
         </Text>
         <Group gap="xs" mt="xs">
@@ -73,7 +73,7 @@ export function WorkflowView() {
               <Badge
                 size="sm"
                 variant="light"
-                color={step.isAgent ? "violet" : "gray"}
+                color={step.isAiStep ? "violet" : "gray"}
               >
                 {step.assignee}
               </Badge>
@@ -101,8 +101,8 @@ export function WorkflowView() {
         </Card>
       ) : (
         <Text size="sm" c="dimmed">
-          Click a step to see where it leads. Steps outlined in violet are decided
-          by an agent; the one outlined in blue is where a run begins.
+          Click a step to see where it leads. Steps outlined in violet are AI
+          steps; the one outlined in blue is where a run begins.
         </Text>
       )}
     </Stack>

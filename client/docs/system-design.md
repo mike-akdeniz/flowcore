@@ -36,7 +36,7 @@ and "the client's own submissions" are each a category error.
 _What are we building? What are we not building?_
 
 An **internal case console for an insurer**: the screens its own staff use to process work that has arrived.
-It handles two kinds of submission — **claims** and **new policy applications** — each moving through a configurable workflow, with some steps decided by people and some by an AI agent.
+It handles two kinds of submission — **claims** and **new policy applications** — each moving through a configurable workflow, with some steps decided by people and others that are AI steps.
 
 It is a real application, not a harness.
 The previous version existed to make the library's boundary legible, and carried explanatory prose and a call log on every screen; that goal is gone, along with those.
@@ -61,8 +61,8 @@ The cast is seeded and sign-in is a choice from a list.
 File upload and binary storage.
 Documents are records carrying text.
 
-Workflow selection, agent dispatch, tenancy and identity are all the client's, which is how FlowCore is designed.
-The agent-step configuration work extends FlowCore's neutral step data and snapshot read surface without making FlowCore responsible for documents, models, or case permissions.
+Workflow selection, AI step dispatch, tenancy and identity are all the client's, which is how FlowCore is designed.
+The AI step configuration work extends FlowCore's neutral step data and snapshot read surface without making FlowCore responsible for documents, models, or case permissions.
 
 # Actors
 
@@ -76,8 +76,8 @@ Both workflows are worked by the same organisation, so there is one Dana Whitfie
 - **SIU** — investigate claims the fraud check flags.
 - **Underwriters** and **senior underwriters** — decide new policy applications.
 
-**Agents** are actors too, and that is the whole point of how FlowCore treats them.
-An agent is a step whose assignee happens to be `agent:triage` rather than `group:adjusters`.
+**AI steps** are actors too, and that is the whole point of how FlowCore treats them.
+An AI step is a step whose assignee happens to be `ai:triage` rather than `group:adjusters`.
 The library cannot tell the difference and never needs to.
 
 **The visitor** is whoever opened the application.
@@ -100,7 +100,7 @@ Triage is therefore two levels, and only the second is a human's:
 - An AI step inside the workflow picks the **path** — fast-track or full assessment — and the run branches.
 
 A seeded submission arrives as a draft with no run, so a visitor's first action is submitting it and watching the first AI step fire.
-Before starting on an agent step, CaseWork requires every document type named by that entry step to be present on the case.
+Before starting on an AI step, CaseWork requires every document type named by that entry step to be present on the case.
 The check must use the same definition that FlowCore snapshots; a failed check leaves the submission in draft with no run.
 
 _Work my queue_
@@ -113,7 +113,7 @@ The client expands the signed-in person into the references they answer to — t
 _Follow a case_
 
 Where it stands, what has happened, who did what and why.
-This includes what the agents found: an agent's finding is the remark on its visit, recorded in the same transaction as its decision.
+This includes what the AI steps found: an AI step's finding is the remark on its visit, recorded in the same transaction as its decision.
 
 _Configure a workflow_
 
@@ -131,18 +131,18 @@ Each submission type has an explicit set of document types that may be filed for
 The Add document selector shows that set throughout a case, whether the case is draft or on any workflow step; it does not narrow to the current step.
 Each step separately declares the document types required for a decision on that step, and the case screen shows them with their present or missing state beside the current step and assignee.
 CaseWork refuses a human decision while a required type is missing.
-An agent step's instruction must be nonempty.
-A person's step may carry a one-sentence instruction, which the case screen shows above the Decision control, from the run's snapshot; an agent step's instruction is its prompt and is not shown there.
-The agent reads the case details and the whole current file, each document labelled by its type title, and the instructions say in prose what to look at; required documents are the presence gate, not the agent's reading list.
-Before a selected action hands control to an agent step, CaseWork checks that one immediate destination's required documents are present, using the running workflow snapshot.
+An AI step's instruction must be nonempty.
+A person's step may carry a one-sentence instruction, which the case screen shows above the Decision control, from the run's snapshot; an AI step's instruction is its prompt and is not shown there.
+The model reads the case details and the whole current file, each document labelled by its type title, and the instructions say in prose what to look at; required documents are the presence gate, not the model's reading list.
+Before a selected action hands control to an AI step, CaseWork checks that one immediate destination's required documents are present, using the running workflow snapshot.
 It does not walk beyond that destination or require documents for branches the run has not chosen.
-The editor refuses an action from one agent step to another unless every type the destination requires is also required by the source.
-The source cannot be decided until its own required types are present, and no one can file a document while an agent holds the step, so the subset rule guarantees the destination is never stuck.
-An editor stacking agent steps satisfies it by requiring the later documents on the earlier agent step too, or by inserting a human step between the agents to collect or verify more documents.
-Agent steps are decided by the model the session has chosen in the top bar: Replay, always offered, and Anthropic's models when a key is set.
+The editor refuses an action from one AI step to another unless every type the destination requires is also required by the source.
+The source cannot be decided until its own required types are present, and no one can file a document while an AI step is open, so the subset rule guarantees the destination is never stuck.
+An editor stacking AI steps satisfies it by requiring the later documents on the earlier AI step too, or by inserting a human step between the AI steps to collect or verify more documents.
+AI steps are decided by the model the session has chosen in the top bar: Replay, always offered, and Anthropic's models when a key is set.
 Nothing is chosen for a visitor locally; where `CLIENT_REPLAY_ONLY` is set, as on the hosted demo, every session's model is Replay and cannot be changed.
 A live model's reply is constrained to a schema naming the step's actions, and the finding ends with a line naming the model.
-Replay asks no model: on a seeded case, each seeded agent step plays the answer Claude gave when the case was recorded, matched to the step and its recorded action by definition id, and signed as a replay; any other agent step under Replay chooses an action at random and says so in its finding.
+Replay asks no model: on a seeded case, each seeded AI step plays the answer Claude gave when the case was recorded, matched to the step and its recorded action by definition id, and signed as a replay; any other AI step under Replay chooses an action at random and says so in its finding.
 The History says, beside its findings, when the session's model is Replay.
 Until a model is chosen and available the step waits open, and the case screen says which of queued, running, waiting for a model, retrying, or parked it is.
 
@@ -209,7 +209,7 @@ Completed instances retain frozen references and history but do not block remova
 Hard deletion of a document type used by a document or workflow instance is refused; retiring it from future selection does not erase its identity.
 
 Documents carry text rather than files.
-Agent steps read them, so the text is the point; a binary would add upload, storage and a media story for nothing.
+AI steps read them, so the text is the point; a binary would add upload, storage and a media story for nothing.
 
 Documents are superseded, never replaced.
 A second estimate does not overwrite the first: both rows stay, and the **current** document of a type is the newest one of that type.
@@ -257,9 +257,9 @@ On first arrival CaseWork copies a template dataset into rows tagged with that v
 The cast is shared and read-only.
 What belongs to a visitor is the work, not the people.
 
-The session row also holds the visitor's chosen agent model, backend and model id together, empty until one is chosen.
+The session row also holds the visitor's model choice, backend and model id together, empty until one is chosen.
 
-Seeding also copies the recorded answers into the session, as replay steps: one per seeded agent step on its seeded case, holding the ids of the step and its recorded action in the session's own workflow, and the finding.
+Seeding also copies the recorded answers into the session, as replay steps: one per seeded AI step on its seeded case, holding the ids of the step and its recorded action in the session's own workflow, and the finding.
 They are a snapshot like a run is, so a session keeps the answers it was seeded with.
 
 This is the same principle the previous version used — the client owns tenancy because FlowCore has none — expressed in rows rather than in memory.
@@ -301,8 +301,8 @@ One request per screen, returning a claim or an application — not a workflow, 
 The exception is the workflow editor, whose endpoints mirror `Catalog`, because that screen genuinely is about definitions, steps and actions.
 
 **`internal/app`** is the client half of the boundary and survives the rewrite nearly whole.
-It resolves identity into references, stores and reads subjects, selects the workflow for a submission, dispatches agent steps onto its own queue, and turns the library's typed errors into sentences.
-It enforces allowed document types, required documents, agent instruction presence, and document permissions against the run snapshot where a run exists.
+It resolves identity into references, stores and reads subjects, selects the workflow for a submission, dispatches AI steps onto its own queue, and turns the library's typed errors into sentences.
+It enforces allowed document types, required documents, AI step instruction presence, and document permissions against the run snapshot where a run exists.
 
 **FlowCore** stores the workflow graph, routes a run through it, records who decided what and why, and answers what is waiting on a set of references.
 It snapshots neutral instructions and opaque required input type IDs on every step and exposes open work and action targets from instances.
@@ -318,13 +318,13 @@ It interprets nothing it is given.
       |
       v
   internal/app  — identity, subjects, workflow selection,
-      |           agent dispatch, error translation, session scoping
+      |           AI step dispatch, error translation, session scoping
       +--> casework tables   submissions, details, documents, workflow registry
       |
       +--> FlowCore           Catalog (configure) · Engine (start, complete,
                               worklist, reassign)
       |
-      +--> Anthropic API      only from the agent worker, only when a key is set
+      +--> Anthropic API      only from the AI step worker, only when a key is set
 ```
 
 Nothing in the browser talks to FlowCore.
@@ -343,15 +343,15 @@ _Rules that must not break._
   This is FlowCore's guarantee, not the client's, and CaseWork must not undermine it by rewriting `flowcore_definition_id` on an existing submission.
 - **The browser never decides routing.**
   Which actions exist, and where each leads, come from the library through the API.
-- **An agent step is an ordinary step.**
-  Nothing in the schema, the API, or the library marks one as special; only CaseWork's `agent:` prefix convention decides that its worker picks it up.
+- **An AI step is an ordinary step.**
+  Nothing in the schema, the API, or the library marks one as special; only CaseWork's `ai:` prefix convention decides that its worker picks it up.
 - **Required means a decision cannot be made without the named document types present.**
-  CaseWork checks the current step before completion, checks an immediate agent destination before the chosen action, and checks an agent entry step before starting a run.
+  CaseWork checks the current step before completion, checks an immediate AI step destination before the chosen action, and checks an entry step that is an AI step before starting a run.
   All run-side checks use frozen step configuration; definition edits affect future runs only.
 - **Document availability and document requirements are separate.**
   The Add document selector always shows the case type's allowed list, and CaseWork checks that list when filing; an allowed document need not be required by any step.
   Once submitted, only the current step assignee may file a document.
-- **An open agent visit is discovered from the run, even if its definition was edited.**
+- **An open AI step visit is discovered from the run, even if its definition was edited.**
   Dispatcher recovery and assignment choices read current visits and their frozen assignees, with session filtering in CaseWork.
 - **A remark is written with the decision it explains**, in one call, so a failure cannot separate them.
 - **A document is never overwritten, and can be deleted only while its case is draft and no decision in any previous run had it on file.**
@@ -363,5 +363,5 @@ _Rules that must not break._
   A visit resolves its decision documents as the newest of each frozen required type at or below the revision it stamped, so a document appearing in no visit's set is one that, at every earlier revision, either did not exist yet, had already been superseded, or was not among that visit's required types.
   Removing it changes no past answer.
 - **Every completion records the revision it was decided against.**
-  CaseWork bumps `submission.revision` on any change an agent could read, and passes it as FlowCore's subject version token.
+  CaseWork bumps `submission.revision` on any change an AI step could read, and passes it as FlowCore's subject version token.
   The library records it and never compares it — noticing that a subject moved on is CaseWork's job, and it is the only thing that makes a second visit to a step distinguishable from the first.

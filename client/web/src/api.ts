@@ -21,7 +21,7 @@ export type Session = {
   roster: Staff[];
 };
 
-// A model agent steps can be decided by. Value is the choice as the API takes it
+// A model AI steps can be decided by. Value is the choice as the API takes it
 // back; the browser never looks inside it.
 export type ModelOption = { value: string; label: string };
 
@@ -39,9 +39,9 @@ export type Models = {
   replaying: boolean;
 };
 
-// Where an agent step stands, and the one detail that explains it: the model's
+// Where an AI step stands, and the one detail that explains it: the model's
 // name, or the error.
-export type AgentStatus = {
+export type AiStepStatus = {
   state: "queued" | "running" | "needs-model" | "unavailable" | "retrying" | "parked";
   detail: string;
 };
@@ -206,7 +206,7 @@ export type Visit = {
   runId: string;
   stepName: string;
   assignee: string;
-  isAgent: boolean;
+  isAiStep: boolean;
   enteredAt: string;
   completedAt: string | null;
   completedBy: string | null;
@@ -234,7 +234,7 @@ export type CaseDocument = {
   // and then it can be removed while the case is a draft.
   readBy: string[];
   // Superseded means a newer document of the same kind has taken over. The row
-  // stays on the case: an agent's remark refers to the document it actually
+  // stays on the case: a model's remark refers to the document it actually
   // read, and hiding that document would leave the remark looking wrong.
   superseded: boolean;
 };
@@ -244,12 +244,12 @@ export type CaseStep = {
   // What a decision here waits on, from the run's own frozen copy of the step.
   required: { name: string; title: string; present: boolean }[];
   assignee: string;
-  isAgent: boolean;
+  isAiStep: boolean;
   // What whoever holds a person's step should do, frozen with the run. Null on
-  // an agent step, and on a person's step that has none.
+  // an AI step, and on a person's step that has none.
   instructions: string | null;
   // Null on a person's step.
-  agent: AgentStatus | null;
+  aiStep: AiStepStatus | null;
   waitingSince: string;
   visitId: string;
   actions: { id: string; name: string }[];
@@ -356,10 +356,10 @@ export type WorkflowStep = {
   name: string;
   assignee: string;
   statusId: string;
-  isAgent: boolean;
+  isAiStep: boolean;
   // The document types a decision on this step requires, by name.
   expects: string[];
-  // What whoever acts here is told. Required on an agent step.
+  // What whoever acts here is told. Required on an AI step.
   instructions: string | null;
   actions: WorkflowAction[];
 };

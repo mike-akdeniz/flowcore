@@ -28,7 +28,7 @@ type Identity struct {
 
 // Label is a human name where there is one, and the raw reference otherwise.
 //
-// An agent completing a step arrives here as a bare reference with no roster
+// An AI step's completion arrives here as a bare reference with no roster
 // entry, which is the point: the library takes a string for completedBy and does
 // not care whether a person is behind it.
 func (i Identity) Label() string {

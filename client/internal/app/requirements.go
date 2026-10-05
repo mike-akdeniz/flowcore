@@ -32,7 +32,7 @@ type MissingDocumentsError struct {
 	// Titles are the missing types, named as screens name them.
 	Titles []string
 	// Reason is where the requirement bites: deciding the current step, handing
-	// the case to an agent step, or starting at one.
+	// the case to an AI step, or starting at one.
 	Reason string
 }
 
@@ -44,7 +44,7 @@ func (e *MissingDocumentsError) Error() string {
 
 const (
 	reasonDecide  = "This step cannot be decided yet"
-	reasonHandoff = "That decision would hand the case to an agent that cannot proceed"
+	reasonHandoff = "That decision would hand the case to an AI step that cannot proceed"
 	reasonStart   = "This case cannot be submitted yet"
 )
 
@@ -87,8 +87,8 @@ func (a *App) missingDocuments(
 // checkDecision is the gate on completing the open step with a chosen action.
 //
 // The current step's requirements apply to every decision, a person's or an
-// agent's. Then, if the action hands the case to an agent step, that step's
-// requirements are checked too, because an agent cannot file what it lacks and
+// AI step's. Then, if the action hands the case to an AI step, that step's
+// requirements are checked too, because an AI step cannot file what it lacks and
 // nobody else may while it holds the case. One step ahead only: a person at the
 // destination can file what they need, and branches the run has not chosen are
 // not this decision's concern (client decision 36).
@@ -113,7 +113,7 @@ func (a *App) checkDecision(
 		return err
 	}
 
-	if target == nil || !IsAgent(target.AssigneeID) {
+	if target == nil || !IsAIStep(target.AssigneeID) {
 		return nil
 	}
 
@@ -132,8 +132,8 @@ func (a *App) checkDecision(
 // entryCheck is what Submit hands FlowCore's Start to run against the exact
 // definition it is about to freeze (FlowCore decision 47).
 //
-// Only an agent entry step is checked. A person at the entry step can file what
-// is missing before deciding; an agent cannot, and nobody else may once the case
+// Only an entry step that is an AI step is checked. A person at the entry step can file what
+// is missing before deciding; an AI step cannot, and nobody else may once the case
 // is submitted, so the run would open already stuck.
 func (a *App) entryCheck(sessionID string, submission store.Submission) func(context.Context, flowcore.WorkflowDefinition) error {
 	return func(ctx context.Context, definition flowcore.WorkflowDefinition) error {
@@ -142,7 +142,7 @@ func (a *App) entryCheck(sessionID string, submission store.Submission) func(con
 		}
 
 		for _, step := range definition.Steps {
-			if step.ID != *definition.InitialStepDefinitionID || !IsAgent(step.AssigneeID) {
+			if step.ID != *definition.InitialStepDefinitionID || !IsAIStep(step.AssigneeID) {
 				continue
 			}
 

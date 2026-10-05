@@ -72,13 +72,13 @@ func (s *Store) ExpiredSessions(ctx context.Context, ttl time.Duration) ([]strin
 	return pgx.CollectRows(rows, pgx.RowTo[string])
 }
 
-// SessionAgentModel is the model a session chose for its agent steps, as
+// SessionModelChoice is the model a session chose for its AI steps, as
 // stored; nil until one is chosen.
-func (s *Store) SessionAgentModel(ctx context.Context, id string) (*string, error) {
+func (s *Store) SessionModelChoice(ctx context.Context, id string) (*string, error) {
 	var model *string
 
 	err := s.pool.QueryRow(ctx,
-		`select agent_model from casework.session where id = $1`, id).Scan(&model)
+		`select model_choice from casework.session where id = $1`, id).Scan(&model)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -86,9 +86,9 @@ func (s *Store) SessionAgentModel(ctx context.Context, id string) (*string, erro
 	return model, err
 }
 
-func (s *Store) SetSessionAgentModel(ctx context.Context, id, model string) error {
+func (s *Store) SetSessionModelChoice(ctx context.Context, id, model string) error {
 	tag, err := s.pool.Exec(ctx,
-		`update casework.session set agent_model = $2 where id = $1`, id, model)
+		`update casework.session set model_choice = $2 where id = $1`, id, model)
 	if err != nil {
 		return err
 	}
@@ -347,7 +347,7 @@ func (s *Store) AddDocument(ctx context.Context, document Document) (Document, e
 // oldest first.
 //
 // Nothing is filtered here. Which of them are in force is a question with a
-// different answer for an agent reading the file now and for a visit that closed
+// different answer for an AI step reading the file now and for a visit that closed
 // three revisions ago, so it is answered by Current at the point of asking.
 func (s *Store) Documents(ctx context.Context, submissionID uuid.UUID) ([]Document, error) {
 	rows, err := s.pool.Query(ctx,

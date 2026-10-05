@@ -15,7 +15,7 @@ import { api, type Assignee, type Case } from "../api";
 // step, but they follow different rules: deciding belongs to the assignee, and
 // reassigning is open to anyone. Client decision 23 argues both — the short
 // version is that reassigning settles nothing about the claim, and it is the
-// only way a failed agent step ever reaches a person.
+// only way a failed AI step ever reaches a person.
 // grouped splits the list into the two headings a person can reason about, and
 // drops whoever already has the step — handing work to its current assignee is
 // not a move.
@@ -130,8 +130,8 @@ export function Decide({
       {/* One line instead of an alert box. Deleting the explanation outright
           would leave someone who is not the assignee looking at a card with no
           Decision control and no reason given; saying who it waits on costs a
-          line rather than a panel. An agent step says its own state above. */}
-      {!canDecide && !step.isAgent && (
+          line rather than a panel. An AI step says its own state above. */}
+      {!canDecide && !step.isAiStep && (
         <Text size="sm" c="dimmed">
           Waiting on {step.assignee}.
         </Text>

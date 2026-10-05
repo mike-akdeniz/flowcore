@@ -64,7 +64,7 @@ type CompleteRequest struct {
 //
 // CompletedBy is the identity's opaque reference. Note what is not checked: the
 // library never asks whether this person was the assignee. That is what makes a
-// human override of an agent step possible with no special mechanism — the
+// human override of an AI step possible with no special mechanism — the
 // completer simply need not be the assignee.
 func (a *App) CompleteStep(
 	ctx context.Context,
@@ -105,7 +105,7 @@ func (a *App) CompleteStep(
 // would match no worklist query, so releasing it that way would hide it rather
 // than free it.
 //
-// Reassigning is also one of the two ways out of an agent step parked on a
+// Reassigning is also one of the two ways out of an AI step parked on a
 // failure, so what the dispatcher knew about the visit is dropped with it.
 func (a *App) Reassign(ctx context.Context, visitID uuid.UUID, assignee string) (flowcore.WorkflowState, error) {
 	state, err := a.Engine.Reassign(ctx, visitID, assignee)
@@ -149,9 +149,9 @@ const (
 // Session-scoped because workflows are. A visitor's own definitions are the only
 // ones whose assignees can appear.
 //
-// **Agents are excluded**, though the library would accept one perfectly well.
+// **AI steps are excluded**, though the library would accept one perfectly well.
 // Handing work back to a machine is possible and nothing needs it: the recovery
-// path runs the other way, agent to human. It was the one entry in the list that
+// path runs the other way, AI step to human. It was the one entry in the list that
 // earned nothing and confused everybody.
 func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Assignee, error) {
 	cast, err := a.Store.Roster(ctx)
@@ -169,14 +169,14 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 	var assignees []Assignee
 
 	add := func(reference string) {
-		if reference == "" || seen[reference] || IsAgent(reference) {
+		if reference == "" || seen[reference] || IsAIStep(reference) {
 			return
 		}
 
 		seen[reference] = true
 
 		// The staff table decides who is a person. Anything else that is not an
-		// agent is a team — which means no parsing of the "user:" prefix, and a
+		// AI step is a team — which means no parsing of the "user:" prefix, and a
 		// reference nobody recognises still lands somewhere sensible.
 		if member, ok := people[reference]; ok {
 			assignees = append(assignees, Assignee{

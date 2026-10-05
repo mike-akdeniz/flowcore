@@ -11,7 +11,7 @@ import (
 	"github.com/mike-akdeniz/flowcore/client/internal/store"
 )
 
-// SubjectView is what an agent step reads, and the revision it was read at.
+// SubjectView is what an AI step reads, and the revision it was read at.
 //
 // The revision travels with the text because the two are one fact. FlowCore
 // stamps it on the completion as the subject version token, so a decision and
@@ -22,7 +22,7 @@ type SubjectView struct {
 	Revision int
 }
 
-// SubjectText renders a submission as the prose an agent step reads.
+// SubjectText renders a submission as the prose an AI step reads.
 //
 // This is CaseWork's whole contribution to an AI step. FlowCore holds an
 // opaque reference — "s7f3a2:claim:C-1042" — and nothing else, so the material a
@@ -102,7 +102,7 @@ func (a *App) applicationView(ctx context.Context, submission store.Submission) 
 // subject-agnosticism from the caller's side, and duplicating this would let the
 // two drift into disagreeing about what "on file" means.
 func withDocuments(text *strings.Builder, documents []store.Document, revision int) SubjectView {
-	// An agent reads the file as it stands: the newest document of each kind, not
+	// An AI step reads the file as it stands: the newest document of each kind, not
 	// every estimate ever filed. The superseded ones are still on the case screen
 	// — a remark that says "no labour breakdown" has to keep pointing at the
 	// estimate it was about — but putting them in front of a model would be asking
@@ -122,7 +122,7 @@ func withDocuments(text *strings.Builder, documents []store.Document, revision i
 			document.Title, quoted(document.Name), document.ReceivedAt.Format("2 January 2006"))
 
 		// A photograph is a row with no body. The ones that carry text are what
-		// an agent actually weighs against the account above — the text is the
+		// an AI step actually weighs against the account above — the text is the
 		// document.
 		if document.Body != nil {
 			fmt.Fprintf(text, "\n%s\n", quoted(*document.Body))

@@ -20,7 +20,7 @@ func testActions(names ...string) []flowcore.Action {
 
 func TestNewQuestionHoldsTheModelToTheStepsActions(t *testing.T) {
 	question, err := NewQuestion(CheckRequest{
-		Agent:        "agent:estimates",
+		Assignee:     "ai:estimates",
 		StepName:     "estimate check",
 		Instructions: stepInstructions("Decide whether the estimate can be assessed."),
 		SubjectText:  "Claim: C-1042",

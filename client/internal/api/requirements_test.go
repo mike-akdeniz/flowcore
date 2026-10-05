@@ -18,8 +18,8 @@ import (
 )
 
 // Tests for "required means required" at run time (client decision 36): a
-// decision waits for its step's documents, a handoff to an agent waits for the
-// agent's, a case cannot start at an agent that lacks them, and only whoever
+// decision waits for its step's documents, a handoff to an AI step waits for the
+// AI step's, a case cannot start at an AI step that lacks them, and only whoever
 // holds a submitted case may file on it. Requirements come from the run's
 // snapshot, so the tests edit the definition mid-run to show it does not reach.
 
@@ -63,9 +63,9 @@ func runnableClaim(t *testing.T) (*Server, string) {
 	return server, sessionID
 }
 
-// completeAsAgent decides the open agent step the way the dispatcher would,
+// completeAsAIStep decides the open AI step the way the dispatcher would,
 // through the same gate, without starting a worker.
-func completeAsAgent(t *testing.T, server *Server, sessionID, action string) {
+func completeAsAIStep(t *testing.T, server *Server, sessionID, action string) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -108,7 +108,7 @@ func decision(t *testing.T, subject caseJSON, action string) decideJSON {
 	return decideJSON{}
 }
 
-func TestSubmitRefusesAnAgentEntryWithoutItsDocuments(t *testing.T) {
+func TestSubmitRefusesAnAIStepEntryWithoutItsDocuments(t *testing.T) {
 	server, sessionID := runnableClaim(t)
 	ctx := context.Background()
 
@@ -154,7 +154,7 @@ func TestDecisionsWaitForRequiredDocuments(t *testing.T) {
 	jsonRequest(t, server, sessionID, http.MethodPatch, base+"/steps/"+fastTrack.ID, edit, http.StatusOK)
 
 	caseRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/submit", http.StatusOK)
-	completeAsAgent(t, server, sessionID, "fast track")
+	completeAsAIStep(t, server, sessionID, "fast track")
 
 	// …and still does after the definition stops requiring it: the run froze it.
 	edit.Expects = []string{}
@@ -188,7 +188,7 @@ func TestDecisionsWaitForRequiredDocuments(t *testing.T) {
 		witness, http.StatusForbidden)
 }
 
-func TestHandingToAnAgentChecksItsDocuments(t *testing.T) {
+func TestHandingToAnAIStepChecksItsDocuments(t *testing.T) {
 	server, sessionID := runnableClaim(t)
 
 	workflow := seededWorkflow(t, server, sessionID, store.TypeClaim)
@@ -196,7 +196,7 @@ func TestHandingToAnAgentChecksItsDocuments(t *testing.T) {
 
 	instructions := "Check the witness statement against the account."
 	response := jsonRequest(t, server, sessionID, http.MethodPost, base+"/steps", stepEditJSON{
-		Name: "witness check", Assignee: "agent:witness", StatusID: workflow.Statuses[0].ID,
+		Name: "witness check", Assignee: "ai:witness", StatusID: workflow.Statuses[0].ID,
 		Instructions: &instructions, Expects: []string{"witness-statement"},
 	}, http.StatusOK)
 
@@ -211,7 +211,7 @@ func TestHandingToAnAgentChecksItsDocuments(t *testing.T) {
 		http.StatusOK)
 
 	caseRequest(t, server, sessionID, http.MethodPost, "/api/cases/C-1042/submit", http.StatusOK)
-	completeAsAgent(t, server, sessionID, "fast track")
+	completeAsAIStep(t, server, sessionID, "fast track")
 
 	// Triage's decision documents are what it required, as they stood when it
 	// decided — not the photograph, which was on file and required by nothing.
@@ -231,15 +231,15 @@ func TestHandingToAnAgentChecksItsDocuments(t *testing.T) {
 		t.Errorf("triage's decision documents are %v, want %v", read, want)
 	}
 
-	// The agent needs a witness statement; the person handing over is told so.
+	// The AI step needs a witness statement; the person handing over is told so.
 	refused := requestAs(t, server, sessionID, "user:dana", http.MethodPost, "/api/cases/C-1042/decide",
 		decision(t, subject, "check witness"), http.StatusConflict)
 	if !strings.Contains(refused.Body.String(), "witness check") ||
 		!strings.Contains(refused.Body.String(), "Witness statement") {
-		t.Errorf("refusal does not name the agent step and the type: %s", refused.Body.String())
+		t.Errorf("refusal does not name the AI step and the type: %s", refused.Body.String())
 	}
 
-	// Estimate check is an agent too, and has what it needs.
+	// Estimate check is an AI step too, and has what it needs.
 	requestAs(t, server, sessionID, "user:dana", http.MethodPost, "/api/cases/C-1042/decide",
 		decision(t, subject, "escalate"), http.StatusOK)
 }
