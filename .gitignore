@@ -28,3 +28,6 @@ coverage.*
 *.tfstate
 *.tfstate.*
 *.tfvars
+
+# Agent session handover: local working state, rewritten every session
+docs/pending-tasks/agent-handover.md

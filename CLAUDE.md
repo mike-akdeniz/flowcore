@@ -189,7 +189,7 @@ Include:
 - Links to the authoritative docs, task plans, and files needed to resume without reconstructing the session.
 
 Keep it concise and actionable; link to durable records rather than copying them, and never include secrets.
-Ensure the handover file is linked from `docs/pending-tasks/index.md` when populated.
+The file is local working state: it is git-ignored and never committed or linked from the docs.
 Writing a handover does not change project statuses or authorize a commit.
 
 At the start of a new session, read this file if present alongside `docs/status.md`.

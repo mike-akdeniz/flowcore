@@ -4,7 +4,6 @@ Details for work that is not started or not completed yet are stored in md files
 
 Permanent project state lives in [status.md](../status.md), not here.
 
-- [Agent handover](agent-handover.md) — current continuation context for the next Claude Code or Codex session.
 - [AI step configuration](agent-step-configuration.md) — settled cross-module design and implementation checklist for slice 7.
 - [CaseWork — AI steps as replays](casework-replay.md) — the agreed plan for replacing the local model with replays of recorded Sonnet calls, from client decision 69.
 - [CaseWork — public hosting](casework-hosting.md) — the agreed plan for hosting CaseWork at casework.happensbefore.com, from client decisions 50-60.
