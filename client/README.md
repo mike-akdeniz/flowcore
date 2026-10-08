@@ -14,6 +14,7 @@ nothing here that wraps it; this is an example of *being* the client.
 ## Run it
 
 You need Go, Node, and Docker, which runs CaseWork's own Postgres.
+Run it from `client/`, not the repository root, whose Makefile is the library's:
 
 ```
 make fresh

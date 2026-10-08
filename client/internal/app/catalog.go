@@ -297,7 +297,7 @@ func (a *App) DeleteStep(ctx context.Context, sessionID string, definitionID, st
 		return err
 	} else if len(blockers) > 0 {
 		return fmt.Errorf(
-			"%s still routes here, so this step cannot be deleted — repoint or remove %s first",
+			"%s still routes here, so this step cannot be deleted; repoint or remove %s first",
 			strings.Join(blockers, ", "),
 			map[bool]string{true: "it", false: "them"}[len(blockers) == 1])
 	}

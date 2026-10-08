@@ -67,7 +67,7 @@ export function WorkflowEdit() {
           <Text size="sm">
             {workflow.runningCases}{" "}
             {workflow.runningCases === 1 ? "case is" : "cases are"} running under this
-            workflow. They keep the version they started on — changes here apply to new
+            workflow. They keep the version they started on; changes here apply to new
             ones.
           </Text>
         </Alert>

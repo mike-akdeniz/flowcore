@@ -257,7 +257,7 @@ func (a *App) Reopen(ctx context.Context, sessionID string, submission store.Sub
 
 	if state.CurrentStep != nil {
 		return fmt.Errorf(
-			"%s is still with %s — a case can only be reopened once its workflow has finished",
+			"%s is still with %s; a case can only be reopened once its workflow has finished",
 			submission.Reference, state.CurrentStep.AssigneeID)
 	}
 

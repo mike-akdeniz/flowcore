@@ -188,7 +188,7 @@ export function CaseView({
         </Group>
         <Text size="sm" c="dimmed">
           {subject.status === "draft"
-            ? "Draft — not yet submitted for assessment"
+            ? "Draft: not yet submitted for assessment"
             : `${subject.workflowName} · ${subject.runStatus}`}
         </Text>
       </Stack>
@@ -293,7 +293,7 @@ function aiStepLine(
   // to take it back, whatever the model is doing.
   if (missingDocuments) {
     return {
-      text: "Waiting for the documents marked missing. An AI step cannot file them — reassign the step to someone who can.",
+      text: "Waiting for the documents marked missing. An AI step cannot file them; reassign the step to someone who can.",
       severity: "warning",
     };
   }
@@ -301,11 +301,11 @@ function aiStepLine(
   switch (aiStep.state) {
     case "queued":
       return {
-        text: `Waiting for ${aiStep.detail}. Nothing is holding this open — the run is sitting in the database until the worker picks it up.`,
+        text: `Waiting for ${aiStep.detail}. Nothing is holding this open; the run is sitting in the database until the worker picks it up.`,
       };
     case "running":
       return {
-        text: `${aiStep.detail} is reading the case. Nothing is holding this open — the run is sitting in the database until the answer is recorded.`,
+        text: `${aiStep.detail} is reading the case. Nothing is holding this open; the run is sitting in the database until the answer is recorded.`,
       };
     case "retrying":
       return { text: `The last attempt failed and will be tried again: ${aiStep.detail}` };
@@ -510,7 +510,7 @@ function ActionPanel({
                 variant="light"
                 color={required.present ? "green" : "red"}
               >
-                {required.title} {required.present ? "✓" : "— missing"}
+                {required.title}{required.present ? " ✓" : ": missing"}
               </Badge>
             ))}
           </Group>

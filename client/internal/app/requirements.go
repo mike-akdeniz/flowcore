@@ -190,7 +190,7 @@ func (a *App) CanAddDocument(ctx context.Context, submission store.Submission, i
 	}
 
 	if !identity.CanActAs(state.CurrentStep.AssigneeID) {
-		return fmt.Errorf("%w — %s is waiting on %s", ErrNotYourCase, submission.Reference,
+		return fmt.Errorf("%w: %s is waiting on %s", ErrNotYourCase, submission.Reference,
 			state.CurrentStep.AssigneeID)
 	}
 

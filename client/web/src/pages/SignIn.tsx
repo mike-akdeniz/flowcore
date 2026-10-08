@@ -34,7 +34,7 @@ export function SignIn({
         <Stack gap={4}>
           <Title order={2}>CaseWork</Title>
           <Text c="dimmed" size="sm">
-            An insurer's case console — assessing claims and underwriting new policies,
+            An insurer's case console: assessing claims and underwriting new policies,
             built on{" "}
             <Anchor
               href="https://github.com/mike-akdeniz/flowcore"
@@ -46,7 +46,7 @@ export function SignIn({
             . Some steps are decided by people and some are AI steps.
           </Text>
           <Text c="dimmed" size="sm">
-            These are demo accounts — pick one. There are no passwords, and your
+            These are demo accounts; pick one. There are no passwords, and your
             work is yours alone: every visitor gets their own copy of the data.
           </Text>
         </Stack>

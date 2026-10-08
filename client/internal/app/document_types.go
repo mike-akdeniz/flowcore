@@ -137,7 +137,7 @@ func (a *App) checkAIStepHandoffs(
 			}
 
 			return fmt.Errorf(
-				"%q hands %q to another AI step, which requires %s — require %s on %q as well, "+
+				"%q hands %q to another AI step, which requires %s; require %s on %q as well, "+
 					"or put a person between them who can file it",
 				source.Name+" / "+action.Name, destination.Name, strings.Join(titles, ", "),
 				map[bool]string{true: "it", false: "them"}[len(titles) == 1], source.Name)
@@ -277,7 +277,7 @@ func (a *App) checkRemovable(
 
 		for _, step := range definition.Steps {
 			if slices.Contains(step.RequiredInputTypeIDs, id) {
-				return fmt.Errorf("%s is required by %q in %q, so a %s must still be able to hold it — "+
+				return fmt.Errorf("%s is required by %q in %q, so a %s must still be able to hold it; "+
 					"remove the requirement first",
 					documentType.Title, step.Name, definition.Name, submissionType)
 			}

@@ -42,7 +42,7 @@ func ErrorMessage(err error) string {
 	var referenced *flowcore.ReferencedError
 	if errors.As(err, &referenced) {
 		return fmt.Sprintf(
-			"That %s is still pointed at by something else — an action routes to it, "+
+			"That %s is still pointed at by something else: an action routes to it, "+
 				"or a step uses it as its status. Repoint whatever refers to it first.",
 			referenced.Entity)
 	}
@@ -50,8 +50,8 @@ func ErrorMessage(err error) string {
 	var identifier *flowcore.InvalidIdentifierError
 	if errors.As(err, &identifier) {
 		return fmt.Sprintf(
-			"%s has to be between 1 and 500 characters. It is an opaque reference — "+
-				"FlowCore never interprets it — but it cannot be empty.", identifier.Field)
+			"%s has to be between 1 and 500 characters. It is an opaque reference, "+
+				"which FlowCore never interprets, but it cannot be empty.", identifier.Field)
 	}
 
 	var notFound *flowcore.NotFoundError
@@ -70,7 +70,7 @@ func ErrorMessage(err error) string {
 		return "A name has to be between 1 and 200 characters."
 
 	case errors.Is(err, flowcore.ErrInvalidAction):
-		return "An action goes either to another step or to a terminal status — one or " +
+		return "An action goes either to another step or to a terminal status: one or " +
 			"the other, never both and never neither."
 
 	case errors.Is(err, flowcore.ErrNoSteps):
@@ -87,14 +87,14 @@ func ErrorMessage(err error) string {
 			"open at a time; finish it before starting another."
 
 	case errors.Is(err, flowcore.ErrVisitNotOpen):
-		return "That step was already completed — the run has moved on since this page was " +
+		return "That step was already completed; the run has moved on since this page was " +
 			"loaded. Reload to see where it stands now."
 
 	case errors.Is(err, flowcore.ErrActionNotAvailable):
 		return "That action does not belong to the step the run is on."
 
 	case errors.Is(err, flowcore.ErrInvalidRemark):
-		return "A remark has to be between 1 and 3000 characters — a sentence or a page. " +
+		return "A remark has to be between 1 and 3000 characters: a sentence or a page. " +
 			"Anything longer is a document, and documents belong in the application, not here."
 
 	case errors.Is(err, flowcore.ErrUnmappedConstraint):

@@ -181,7 +181,7 @@ func (a *App) AssignableReferences(ctx context.Context, sessionID string) ([]Ass
 		if member, ok := people[reference]; ok {
 			assignees = append(assignees, Assignee{
 				Reference: reference,
-				Label:     member.Name + " — " + TeamsOf(member.Groups),
+				Label:     member.Name + ", " + TeamsOf(member.Groups),
 				Kind:      KindPerson,
 			})
 

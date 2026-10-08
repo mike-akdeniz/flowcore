@@ -80,7 +80,7 @@ export function WorkflowView() {
             </Group>
             <Text size="sm" c="dimmed">
               {step.actions.length === 0
-                ? "No actions — a run reaching this step cannot leave it."
+                ? "No actions: a run reaching this step cannot leave it."
                 : "Leaves this step by:"}
             </Text>
             {step.actions.map((action) => {

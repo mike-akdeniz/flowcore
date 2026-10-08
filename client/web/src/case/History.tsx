@@ -98,7 +98,7 @@ export function History({ subject, replaying, onOpenDocument }: {
                         appears wherever the id changes. */}
                     {index > 0 && visit.runId !== subject.history[index - 1].runId && (
                       <Badge size="xs" variant="outline" color="gray">
-                        reopened — new run
+                        reopened: new run
                       </Badge>
                     )}
                     <Heading visit={visit} />

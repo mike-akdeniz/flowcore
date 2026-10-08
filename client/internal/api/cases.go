@@ -736,7 +736,7 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request) {
 	if !identity.CanActAs(state.CurrentStep.AssigneeID) {
 		http.Error(w,
 			"this step is waiting on "+state.CurrentStep.AssigneeID+
-				", so it is not yours to decide — reassign it first",
+				", so it is not yours to decide; reassign it first",
 			http.StatusForbidden)
 
 		return

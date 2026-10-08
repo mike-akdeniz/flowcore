@@ -26,8 +26,7 @@ export function AllWork() {
       <Stack gap={2}>
         <Title order={3}>All work</Title>
         <Text size="sm" c="dimmed">
-          Every submission in this session, whoever it is waiting on — including the
-          ones that have finished.
+          Every submission in the system for this session.
         </Text>
       </Stack>
 
